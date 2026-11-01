@@ -246,22 +246,28 @@ final class AudioCaptureMixerTests {
 }
 
 /// Plays one chunk on the first drain, and one more once the capture ends.
+///
+/// `reported` yields on the second drain. The shim's client sends what the first drain produced
+/// before it polls again, so by then its report is waiting for the session.
 private final class ScriptedEngine: AudioCaptureEngine {
   private var pending: [AudioCaptureChunk]
   private let last: AudioCaptureChunk
-  private let began: AsyncStream<Void>.Continuation
+  private let reported: AsyncStream<Void>.Continuation
+  private var drains = 0
 
-  init(first: AudioCaptureChunk, last: AudioCaptureChunk, began: AsyncStream<Void>.Continuation) {
+  init(first: AudioCaptureChunk, last: AudioCaptureChunk, reported: AsyncStream<Void>.Continuation) {
     pending = [first]
     self.last = last
-    self.began = began
+    self.reported = reported
   }
 
-  func begin() {
-    began.yield()
-  }
+  func begin() {}
 
   func drain(_ body: (AudioCaptureChunk) -> Void) -> UInt64 {
+    drains += 1
+    if drains == 2 {
+      reported.yield()
+    }
     pending.forEach(body)
     pending = []
     return 0
@@ -287,10 +293,10 @@ struct AudioCaptureSessionTests {
     await session.beginPolling()
 
     // The guest: the shim's client and controller in this process, playing a scripted engine.
-    let (began, beganContinuation) = AsyncStream<Void>.makeStream()
+    let (reported, reportedContinuation) = AsyncStream<Void>.makeStream()
     let engine = ScriptedEngine(
       first: chunk(at: start, frames: 4, value: 0.25), last: chunk(at: start + ticks(frames: 4), frames: 2, value: 0.5),
-      began: beganContinuation)
+      reported: reportedContinuation)
     let client = ShimulatorClient(
       socketPath: socketPath, handler: AudioCaptureController(engine: engine), processName: "Player",
       pollIntervalMilliseconds: 10, log: { _ in })
@@ -300,8 +306,9 @@ struct AudioCaptureSessionTests {
         continuation.finish()
       }
     }
-    var beganIterator = began.makeAsyncIterator()
-    await beganIterator.next()
+    // A process is named by its report, so the capture stops only once the client has sent one.
+    var reportedIterator = reported.makeAsyncIterator()
+    await reportedIterator.next()
 
     let mixPath = (root as NSString).appendingPathComponent("mix.wav")
     let captured = try await session.stop(writingMixTo: mixPath)
