@@ -15,17 +15,23 @@ public struct IdleSyncSample: Equatable, Sendable {
   /// Wall-clock milliseconds when the current idle period began, as the trackers recorded it from load; read only
   /// while `reasons` is empty.
   public let idleSince: UInt64
+  /// See `IdleSyncState.lastInputAt`.
+  public let lastInputAt: UInt64?
   /// Wall-clock milliseconds when it was taken.
   public let at: UInt64
 
-  public init(reasons: [IdleSyncReason], idleSince: UInt64, at: UInt64) {
+  public init(
+    reasons: [IdleSyncReason], idleSince: UInt64, lastInputAt: UInt64? = nil, at: UInt64
+  ) {
     self.reasons = reasons
     self.idleSince = idleSince
+    self.lastInputAt = lastInputAt
     self.at = at
   }
 }
 
-/// The trackers the controller reads; the shim's observe the main run loop and Core Animation.
+/// The trackers the controller reads; the shim's observe the main run loop, Core Animation, scrolling and delayed
+/// main-thread work.
 public protocol IdleSyncProbe {
   func sample() -> IdleSyncSample
   /// `nil` restores the trackers' own threshold.
@@ -74,10 +80,10 @@ public final class IdleSyncController: ShimulatorMethodHandler {
       historyStart = sample.at
       thresholdChanged = false
     }
-    guard sample.reasons.isEmpty else {
-      return IdleSyncState(idleSince: nil, reasons: sample.reasons.map(\.rawValue))
-    }
-    return IdleSyncState(idleSince: min(max(sample.idleSince, historyStart), sample.at), reasons: [])
+    let idleSince = sample.reasons.isEmpty ? min(max(sample.idleSince, historyStart), sample.at) : nil
+    return IdleSyncState(
+      idleSince: idleSince, reasons: sample.reasons.map(\.rawValue),
+      lastInputAt: sample.lastInputAt)
   }
 
   private func setBusyThreshold(_ milliseconds: UInt32?) {

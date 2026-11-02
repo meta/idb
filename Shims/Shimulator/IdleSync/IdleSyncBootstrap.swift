@@ -15,13 +15,15 @@ private struct TrackerProbe: IdleSyncProbe {
   func sample() -> IdleSyncSample {
     let sample = FBIdleSyncSampleNow()
     var reasons: [IdleSyncReason] = []
-    if sample.mainBusy {
-      reasons.append(.main)
+    for (holds, reason) in [
+      (sample.mainBusy, IdleSyncReason.main), (sample.animating, .animation), (sample.scrolling, .scroll),
+      (sample.delayed, .delayed),
+    ] where holds {
+      reasons.append(reason)
     }
-    if sample.animating {
-      reasons.append(.animation)
-    }
-    return IdleSyncSample(reasons: reasons, idleSince: sample.idleSince, at: sample.at)
+    return IdleSyncSample(
+      reasons: reasons, idleSince: sample.idleSince, lastInputAt: sample.lastInputAt == 0 ? nil : sample.lastInputAt,
+      at: sample.at)
   }
 
   func setBusyThreshold(milliseconds: UInt32?) {

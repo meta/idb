@@ -15,8 +15,16 @@ typedef struct {
   bool mainBusy;
   // A tracked Core Animation animation is running, or ended within the settle window.
   bool animating;
+  // A scroll view in a window moved its content within the settle window.
+  bool scrolling;
+  // Main-thread work the app scheduled to run shortly (`dispatch_after`, `performSelector:afterDelay:`, a one-shot
+  // timer) is pending.
+  bool delayed;
+  // Wall-clock milliseconds when the process last finished handling the end of a touch sequence or a key press, or 0
+  // if it never has.
+  uint64_t lastInputAt;
   // Wall-clock milliseconds when the settle window after the last of these ended: when the current idle period
-  // began, as observed from load. Meaningful only while neither holds.
+  // began, as observed from load. Meaningful only while none holds.
   uint64_t idleSince;
   // Wall-clock milliseconds when the sample was taken.
   uint64_t at;

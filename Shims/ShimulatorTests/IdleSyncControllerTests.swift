@@ -22,7 +22,11 @@ private final class ScriptedProbe: IdleSyncProbe, Sendable {
   var thresholds: [UInt32?] { state.withLock { $0.thresholds } }
 
   func next(_ reasons: [IdleSyncReason], idleSince: UInt64 = 0, at: UInt64) {
-    state.withLock { $0.samples.append(IdleSyncSample(reasons: reasons, idleSince: idleSince, at: at)) }
+    next(IdleSyncSample(reasons: reasons, idleSince: idleSince, at: at))
+  }
+
+  func next(_ sample: IdleSyncSample) {
+    state.withLock { $0.samples.append(sample) }
   }
 
   func sample() -> IdleSyncSample {
@@ -99,6 +103,16 @@ struct IdleSyncControllerTests {
     let admission = try controller.start(IdleSyncParameters())
     probe.next([], idleSince: .max, at: 20)
     #expect(try state(controller.poll(admission)) == IdleSyncState(idleSince: 20, reasons: []))
+  }
+
+  @Test("The last input is reported without making the process busy")
+  func input() throws {
+    let probe = ScriptedProbe()
+    let controller = IdleSyncController(probe: probe)
+    let admission = try controller.start(IdleSyncParameters())
+    probe.next(IdleSyncSample(reasons: [], idleSince: 18, lastInputAt: 15, at: 20))
+    #expect(
+      try state(controller.poll(admission)) == IdleSyncState(idleSince: 18, reasons: [], lastInputAt: 15))
   }
 
   @Test("Equal states are equal updates, so the client sends each state once")

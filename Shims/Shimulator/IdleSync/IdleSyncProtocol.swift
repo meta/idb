@@ -30,6 +30,11 @@ public enum IdleSyncReason: String, CaseIterable, Sendable {
   case main
   /// A Core Animation animation that ends within the tracked horizon.
   case animation
+  /// A scroll view's content moving.
+  case scroll
+  /// Main-thread work the app scheduled to run shortly: `dispatch_after` on the main queue,
+  /// `performSelector:afterDelay:`, a one-shot timer.
+  case delayed
 }
 
 /// What a process reports whenever it goes busy or idle, or what keeps it busy changes.
@@ -39,9 +44,13 @@ public struct IdleSyncState: Codable, Equatable, Sendable {
   public let idleSince: UInt64?
   /// What keeps the process busy; empty while idle.
   public let reasons: [String]
+  /// Wall-clock milliseconds when the process last finished handling the end of a touch sequence or a key press;
+  /// absent until it has handled one.
+  public let lastInputAt: UInt64?
 
-  public init(idleSince: UInt64?, reasons: [String]) {
+  public init(idleSince: UInt64?, reasons: [String], lastInputAt: UInt64? = nil) {
     self.idleSince = idleSince
     self.reasons = reasons
+    self.lastInputAt = lastInputAt
   }
 }

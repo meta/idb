@@ -148,6 +148,7 @@ targets:
     dependencies:
       - sdk: Foundation.framework
       - sdk: QuartzCore.framework
+      - sdk: UIKit.framework
 
   ShimulatorIdleSyncBootstrap:
     type: library.static
