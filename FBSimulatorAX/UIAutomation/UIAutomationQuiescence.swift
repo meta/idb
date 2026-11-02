@@ -8,7 +8,7 @@
 import FBSimulatorControl
 import Foundation
 
-/// A condition the accessibility runtime reports an application meeting once it has gone idle.
+/// A condition an application meets once it has gone idle.
 public enum QuiescenceSignal: String, Sendable, Hashable, CaseIterable {
   /// The application's main run loop has gone idle.
   case runLoopIdle = "run_loop_idle"

@@ -67,6 +67,16 @@ struct CompanionAccessibility: @unchecked Sendable {
     return try await simulator.uiAutomation(backend: backend).quiescence(query, parameters: parameters)
   }
 
+  func shimulatorQuiescence(
+    query: AccessibilityElementQuery,
+    parameters: QuiescenceParameters
+  ) async throws -> AsyncThrowingStream<QuiescenceEvent, Error> {
+    guard let simulator = target as? Simulator else {
+      throw IDBCommandError.simulatorOnlyOperation(operation: "stream shimulator quiescence", targetDescription: String(describing: target))
+    }
+    return try await simulator.idleSync.quiescence(query, parameters: parameters)
+  }
+
   func processId(forBundleID bundleID: String) async throws -> pid_t {
     try await target.application.processID(forBundleID: bundleID)
   }

@@ -21,6 +21,11 @@ protocol AccessibilityQuiescenceStreaming {
     backend: UIAutomationBackend
   ) async throws -> AsyncThrowingStream<QuiescenceEvent, Error>
 
+  func shimulatorQuiescence(
+    query: AccessibilityElementQuery,
+    parameters: QuiescenceParameters
+  ) async throws -> AsyncThrowingStream<QuiescenceEvent, Error>
+
   func processId(forBundleID bundleID: String) async throws -> pid_t
 }
 
@@ -52,12 +57,53 @@ struct AccessibilityQuiescenceMethodHandler {
     case nil:
       query = .frontmost
     }
-    // The companion owns its simulator for its whole run, so it holds its own bridge, as reads do.
-    let events = try await commandExecutor.accessibilityQuiescence(
-      query: query, parameters: parameters(from: request), backend: UIAutomationBackend(resolvedName: .axBridgeExclusive))
-    for try await event in Self.events(events, until: cancellation) {
-      try await send(response(for: event))
+    do {
+      let backend: Idb_AccessibilityQuiescenceRequest.Backend
+      let events: AsyncThrowingStream<QuiescenceEvent, Error>
+      switch request.backend {
+      case .shimulator:
+        backend = .shimulator
+        events = try await commandExecutor.shimulatorQuiescence(query: query, parameters: parameters(from: request))
+      case .unspecified, .axbridge, .UNRECOGNIZED:
+        backend = .axbridge
+        // The companion owns its simulator for its whole run, so it holds its own bridge, as reads do.
+        events = try await commandExecutor.accessibilityQuiescence(
+          query: query, parameters: parameters(from: request), backend: UIAutomationBackend(resolvedName: .axBridgeExclusive))
+      }
+      for try await event in Self.events(events, until: cancellation) {
+        try await send(response(for: event, backend: backend))
+      }
+    } catch let error as IdleSyncError {
+      throw rpcError(for: error)
+    } catch let error as QuiescenceError {
+      throw rpcError(for: error)
     }
+  }
+
+  static func rpcError(for error: IdleSyncError) -> RPCError {
+    let code: RPCError.Code
+    switch error {
+    case .notAnApplication:
+      code = .invalidArgument
+    case .unsupportedPlatform, .socketInUse, .notConnected, .severalApplications, .busyThresholdInUse, .unreadableState:
+      code = .failedPrecondition
+    case .socketUnavailable:
+      code = .internalError
+    }
+    return RPCError(code: code, message: error.localizedDescription)
+  }
+
+  static func rpcError(for error: QuiescenceError) -> RPCError {
+    let code: RPCError.Code
+    switch error {
+    case .timedOut:
+      code = .deadlineExceeded
+    case .targetExited:
+      code = .failedPrecondition
+    case .streamEnded:
+      code = .unavailable
+    }
+    return RPCError(code: code, message: error.localizedDescription)
   }
 
   /// gRPC signals a client going away through `cancellation` rather than by cancelling the handler's task,
@@ -100,7 +146,15 @@ struct AccessibilityQuiescenceMethodHandler {
     return parameters
   }
 
-  static func response(for event: QuiescenceEvent) -> Idb_AccessibilityQuiescenceResponse {
+  static func response(
+    for event: QuiescenceEvent, backend: Idb_AccessibilityQuiescenceRequest.Backend
+  ) -> Idb_AccessibilityQuiescenceResponse {
+    var response = response(for: event)
+    response.backend = backend
+    return response
+  }
+
+  private static func response(for event: QuiescenceEvent) -> Idb_AccessibilityQuiescenceResponse {
     switch event {
     case let .state(state, pid):
       return .with {

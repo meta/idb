@@ -629,8 +629,21 @@ message AccessibilityActionResponse {
 }
 
 // Streams an application's quiescence until the client cancels or the
-// application exits. Simulator targets on the AXBRIDGE backend only.
+// application exits. Simulator targets only.
 message AccessibilityQuiescenceRequest {
+  // What measures the application.
+  enum Backend {
+    // AXBRIDGE, the only backend of a companion that predates this field.
+    BACKEND_UNSPECIFIED = 0;
+    // The accessibility runtime's idle notifications, read by the guest
+    // accessibility reader.
+    AXBRIDGE = 1;
+    // The idle capability of the Shimulator shim, inside an app launched
+    // through idb with IDB_IDLE_SYNC=1 in its environment. The busy threshold
+    // is the shortest main-thread work that makes the app busy. With no
+    // target, measures the one armed app connected.
+    SHIMULATOR = 2;
+  }
   // No target follows the frontmost application.
   oneof target {
     uint64 pid = 1;
@@ -647,6 +660,7 @@ message AccessibilityQuiescenceRequest {
     // quiet.
     uint32 quiet_window_ms = 4;
   }
+  Backend backend = 5;
 }
 
 message AccessibilityQuiescenceResponse {
@@ -683,6 +697,10 @@ message AccessibilityQuiescenceResponse {
     TargetChanged target_changed = 4;
     TargetExited target_exited = 5;
   }
+  // The backend that measured the event. BACKEND_UNSPECIFIED from a companion
+  // that predates backend selection, which measured with AXBRIDGE whatever
+  // the request asked for.
+  AccessibilityQuiescenceRequest.Backend backend = 6;
 }
 
 message ApproveRequest {

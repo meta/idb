@@ -14,6 +14,7 @@ enum SimulatorAccessibilityCommandAccessor: CaseIterable, Sendable {
   case uiAutomation
   case accessibility
   case coreSimulatorAccessibility
+  case idleSync
 
   func resolve(on simulator: Simulator) {
     switch self {
@@ -26,6 +27,8 @@ enum SimulatorAccessibilityCommandAccessor: CaseIterable, Sendable {
       _ = simulator.accessibility
     case .coreSimulatorAccessibility:
       _ = simulator.accessibility(through: .coreSimulator)
+    case .idleSync:
+      _ = simulator.idleSyncHost
     }
   }
 }

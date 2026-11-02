@@ -134,6 +134,34 @@ final class ShimulatorProtocolTests: XCTestCase {
     wait(for: [finished], timeout: 5)
   }
 
+  func testWaitBlocksUntilAProcessConnectsOrTheHostIsWoken() throws {
+    let server = try XCTUnwrap(ShimulatorServer(path: path, parameters: Parameters(value: "")))
+    var wake: [Int32] = [0, 0]
+    XCTAssertEqual(pipe(&wake), 0)
+    defer {
+      close(wake[0])
+      close(wake[1])
+    }
+
+    var started = ContinuousClock.now
+    server.wait(timeoutMilliseconds: 200, wakeDescriptor: wake[0])
+    XCTAssertGreaterThanOrEqual(started.duration(to: .now), .milliseconds(150), "nothing happened, so it waited")
+
+    var byte: UInt8 = 1
+    XCTAssertEqual(Darwin.write(wake[1], &byte, 1), 1)
+    started = .now
+    server.wait(timeoutMilliseconds: 5_000, wakeDescriptor: wake[0])
+    XCTAssertLessThan(started.duration(to: .now), .seconds(2), "the wake descriptor wakes it")
+    XCTAssertEqual(Darwin.read(wake[0], &byte, 1), 1)
+
+    let client = try XCTUnwrap(try connect())
+    defer { close(client) }
+    started = .now
+    server.wait(timeoutMilliseconds: 5_000, wakeDescriptor: wake[0])
+    XCTAssertLessThan(started.duration(to: .now), .seconds(2), "a connecting process wakes it")
+    XCTAssertEqual(server.poll().first?.connected, true)
+  }
+
   func testAProcessThatExitsWithoutReportingIsForgotten() throws {
     let server = try XCTUnwrap(ShimulatorServer(path: path, parameters: Parameters(value: "hello")))
     let client = try XCTUnwrap(try connect())

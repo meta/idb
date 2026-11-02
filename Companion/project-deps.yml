@@ -49,6 +49,8 @@ targets:
         embed: false
       - framework: ../Build/Products/Release/libShimulatorAudioInjectionCore.a
         embed: false
+      - framework: ../Build/Products/Release/libShimulatorIdleSyncCore.a
+        embed: false
       - framework: ../Build/Products/Release/libShimulatorProtocol.a
         embed: false
       - framework: ../Build/Products/Release/libShimulatorVideoInjectionCore.a
@@ -125,6 +127,8 @@ targets:
         embed: false
       - framework: ../Build/Products/Release/libShimulatorAudioInjectionCore.a
         embed: false
+      - framework: ../Build/Products/Release/libShimulatorIdleSyncCore.a
+        embed: false
       - framework: ../Build/Products/Release/libShimulatorProtocol.a
         embed: false
       - framework: ../Build/Products/Release/libShimulatorVideoInjectionCore.a
@@ -170,6 +174,8 @@ targets:
       - framework: ../Build/Products/Release/libIDBTelemetry.a
         embed: false
       - framework: ../Build/Products/Release/libShimulatorAudioInjectionCore.a
+        embed: false
+      - framework: ../Build/Products/Release/libShimulatorIdleSyncCore.a
         embed: false
       - framework: ../Build/Products/Release/libShimulatorProtocol.a
         embed: false

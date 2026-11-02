@@ -408,6 +408,34 @@ targets:
       - target: SimulatorIPC
         embed: false
       - sdk: Foundation.framework
+  ShimulatorIdleSyncCore:
+    type: library.static
+    platform: macOS
+    deploymentTarget: "15.0"
+    scheme: {}
+    sources:
+      - path: Shims/Shimulator/IdleSync/IdleSyncController.swift
+      - path: Shims/Shimulator/IdleSync/IdleSyncProtocol.swift
+    settings:
+      base:
+        MACOSX_DEPLOYMENT_TARGET: "15.0"
+        PRODUCT_BUNDLE_IDENTIFIER: com.facebook.ShimulatorIdleSyncCore
+        PRODUCT_NAME: ShimulatorIdleSyncCore
+        DEFINES_MODULE: "YES"
+        MACH_O_TYPE: staticlib
+        SWIFT_VERSION: "6.0"
+        OTHER_SWIFT_FLAGS: $(inherited) $(IDB_ARCHIVE_SWIFT_FLAGS_$(CONFIGURATION))
+      configs:
+        Release:
+          DEBUG_INFORMATION_FORMAT: dwarf
+          STRIP_INSTALLED_PRODUCT: "NO"
+          CLANG_ENABLE_MODULE_DEBUGGING: "NO"
+    dependencies:
+      - target: ShimulatorProtocol
+        embed: false
+      - target: SimulatorIPC
+        embed: false
+      - sdk: Foundation.framework
   ZstdDecompress:
     type: library.static
     platform: macOS
@@ -1057,6 +1085,10 @@ targets:
         embed: false
       - target: FBSimulatorServices
         embed: false
+      - target: ShimulatorIdleSyncCore
+        embed: false
+      - target: ShimulatorProtocol
+        embed: false
       - target: SimulatorIPC
         embed: false
       - sdk: AppKit.framework
@@ -1112,6 +1144,8 @@ targets:
       - target: FBSimulatorBridgeProtocol
       - target: FBSimulatorControl
       - target: FBSimulatorServices
+      - target: ShimulatorIdleSyncCore
+      - target: ShimulatorProtocol
       - target: SimulatorIPC
       - sdk: Cocoa.framework
       - sdk: XCTest.framework
@@ -1160,6 +1194,8 @@ targets:
       - target: FBSimulatorBridgeProtocol
       - target: FBSimulatorControl
       - target: FBSimulatorServices
+      - target: ShimulatorIdleSyncCore
+      - target: ShimulatorProtocol
       - target: SimulatorIPC
       - sdk: Cocoa.framework
       - sdk: XCTest.framework
@@ -1889,6 +1925,7 @@ schemes:
         ShimulatorProtocol: all
         ShimulatorAudioInjectionCore: all
         ShimulatorVideoInjectionCore: all
+        ShimulatorIdleSyncCore: all
         ZstdDecompress: all
         FBControlCoreObjC: all
         FBControlCore: all

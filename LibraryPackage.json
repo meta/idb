@@ -93,12 +93,14 @@
     "FBSimulatorAX": {
       "archives": [
         "libFBSimulatorAX.a",
+        "libShimulatorIdleSyncCore.a",
+        "libShimulatorProtocol.a",
         "libFBControlCore.a",
         "libFBSimulatorBridgeProtocol.a",
         "libFBSimulatorControl.a",
         "libFBSimulatorServices.a",
-        "libFBControlCoreObjC.a",
-        "libSimulatorIPC.a"
+        "libSimulatorIPC.a",
+        "libFBControlCoreObjC.a"
       ],
       "frameworks": [
         "AppKit.framework",
@@ -393,6 +395,19 @@
     "ShimulatorAudioInjectionCore": {
       "archives": [
         "libShimulatorAudioInjectionCore.a",
+        "libShimulatorProtocol.a",
+        "libSimulatorIPC.a"
+      ],
+      "frameworks": [
+        "Foundation.framework"
+      ],
+      "linker_flags": [],
+      "resources": [],
+      "search_paths": []
+    },
+    "ShimulatorIdleSyncCore": {
+      "archives": [
+        "libShimulatorIdleSyncCore.a",
         "libShimulatorProtocol.a",
         "libSimulatorIPC.a"
       ],

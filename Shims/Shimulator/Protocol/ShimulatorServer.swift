@@ -65,6 +65,17 @@ public final class ShimulatorServer {
     return settled + connections.map(\.responder)
   }
 
+  /// Blocks until a process can be admitted, a connection has something to read or has closed, `wakeDescriptor` is
+  /// readable, or `timeoutMilliseconds` pass (`-1` waits indefinitely), so a host need not poll on a timer.
+  public func wait(timeoutMilliseconds: Int32, wakeDescriptor: Int32) {
+    var descriptors = [pollfd(fd: wakeDescriptor, events: Int16(POLLIN), revents: 0)]
+    if admitting, let listener {
+      descriptors.append(pollfd(fd: listener.fileDescriptor, events: Int16(POLLIN), revents: 0))
+    }
+    descriptors += connections.map { pollfd(fd: $0.fileDescriptor, events: Int16(POLLIN), revents: 0) }
+    _ = Darwin.poll(&descriptors, nfds_t(descriptors.count), timeoutMilliseconds)
+  }
+
   private func admit() {
     guard admitting, let listener else { return }
     while Self.isReadable(listener.fileDescriptor) {

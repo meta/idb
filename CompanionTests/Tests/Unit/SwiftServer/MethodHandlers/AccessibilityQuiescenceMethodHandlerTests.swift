@@ -17,14 +17,24 @@ private final class ScriptedQuiescenceExecutor: AccessibilityQuiescenceStreaming
   private(set) var queries: [AccessibilityElementQuery] = []
   private(set) var parameters: [QuiescenceParameters] = []
   private(set) var backends: [UIAutomationBackend] = []
+  /// The queries sent to the shimulator backend, which takes no `UIAutomationBackend`.
+  private(set) var shimulatorQueries: [AccessibilityElementQuery] = []
   let events: [QuiescenceEvent]
   let holdsOpen: Bool
+  let shimulatorError: IdleSyncError?
+  let streamError: QuiescenceError?
   let onTermination: @Sendable () -> Void
 
-  /// The stream yields `events`, then ends, or with `holdsOpen` stays open until its consumer stops.
-  init(events: [QuiescenceEvent] = [], holdsOpen: Bool = false, onTermination: @escaping @Sendable () -> Void = {}) {
+  /// The stream yields `events`, then ends, throwing `streamError` if it is set, or with `holdsOpen` stays open
+  /// until its consumer stops. The shimulator backend throws `shimulatorError` instead, if it is set.
+  init(
+    events: [QuiescenceEvent] = [], holdsOpen: Bool = false, shimulatorError: IdleSyncError? = nil,
+    streamError: QuiescenceError? = nil, onTermination: @escaping @Sendable () -> Void = {}
+  ) {
     self.events = events
     self.holdsOpen = holdsOpen
+    self.shimulatorError = shimulatorError
+    self.streamError = streamError
     self.onTermination = onTermination
   }
 
@@ -36,12 +46,28 @@ private final class ScriptedQuiescenceExecutor: AccessibilityQuiescenceStreaming
     queries.append(query)
     self.parameters.append(parameters)
     backends.append(backend)
-    let (events, holdsOpen, onTermination) = (events, holdsOpen, onTermination)
+    return scripted()
+  }
+
+  func shimulatorQuiescence(
+    query: AccessibilityElementQuery,
+    parameters: QuiescenceParameters
+  ) async throws -> AsyncThrowingStream<QuiescenceEvent, Error> {
+    if let shimulatorError {
+      throw shimulatorError
+    }
+    shimulatorQueries.append(query)
+    self.parameters.append(parameters)
+    return scripted()
+  }
+
+  private func scripted() -> AsyncThrowingStream<QuiescenceEvent, Error> {
+    let (events, holdsOpen, streamError, onTermination) = (events, holdsOpen, streamError, onTermination)
     return AsyncThrowingStream { continuation in
       continuation.onTermination = { _ in onTermination() }
       events.forEach { continuation.yield($0) }
       if !holdsOpen {
-        continuation.finish()
+        continuation.finish(throwing: streamError)
       }
     }
   }
@@ -109,6 +135,7 @@ final class AccessibilityQuiescenceMethodHandlerTests: XCTestCase {
       responses,
       [
         .with {
+          $0.backend = .axbridge
           $0.pid = 42
           $0.state = .with {
             $0.state = .busy
@@ -116,26 +143,96 @@ final class AccessibilityQuiescenceMethodHandlerTests: XCTestCase {
           }
         },
         .with {
+          $0.backend = .axbridge
           $0.pid = 42
           $0.touchesCompleted = .init()
         },
         .with {
+          $0.backend = .axbridge
           $0.pid = 42
           $0.state = .with { $0.state = .settling }
         },
         .with {
+          $0.backend = .axbridge
           $0.pid = 43
           $0.targetChanged = .init()
         },
         .with {
+          $0.backend = .axbridge
           $0.pid = 43
           $0.state = .with { $0.state = .quiet }
         },
         .with {
+          $0.backend = .axbridge
           $0.pid = 43
           $0.targetExited = .init()
         },
       ])
+  }
+
+  func testTheShimulatorBackendMeasuresInTheAppAndSaysSo() async throws {
+    let executor = ScriptedQuiescenceExecutor(events: [.state(.busy([.runLoopIdle]), pid: 77), .state(.quiet, pid: 77)])
+    let responses = try await stream(
+      .with {
+        $0.backend = .shimulator
+        $0.bundleID = "com.example.app"
+        $0.busyThresholdMs = 32
+        $0.quietWindowMs = 250
+      }, using: executor)
+    XCTAssertEqual(executor.shimulatorQueries, [.application(pid: 77)])
+    XCTAssertEqual(executor.queries, [], "the accessibility backend was not opened")
+    XCTAssertEqual(executor.parameters, [QuiescenceParameters(busyThreshold: 0.032, quietWindow: 0.25)])
+    XCTAssertEqual(
+      responses,
+      [
+        .with {
+          $0.backend = .shimulator
+          $0.pid = 77
+          $0.state = .with {
+            $0.state = .busy
+            $0.busySignals = [.runLoopIdle]
+          }
+        },
+        .with {
+          $0.backend = .shimulator
+          $0.pid = 77
+          $0.state = .with { $0.state = .quiet }
+        },
+      ])
+  }
+
+  func testAShimulatorFailureIsAStatusTheClientCanActOn() async throws {
+    let cases: [(IdleSyncError, RPCError.Code)] = [
+      (.notAnApplication, .invalidArgument),
+      (.notConnected(pid: 77, path: "/tmp/idle.sock", waited: 1), .failedPrecondition),
+      (.severalApplications(pids: [7, 8]), .failedPrecondition),
+      (.socketUnavailable(path: "/tmp/idle.sock", reason: "EACCES"), .internalError),
+      (.busyThresholdInUse(path: "/tmp/idle.sock", current: 32, requested: 16), .failedPrecondition),
+      (.unreadableState(pid: 77, reason: "dataCorrupted"), .failedPrecondition),
+    ]
+    for (failure, code) in cases {
+      do {
+        _ = try await stream(.with { $0.backend = .shimulator }, using: ScriptedQuiescenceExecutor(shimulatorError: failure))
+        XCTFail("\(failure) was not thrown")
+      } catch let error as RPCError {
+        XCTAssertEqual(error.code, code, "\(failure)")
+        XCTAssertEqual(error.message, failure.localizedDescription)
+      }
+    }
+  }
+
+  func testAStreamThatEndsWithoutAnswerIsAStatusTooOnEitherBackend() async throws {
+    for backend in [Idb_AccessibilityQuiescenceRequest.Backend.shimulator, .axbridge] {
+      do {
+        _ = try await stream(
+          .with { $0.backend = backend },
+          using: ScriptedQuiescenceExecutor(events: [.state(.settling, pid: 42)], streamError: .streamEnded))
+        XCTFail("the end of the stream was not thrown")
+      } catch let error as RPCError {
+        XCTAssertEqual(error.code, .unavailable, "\(backend)")
+        XCTAssertEqual(error.message, QuiescenceError.streamEnded.localizedDescription)
+      }
+    }
   }
 
   // Cancelling the handler's task must close the stream behind it.
