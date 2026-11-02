@@ -10,21 +10,21 @@
 
 """List, install and inspect idb builds through Homebrew.
 
-The release the facebook/fb tap carries, and any commit with a successful CI
+The release the meta/fb tap carries, and any commit with a successful CI
 run, can be installed:
 
     ./homebrew.py builds               releases and recent CI builds of main
-    ./homebrew.py install v1.6.2       a release, if facebook/fb carries it
+    ./homebrew.py install v1.6.2       a release, if meta/fb carries it
     ./homebrew.py install 1a2b3c4      the CI build of a commit
     ./homebrew.py install pr:123       ... of a pull request's head
     ./homebrew.py install run:456      ... of one CI run
     ./homebrew.py status               what is installed, from which build
-    ./homebrew.py uninstall --restore  back to facebook/fb/idb
+    ./homebrew.py uninstall --restore  back to meta/fb/idb
     ./homebrew.py                      interactive picker
 
-A release installs from facebook/fb itself. A CI build installs from a local
-tap, idb-local/builds, whose formulae each install replaces; the facebook/fb
-tap is never modified. Downloading CI artifacts needs a GitHub token:
+A release installs from meta/fb itself. A CI build installs from a local
+tap, idb-local/builds, whose formulae each install replaces; the meta/fb tap
+is never modified. Downloading CI artifacts needs a GitHub token:
 GITHUB_TOKEN or GH_TOKEN, or a logged-in `gh`. Standard library only, Python
 3.9 or later.
 """
@@ -56,18 +56,23 @@ CI_WORKFLOW_PATH = ".github/workflows/ci.yml"
 
 TAP = "idb-local/builds"
 TAP_PATH = Path("Library/Taps/idb-local/homebrew-builds")
-STABLE_TAP = "facebook/fb"
+STABLE_TAP = "meta/fb"
+# GitHub renamed the facebook organization to meta. Homebrew moves a clone
+# tapped as facebook/fb to meta/fb on its next `brew update`; until then the
+# clone keeps its old name, and tapping meta/fb beside it would clone the tap
+# a second time.
+RENAMED_STABLE_TAP = "facebook/fb"
 STABLE_FORMULA = f"{STABLE_TAP}/idb"
 # Every tap bump commits the render manifest of its release beside the
-# formulae, so its tag names the one release facebook/fb can install.
+# formulae, so its tag names the one release meta/fb can install.
 STABLE_MANIFEST_URL = (
     "https://raw.githubusercontent.com/facebook/homebrew-fb/main/idb-release.json"
 )
 BUILD_RECORD = "build.json"
 
 # `idb` is left out of installs: its unqualified `depends_on "idb-cli"` is
-# ambiguous once facebook/fb is tapped too. It is still reported by `status`
-# and removed when it pins a facebook/fb install in place.
+# ambiguous once meta/fb is tapped too. It is still reported by `status` and
+# removed when it pins a meta/fb install in place.
 FORMULAE = ("idb-companion", "idb-cli", "idb")
 INSTALLABLE = {"companion": "idb-companion", "cli": "idb-cli"}
 
@@ -250,7 +255,7 @@ class GitHub:
         )
 
     def stable_tag(self):
-        """The release facebook/fb carries."""
+        """The release meta/fb carries."""
         return json.loads(self.download(STABLE_MANIFEST_URL))["tag"]
 
     def ci_runs(self, limit, branch=None, head_sha=None):
@@ -520,6 +525,18 @@ class Brew:
     def tap_dir(self):
         return Path(self.output("--repository")) / TAP_PATH
 
+    def stable_tap(self):
+        """The name brew's clone of the stable tap goes by."""
+        taps = Path(self.output("--repository")) / "Library" / "Taps"
+
+        def cloned(name):
+            user, repository = name.split("/")
+            return (taps / user / f"homebrew-{repository}").is_dir()
+
+        if cloned(RENAMED_STABLE_TAP) and not cloned(STABLE_TAP):
+            return RENAMED_STABLE_TAP
+        return STABLE_TAP
+
     def stable_version(self, formula):
         """The version brew's clone of the formula's tap would install."""
         info = json.loads(self.output("info", "--json=v2", formula))
@@ -593,9 +610,9 @@ def install(ctx, spec, only=None, assume_yes=False):
     build = resolve(ctx.github, spec)
     names = [INSTALLABLE[only]] if only else list(INSTALLABLE.values())
     if isinstance(build, Release):
-        require_stable_release(ctx, build)
-        removing = removals(ctx, names, STABLE_TAP, assume_yes)
-        tap = STABLE_TAP
+        tap = ctx.brew.stable_tap()
+        require_stable_release(ctx, build, tap)
+        removing = removals(ctx, names, tap, assume_yes)
     else:
         fetched = fetch_ci(ctx.github, build, ctx.cache / f"ci-{build.id}", ctx.log)
         # Every CI build is 0.0.0, so brew would keep an earlier one in place.
@@ -608,20 +625,20 @@ def install(ctx, spec, only=None, assume_yes=False):
     ctx.log(f"Installed {', '.join(names)} from {describe_record(build_record(build))}")
 
 
-def require_stable_release(ctx, release):
-    """A release installs from facebook/fb, which carries only the newest
-    bump; brew's clone of the tap has to have caught up with it, or `brew
-    install` would quietly install another."""
+def require_stable_release(ctx, release, tap):
+    """A release installs from meta/fb, which carries only the newest bump;
+    brew's clone of the tap, named `tap`, has to have caught up with it, or
+    `brew install` would quietly install another."""
     carried = ctx.github.stable_tag()
     if release.tag != carried:
         raise HomebrewError(
             f"{STABLE_TAP} carries {carried}, the only release that can be installed"
         )
-    ctx.brew.call("tap", STABLE_TAP)
-    cloned = ctx.brew.stable_version(f"{STABLE_TAP}/idb-companion")
+    ctx.brew.call("tap", tap)
+    cloned = ctx.brew.stable_version(f"{tap}/idb-companion")
     if cloned != release.tag[1:]:
         raise HomebrewError(
-            f"brew's clone of {STABLE_TAP} is at {cloned}, behind {carried}: "
+            f"brew's clone of {tap} is at {cloned}, behind {carried}: "
             "run `brew update` and try again"
         )
 
@@ -632,7 +649,7 @@ def removals(ctx, names, keep_tap, assume_yes):
     `keep_tap` stay, for `brew install` to upgrade in place."""
     current = ctx.brew.installed()
     removing = [n for n in names if n in current and current[n].tap != keep_tap]
-    # facebook/fb's idb metapackage holds its dependencies in place, so it
+    # meta/fb's idb metapackage holds its dependencies in place, so it
     # goes too whenever one of them is being replaced.
     if removing and "idb" in current and current["idb"].tap != keep_tap:
         removing.insert(0, "idb")
@@ -656,7 +673,7 @@ def uninstall(ctx, restore=False):
         shutil.rmtree(tap_dir)
         ctx.log(f"Removed the {TAP} tap")
     if restore:
-        ctx.brew.call("install", STABLE_FORMULA)
+        ctx.brew.call("install", f"{ctx.brew.stable_tap()}/idb")
 
 
 def status(ctx):

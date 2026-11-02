@@ -26,8 +26,12 @@ Each target (simulator/device) will have a companion process attached allowing `
 The `idb` companion can be installed via brew or built from [source](https://github.com/facebook/idb)
 
 ```
-brew install facebook/fb/idb
+brew tap meta/fb
+brew trust meta/fb
+brew install meta/fb/idb
 ```
+Current Homebrew refuses formulae from a tap you have not trusted, along with the dependencies they pull in from it. If you tapped `facebook/fb` before GitHub renamed the facebook organization to meta, run `brew update` instead of `brew tap meta/fb`: Homebrew moves the tap to `meta/fb` but drops its trust, so `brew trust meta/fb` is still needed.
+
 Note: Instructions on how to install brew can be found [here](https://brew.sh)
 
 To install the CI build of any commit or pull request, run `./homebrew.py` from a checkout; see [Installing a specific build](https://www.fbidb.io/idb/installation#installing-a-specific-build).

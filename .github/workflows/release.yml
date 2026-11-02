@@ -314,20 +314,20 @@ jobs:
             --out tap
 
       # brew only installs formulae out of its own tap directories, so expose
-      # the scratch tap as facebook/fb.
-      - name: Link the scratch tap as facebook/fb
+      # the scratch tap as meta/fb.
+      - name: Link the scratch tap as meta/fb
         run: |
-          taps="$(brew --repository)/Library/Taps/facebook"
+          taps="$(brew --repository)/Library/Taps/meta"
           mkdir -p "$taps"
           ln -s "$PWD/tap" "$taps/homebrew-fb"
-          brew trust facebook/fb
+          brew trust meta/fb
 
       - name: Build the bottle
         run: |
-          brew install --build-bottle facebook/fb/idb-cli
+          brew install --build-bottle meta/fb/idb-cli
           brew bottle --json --no-rebuild \
             --root-url="https://github.com/$GITHUB_REPOSITORY/releases/download/$RELEASE_TAG" \
-            facebook/fb/idb-cli
+            meta/fb/idb-cli
 
       # `brew bottle` writes local files named `name--version.tag.bottle.tar.gz`,
       # but the URL Homebrew later requests under root_url uses a different

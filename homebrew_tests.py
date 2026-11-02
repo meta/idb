@@ -169,9 +169,14 @@ class FakeBrew:
     def __init__(self, root):
         self.root = Path(root)
         self.calls = []
-        self.stable_version = "1.6.2"  # what its facebook/fb clone resolves
+        self.stable_version = "1.6.2"  # what its meta/fb clone resolves
         for name in ("repository", "prefix/opt", "cellar"):
             (self.root / name).mkdir(parents=True)
+
+    def clone_tap(self, name):
+        user, repository = name.split("/")
+        taps = self.root / "repository" / "Library" / "Taps"
+        (taps / user / f"homebrew-{repository}").mkdir(parents=True)
 
     def install_keg(self, name, version, tap):
         keg = self.root / "cellar" / name / version
@@ -408,8 +413,51 @@ class RepointTests(TestCase):
 
 
 class InstallTests(TestCase):
-    def test_a_release_installs_from_facebook_fb_without_the_local_tap(self):
+    def test_a_release_installs_from_meta_fb_without_the_local_tap(self):
         homebrew.install(self.context(release_routes()), "v1.6.2")
+        self.assertEqual(
+            self.fake_brew.calls,
+            [
+                ["tap", "meta/fb"],
+                ["install", "meta/fb/idb-companion", "meta/fb/idb-cli"],
+            ],
+        )
+        self.assertFalse(self.fake_brew.tap_dir.exists())
+
+    def test_a_release_meta_fb_does_not_carry_is_refused(self):
+        ctx = self.context(release_routes("v1.6.1", carried="v1.6.2"))
+        with self.assertRaisesRegex(HomebrewError, "meta/fb carries v1.6.2"):
+            homebrew.install(ctx, "v1.6.1")
+        self.assertEqual(self.fake_brew.calls, [])
+
+    def test_a_stale_clone_of_meta_fb_installs_nothing(self):
+        self.fake_brew.stable_version = "1.6.1"
+        with self.assertRaisesRegex(HomebrewError, "run `brew update`"):
+            homebrew.install(self.context(release_routes()), "v1.6.2")
+        self.assertEqual(self.fake_brew.calls, [["tap", "meta/fb"]])
+
+    def test_a_release_leaves_meta_fb_installs_for_brew_to_upgrade(self):
+        for name in homebrew.FORMULAE:
+            self.fake_brew.install_keg(name, "1.6.1", "meta/fb")
+
+        def confirm(_):
+            raise AssertionError("upgrading meta/fb's own install should not ask")
+
+        homebrew.install(self.context(release_routes(), confirm=confirm), "v1.6.2")
+        self.assertEqual(
+            self.fake_brew.calls[1:],
+            [["install", "meta/fb/idb-companion", "meta/fb/idb-cli"]],
+        )
+
+    def test_a_clone_not_yet_renamed_installs_as_facebook_fb(self):
+        self.fake_brew.clone_tap("facebook/fb")
+        for name in homebrew.FORMULAE:
+            self.fake_brew.install_keg(name, "1.6.1", "facebook/fb")
+
+        def confirm(_):
+            raise AssertionError("upgrading the clone's own install should not ask")
+
+        homebrew.install(self.context(release_routes(), confirm=confirm), "v1.6.2")
         self.assertEqual(
             self.fake_brew.calls,
             [
@@ -417,31 +465,26 @@ class InstallTests(TestCase):
                 ["install", "facebook/fb/idb-companion", "facebook/fb/idb-cli"],
             ],
         )
-        self.assertFalse(self.fake_brew.tap_dir.exists())
 
-    def test_a_release_facebook_fb_does_not_carry_is_refused(self):
-        ctx = self.context(release_routes("v1.6.1", carried="v1.6.2"))
-        with self.assertRaisesRegex(HomebrewError, "facebook/fb carries v1.6.2"):
-            homebrew.install(ctx, "v1.6.1")
-        self.assertEqual(self.fake_brew.calls, [])
+    def test_a_renamed_clone_replaces_an_install_from_facebook_fb(self):
+        # brew refuses to install a formula over a keg from another tap.
+        self.fake_brew.clone_tap("meta/fb")
+        self.fake_brew.install_keg("idb-cli", "1.6.1", "facebook/fb")
+        questions = []
 
-    def test_a_stale_clone_of_facebook_fb_installs_nothing(self):
-        self.fake_brew.stable_version = "1.6.1"
-        with self.assertRaisesRegex(HomebrewError, "run `brew update`"):
-            homebrew.install(self.context(release_routes()), "v1.6.2")
-        self.assertEqual(self.fake_brew.calls, [["tap", "facebook/fb"]])
+        def agree(question):
+            questions.append(question)
+            return True
 
-    def test_a_release_leaves_facebook_fb_installs_for_brew_to_upgrade(self):
-        for name in homebrew.FORMULAE:
-            self.fake_brew.install_keg(name, "1.6.1", "facebook/fb")
-
-        def confirm(_):
-            raise AssertionError("upgrading facebook/fb's own install should not ask")
-
-        homebrew.install(self.context(release_routes(), confirm=confirm), "v1.6.2")
+        ctx = self.context(release_routes(), confirm=agree)
+        homebrew.install(ctx, "v1.6.2", only="cli")
+        self.assertEqual(questions, ["Replace idb-cli 1.6.1 (facebook/fb)?"])
         self.assertEqual(
             self.fake_brew.calls[1:],
-            [["install", "facebook/fb/idb-companion", "facebook/fb/idb-cli"]],
+            [
+                ["uninstall", "--ignore-dependencies", "idb-cli"],
+                ["install", "meta/fb/idb-cli"],
+            ],
         )
 
     def test_a_release_replaces_local_builds_without_asking(self):
@@ -452,7 +495,7 @@ class InstallTests(TestCase):
             self.fake_brew.calls[1:],
             [
                 ["uninstall", "--ignore-dependencies", "idb-companion", "idb-cli"],
-                ["install", "facebook/fb/idb-companion", "facebook/fb/idb-cli"],
+                ["install", "meta/fb/idb-companion", "meta/fb/idb-cli"],
             ],
         )
 
@@ -474,9 +517,9 @@ class InstallTests(TestCase):
             homebrew.install(ctx, "run:42")
         self.assertEqual(self.fake_brew.calls, [])
 
-    def test_replacing_a_facebook_fb_install_needs_confirmation(self):
+    def test_replacing_a_meta_fb_install_needs_confirmation(self):
         for name in homebrew.FORMULAE:
-            self.fake_brew.install_keg(name, "1.6.2", "facebook/fb")
+            self.fake_brew.install_keg(name, "1.6.2", "meta/fb")
         questions = []
 
         def decline(question):
@@ -486,13 +529,13 @@ class InstallTests(TestCase):
         with self.assertRaisesRegex(HomebrewError, "left the installed"):
             homebrew.install(self.context(ci_routes(), confirm=decline), "run:42")
         self.assertEqual(len(questions), 1)
-        self.assertIn("idb-cli 1.6.2 (facebook/fb)", questions[0])
+        self.assertIn("idb-cli 1.6.2 (meta/fb)", questions[0])
         self.assertEqual(self.fake_brew.calls, [])
         self.assertFalse(self.fake_brew.tap_dir.exists())
 
     def test_a_confirmed_replacement_removes_the_metapackage_too(self):
         for name in homebrew.FORMULAE:
-            self.fake_brew.install_keg(name, "1.6.2", "facebook/fb")
+            self.fake_brew.install_keg(name, "1.6.2", "meta/fb")
         homebrew.install(self.context(ci_routes(), confirm=lambda _: True), "run:42")
         self.assertEqual(
             self.fake_brew.calls[1],
@@ -500,7 +543,7 @@ class InstallTests(TestCase):
         )
 
     def test_yes_replaces_without_asking(self):
-        self.fake_brew.install_keg("idb-cli", "1.6.2", "facebook/fb")
+        self.fake_brew.install_keg("idb-cli", "1.6.2", "meta/fb")
 
         def confirm(_):
             raise AssertionError("--yes should not ask")
@@ -547,26 +590,31 @@ class StatusTests(TestCase):
     def test_the_local_build_is_not_reported_for_a_stable_install(self):
         self.fake_brew.tap_dir.mkdir(parents=True)
         (self.fake_brew.tap_dir / "build.json").write_text("{}")
-        self.fake_brew.install_keg("idb-cli", "1.6.2", "facebook/fb")
+        self.fake_brew.install_keg("idb-cli", "1.6.2", "meta/fb")
         report = homebrew.status(self.context({}))
-        self.assertEqual(report["formulae"]["idb-cli"]["tap"], "facebook/fb")
+        self.assertEqual(report["formulae"]["idb-cli"]["tap"], "meta/fb")
         self.assertIsNone(report["build"])
 
 
 class UninstallTests(TestCase):
     def test_removes_local_builds_and_restores_the_stable_formula(self):
         self.fake_brew.install_keg("idb-cli", "0.0.0", homebrew.TAP)
-        self.fake_brew.install_keg("idb-companion", "1.6.2", "facebook/fb")
+        self.fake_brew.install_keg("idb-companion", "1.6.2", "meta/fb")
         self.fake_brew.tap_dir.mkdir(parents=True)
         homebrew.uninstall(self.context({}), restore=True)
         self.assertEqual(
             self.fake_brew.calls,
             [
                 ["uninstall", "--ignore-dependencies", "idb-cli"],
-                ["install", "facebook/fb/idb"],
+                ["install", "meta/fb/idb"],
             ],
         )
         self.assertFalse(self.fake_brew.tap_dir.exists())
+
+    def test_restoring_uses_a_clone_not_yet_renamed(self):
+        self.fake_brew.clone_tap("facebook/fb")
+        homebrew.uninstall(self.context({}), restore=True)
+        self.assertEqual(self.fake_brew.calls, [["install", "facebook/fb/idb"]])
 
 
 class BuildsTests(TestCase):
@@ -599,7 +647,7 @@ class BuildsTests(TestCase):
             ],
         )
 
-    def test_release_rows_offer_only_the_release_facebook_fb_carries(self):
+    def test_release_rows_offer_only_the_release_meta_fb_carries(self):
         routes = {
             f"{REPO_API}/releases": json_response(
                 [
@@ -612,7 +660,7 @@ class BuildsTests(TestCase):
         rows = homebrew.release_rows(GitHub(None, FakeTransport(routes)), 2)
         self.assertEqual(
             [(r.spec, r.installable, r.note) for r in rows],
-            [("v1.7.0", False, "facebook/fb carries v1.6.2"), ("v1.6.2", True, "")],
+            [("v1.7.0", False, "meta/fb carries v1.6.2"), ("v1.6.2", True, "")],
         )
 
     def test_release_rows_skip_drafts_and_list_newest_first(self):

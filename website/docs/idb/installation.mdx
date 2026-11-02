@@ -19,7 +19,9 @@ The companion runs on macOS only, next to the Simulators and Devices it automate
 The idb companion can be installed via brew or built from [source](https://github.com/facebook/idb):
 
 ```
-brew install facebook/fb/idb
+brew tap meta/fb
+brew trust meta/fb
+brew install meta/fb/idb
 ```
 
 Notes:
@@ -30,6 +32,9 @@ Notes:
 It requires an arm64 Mac running macOS 15 or later, with a full installation of Xcode 26 or later selected.
 Installing just the Command Line Tools is not sufficient.
 Xcode can be installed from the App Store.
+
+3. Current Homebrew refuses formulae from a tap you have not trusted, along with the dependencies they pull in from it.
+If you tapped `facebook/fb` before GitHub renamed the facebook organization to meta, run `brew update` instead of `brew tap meta/fb`: Homebrew moves the tap to `meta/fb` but drops its trust, so `brew trust meta/fb` is still needed.
 
 ### idb client
 
@@ -52,14 +57,14 @@ Besides the stable formula, the CI build of any commit whose CI run passed can b
 ```
 git clone https://github.com/facebook/idb.git && cd idb
 ./homebrew.py builds                 # releases and recent CI builds of main
-./homebrew.py install v1.6.2         # a release, if facebook/fb carries it
+./homebrew.py install v1.6.2         # a release, if meta/fb carries it
 ./homebrew.py install 1a2b3c4        # the CI build of a commit (or a branch)
 ./homebrew.py install pr:123         # the CI build of a pull request
 ./homebrew.py status                 # what is installed, and which build it is
-./homebrew.py uninstall --restore    # back to facebook/fb/idb
+./homebrew.py uninstall --restore    # back to meta/fb/idb
 ./homebrew.py                        # pick a build interactively
 ```
 
-CI builds are installed from a separate local tap, `idb-local/builds`, and replace an installed `facebook/fb/idb` after asking. A release installs from `facebook/fb` itself, so only the release the tap currently carries can be installed. CI builds carry version `0.0.0`; `status` shows the commit and CI run they came from. Downloading a CI build needs a GitHub token, even though the repository is public: set `GITHUB_TOKEN`, or log in with the [GitHub CLI](https://cli.github.com) (`gh auth login`). A CI build can be installed until its run's artifacts expire.
+CI builds are installed from a separate local tap, `idb-local/builds`, and replace an installed `meta/fb/idb` after asking. A release installs from `meta/fb` itself, so only the release the tap currently carries can be installed. CI builds carry version `0.0.0`; `status` shows the commit and CI run they came from. Downloading a CI build needs a GitHub token, even though the repository is public: set `GITHUB_TOKEN`, or log in with the [GitHub CLI](https://cli.github.com) (`gh auth login`). A CI build can be installed until its run's artifacts expire.
 
 Make sure both parts of idb are installed successfully and then you're good to go! Head over to the [guided tour](guided-tour.mdx) to try idb out.

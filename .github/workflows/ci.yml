@@ -380,25 +380,25 @@ jobs:
           name: fb-idb-dist
           path: assets/fb_idb-*-py3-none-any.whl
           if-no-files-found: error
-      - name: Mount the render as the facebook/fb tap
+      - name: Mount the render as the meta/fb tap
         run: |
-          taps="$(brew --repository)/Library/Taps/facebook"
+          taps="$(brew --repository)/Library/Taps/meta"
           mkdir -p "$taps"
           ln -s "$PWD/tap" "$taps/homebrew-fb"
-          brew tap-info facebook/fb
+          brew tap-info meta/fb
       # Homebrew only trusts the formula named on the command line; the
       # dependencies it pulls from the same untrusted tap are refused. Trust
       # the scratch tap as a whole so `idb` can bring in idb-cli and
       # idb-companion.
       - name: Trust the scratch tap
-        run: brew trust facebook/fb
+        run: brew trust meta/fb
       # idb depends on the other two, so one install exercises all three
       # formulae; a source install of idb-cli is the venv-and-pip path that a
       # release bottle would skip, which is exactly what should be checked.
       - name: Install from the local assets
-        run: brew install facebook/fb/idb
+        run: brew install meta/fb/idb
       - name: Test the installed formulae
-        run: brew test facebook/fb/idb-companion facebook/fb/idb-cli facebook/fb/idb
+        run: brew test meta/fb/idb-companion meta/fb/idb-cli meta/fb/idb
 
   # Each shard gets its own runner and simulator, apart from `install`, whose
   # companion targets the Mac; `CI.end_to_end_shard` says which modules it runs. A larger runner, because on the standard 3-core, 7 GB
