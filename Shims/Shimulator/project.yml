@@ -116,6 +116,56 @@ targets:
       - target: ShimulatorProtocol-iOS
       - sdk: Foundation.framework
 
+  ShimulatorIdleSyncCore:
+    type: library.static
+    platform: iOS
+    deploymentTarget: "17.0"
+    sources:
+      - path: IdleSync/IdleSyncController.swift
+      - path: IdleSync/IdleSyncProtocol.swift
+    settings:
+      base:
+        SDKROOT: iphonesimulator
+        PRODUCT_MODULE_NAME: ShimulatorIdleSyncCore
+        SWIFT_VERSION: "6.0"
+    dependencies:
+      - target: ShimulatorProtocol-iOS
+      - sdk: Foundation.framework
+
+  ShimulatorIdleSyncTrackers:
+    type: library.static
+    platform: iOS
+    deploymentTarget: "17.0"
+    sources:
+      - path: IdleSync/FBIdleSync.m
+      - path: IdleSync/FBIdleSyncTrackers.h
+        headerVisibility: public
+    settings:
+      base:
+        SDKROOT: iphonesimulator
+        PRODUCT_MODULE_NAME: ShimulatorIdleSyncTrackers
+        CLANG_ENABLE_OBJC_ARC: NO
+    dependencies:
+      - sdk: Foundation.framework
+      - sdk: QuartzCore.framework
+
+  ShimulatorIdleSyncBootstrap:
+    type: library.static
+    platform: iOS
+    deploymentTarget: "17.0"
+    sources:
+      - path: IdleSync/IdleSyncBootstrap.swift
+    settings:
+      base:
+        SDKROOT: iphonesimulator
+        PRODUCT_MODULE_NAME: ShimulatorIdleSyncBootstrap
+        SWIFT_VERSION: "6.0"
+        SWIFT_INCLUDE_PATHS: $(SRCROOT)/IdleSync/include
+    dependencies:
+      - target: ShimulatorIdleSyncCore
+      - target: ShimulatorProtocol-iOS
+      - sdk: Foundation.framework
+
   # FBReplGenerateSwiftInterface for the shim's REPL, as a static library so the shim's own sources are Objective-C.
   ReplRuntimeProbe-iOS:
     type: library.static
@@ -228,6 +278,12 @@ targets:
         target: ShimulatorAudioInjectionHAL
       - link: true
         target: ShimulatorAudioInjectionInterpose
+      - link: true
+        target: ShimulatorIdleSyncBootstrap
+      - link: true
+        target: ShimulatorIdleSyncCore
+      - link: true
+        target: ShimulatorIdleSyncTrackers
       - link: true
         target: ShimulatorProtocol-iOS
       - link: true

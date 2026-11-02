@@ -12,10 +12,13 @@ import Foundation
 public struct ShimulatorMethodUpdate: Equatable, Sendable {
   public let state: ShimulatorResponseState
   public let message: String?
+  /// See `ShimulatorResponse.payload`. A change to it alone is reported, as a change of state is.
+  public let payload: Data?
 
-  public init(_ state: ShimulatorResponseState, message: String? = nil) {
+  public init(_ state: ShimulatorResponseState, message: String? = nil, payload: Data? = nil) {
     self.state = state
     self.message = message
+    self.payload = payload
   }
 }
 
@@ -127,7 +130,8 @@ public final class ShimulatorClient<Handler: ShimulatorMethodHandler> {
       processIdentifier: processIdentifier,
       processName: processName,
       state: update.state,
-      message: update.message)
+      message: update.message,
+      payload: update.payload)
     do {
       try IPCSocket.writeFrame(connection, JSONEncoder().encode(response))
       return true

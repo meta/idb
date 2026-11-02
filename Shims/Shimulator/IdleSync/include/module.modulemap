@@ -1,0 +1,4 @@
+module ShimulatorIdleSyncTrackers {
+  header "../FBIdleSyncTrackers.h"
+  export *
+}

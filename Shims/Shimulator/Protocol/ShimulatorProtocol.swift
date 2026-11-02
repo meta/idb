@@ -73,19 +73,24 @@ public struct ShimulatorResponse: Codable, Equatable, Sendable {
   public let processName: String
   public let state: ShimulatorResponseState
   public let message: String?
+  /// What a capability reports beyond its state, encoded as that capability defines; absent from a capability
+  /// that reports nothing more, and from a process that predates it.
+  public let payload: Data?
 
   public init(
     version: Int = ShimulatorWireProtocol.currentVersion,
     processIdentifier: Int32,
     processName: String,
     state: ShimulatorResponseState,
-    message: String? = nil
+    message: String? = nil,
+    payload: Data? = nil
   ) {
     self.version = version
     self.processIdentifier = processIdentifier
     self.processName = processName
     self.state = state
     self.message = message
+    self.payload = payload
   }
 
   public static func decode(_ data: Data) throws -> Self {

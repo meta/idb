@@ -206,6 +206,29 @@ final class ShimulatorProtocolTests: XCTestCase {
     XCTAssertNil(try ShimulatorServer(path: path, parameters: Parameters(value: "")))
   }
 
+  func testAPayloadIsReportedWithItsStateAndAChangeToItAloneIsReported() throws {
+    var server = try ShimulatorServer(path: path, parameters: Parameters(value: "hello"))
+    let handler = Handler()
+    let finished = serveInBackground(handler)
+    _ = try responders(try XCTUnwrap(server)) { $0.first?.connected == true }
+
+    handler.setUpdate(ShimulatorMethodUpdate(.accepted, payload: Data("one".utf8)))
+    _ = try responders(try XCTUnwrap(server)) { $0.first?.response?.payload == Data("one".utf8) }
+    handler.setUpdate(ShimulatorMethodUpdate(.accepted, payload: Data("two".utf8)))
+    let second = try responders(try XCTUnwrap(server)) { $0.first?.response?.payload == Data("two".utf8) }
+    XCTAssertEqual(second.first?.response?.state, .accepted)
+
+    server = nil
+    wait(for: [finished], timeout: 5)
+  }
+
+  func testAResponseWithoutAPayloadStillDecodesAndOneWithAPayloadRoundTrips() throws {
+    let older = Data(#"{"version":1,"processIdentifier":7,"processName":"app","state":"accepted"}"#.utf8)
+    XCTAssertNil(try ShimulatorResponse.decode(older).payload)
+    let response = ShimulatorResponse(processIdentifier: 7, processName: "app", state: .accepted, payload: Data([0, 1, 2]))
+    XCTAssertEqual(try ShimulatorResponse.decode(JSONEncoder().encode(response)), response)
+  }
+
   func testStatesReportedBetweenPollsAreEachReturned() throws {
     let server = try XCTUnwrap(ShimulatorServer(path: path, parameters: Parameters(value: "")))
     let client = try XCTUnwrap(try connect())
