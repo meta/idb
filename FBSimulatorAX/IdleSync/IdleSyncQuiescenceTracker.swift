@@ -16,23 +16,33 @@ struct IdleSyncQuiescenceTracker {
   let quietWindowMs: UInt64
   private var idleSince: UInt64?
   private var last: QuiescenceState?
+  // The latest input reported; one handled before the stream opened is never reported.
+  private var lastInputAt: UInt64
 
-  init(pid: pid_t, quietWindowMs: UInt64) {
+  /// `openedAt` is the wall-clock time the stream opened.
+  init(pid: pid_t, quietWindowMs: UInt64, openedAt: UInt64) {
     self.pid = pid
     self.quietWindowMs = quietWindowMs
+    self.lastInputAt = openedAt
   }
 
   /// The events `state` produces at wall-clock time `now`, and, while the process is settling, when to call
-  /// `settle(now:)`.
+  /// `settle(now:)`. A `lastInputAt` after the stream opened and after the last one reported is `touchesCompleted`,
+  /// the process having finished handling input, ahead of the state the same report carries.
   mutating func receive(_ state: IdleSyncState, now: UInt64) -> (events: [QuiescenceEvent], settleAt: UInt64?) {
+    var events: [QuiescenceEvent] = []
+    if let inputAt = state.lastInputAt, inputAt > lastInputAt {
+      lastInputAt = inputAt
+      events.append(.touchesCompleted(pid: pid))
+    }
     guard let since = state.idleSince else {
       idleSince = nil
-      return (transition(to: .busy(Set(state.reasons.compactMap(QuiescenceSignal.init(idleSyncReason:))))), nil)
+      return (events + transition(to: .busy(Set(state.reasons.compactMap(QuiescenceSignal.init(idleSyncReason:))))), nil)
     }
     idleSince = since
     let quietAt = Self.adding(quietWindowMs, to: since)
-    guard now < quietAt else { return (transition(to: .quiet), nil) }
-    return (transition(to: .settling), quietAt)
+    guard now < quietAt else { return (events + transition(to: .quiet), nil) }
+    return (events + transition(to: .settling), quietAt)
   }
 
   /// `quiet` once the process has stayed idle for the quiet window.

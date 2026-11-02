@@ -158,6 +158,7 @@ struct IdleSyncStream {
     updates: AsyncStream<IdleSyncHost.Update>,
     emit: (QuiescenceEvent) -> Void
   ) async throws {
+    let openedAt = Self.now()
     let (steps, input) = AsyncStream<Step>.makeStream()
     let relay = Task {
       for await update in updates {
@@ -190,7 +191,7 @@ struct IdleSyncStream {
     }
 
     if let following = try target(current: current), let report = current[following] {
-      tracker = IdleSyncQuiescenceTracker(pid: following, quietWindowMs: quietWindowMs)
+      tracker = IdleSyncQuiescenceTracker(pid: following, quietWindowMs: quietWindowMs, openedAt: openedAt)
       switch report {
       case let .state(state):
         receive(state)
@@ -219,7 +220,7 @@ struct IdleSyncStream {
         schedule(.recheck, after: SimulatorIdleSyncCommands.reconnectionInterval)
       case let .update(.state(pid, state)):
         if tracker == nil, requested == nil || requested == pid {
-          tracker = IdleSyncQuiescenceTracker(pid: pid, quietWindowMs: quietWindowMs)
+          tracker = IdleSyncQuiescenceTracker(pid: pid, quietWindowMs: quietWindowMs, openedAt: openedAt)
         }
         guard pid == tracker?.pid else { continue }
         disconnected = false

@@ -17,7 +17,7 @@ import os
 struct IdleSyncQuiescenceTrackerTests {
   @Test("Busy carries the signals the process named, skipping reasons this host does not know")
   func busy() {
-    var tracker = IdleSyncQuiescenceTracker(pid: 7, quietWindowMs: 0)
+    var tracker = IdleSyncQuiescenceTracker(pid: 7, quietWindowMs: 0, openedAt: 0)
     let received = tracker.receive(IdleSyncState(idleSince: nil, reasons: ["animation", "network"]), now: 1)
     #expect(received.events == [.state(.busy([.animationsInactive]), pid: 7)])
     #expect(received.settleAt == nil)
@@ -25,14 +25,34 @@ struct IdleSyncQuiescenceTrackerTests {
 
   @Test("With no quiet window, idle is quiet at once, and a repeated state is not reported again")
   func idleIsQuiet() {
-    var tracker = IdleSyncQuiescenceTracker(pid: 7, quietWindowMs: 0)
+    var tracker = IdleSyncQuiescenceTracker(pid: 7, quietWindowMs: 0, openedAt: 0)
     #expect(tracker.receive(IdleSyncState(idleSince: 1, reasons: []), now: 1).events == [.state(.quiet, pid: 7)])
     #expect(tracker.receive(IdleSyncState(idleSince: 1, reasons: []), now: 2).events == [])
   }
 
+  @Test("Each new input the process reports handling is touchesCompleted, before the state it came with")
+  func inputHandled() {
+    var tracker = IdleSyncQuiescenceTracker(pid: 7, quietWindowMs: 0, openedAt: 0)
+    #expect(tracker.receive(IdleSyncState(idleSince: 1, reasons: []), now: 1).events == [.state(.quiet, pid: 7)])
+    #expect(
+      tracker.receive(IdleSyncState(idleSince: nil, reasons: ["main"], lastInputAt: 5), now: 6).events
+        == [.touchesCompleted(pid: 7), .state(.busy([.runLoopIdle]), pid: 7)])
+    #expect(tracker.receive(IdleSyncState(idleSince: 9, reasons: [], lastInputAt: 5), now: 9).events == [.state(.quiet, pid: 7)])
+    #expect(
+      tracker.receive(IdleSyncState(idleSince: 9, reasons: [], lastInputAt: 12), now: 12).events == [.touchesCompleted(pid: 7)])
+  }
+
+  @Test("An input handled before the stream opened is not reported, even in the stream's first report")
+  func inputBeforeOpening() {
+    var tracker = IdleSyncQuiescenceTracker(pid: 7, quietWindowMs: 0, openedAt: 100)
+    #expect(tracker.receive(IdleSyncState(idleSince: 90, reasons: [], lastInputAt: 80), now: 100).events == [.state(.quiet, pid: 7)])
+    #expect(
+      tracker.receive(IdleSyncState(idleSince: 120, reasons: [], lastInputAt: 110), now: 120).events == [.touchesCompleted(pid: 7)])
+  }
+
   @Test("A quiet window counts from the start of the idle period: settling, then quiet once it has passed")
   func quietWindow() {
-    var tracker = IdleSyncQuiescenceTracker(pid: 7, quietWindowMs: 300)
+    var tracker = IdleSyncQuiescenceTracker(pid: 7, quietWindowMs: 300, openedAt: 0)
     let received = tracker.receive(IdleSyncState(idleSince: 1000, reasons: []), now: 1010)
     #expect(received.events == [.state(.settling, pid: 7)])
     #expect(received.settleAt == 1300)
@@ -42,13 +62,13 @@ struct IdleSyncQuiescenceTrackerTests {
 
   @Test("An idle period that began longer ago than the window is quiet at once")
   func longIdle() {
-    var tracker = IdleSyncQuiescenceTracker(pid: 7, quietWindowMs: 300)
+    var tracker = IdleSyncQuiescenceTracker(pid: 7, quietWindowMs: 300, openedAt: 0)
     #expect(tracker.receive(IdleSyncState(idleSince: 100, reasons: []), now: 1000).events == [.state(.quiet, pid: 7)])
   }
 
   @Test("Going busy while settling cancels the pending quiet")
   func busyWhileSettling() {
-    var tracker = IdleSyncQuiescenceTracker(pid: 7, quietWindowMs: 300)
+    var tracker = IdleSyncQuiescenceTracker(pid: 7, quietWindowMs: 300, openedAt: 0)
     _ = tracker.receive(IdleSyncState(idleSince: 1000, reasons: []), now: 1000)
     #expect(
       tracker.receive(IdleSyncState(idleSince: nil, reasons: ["main"]), now: 1100).events == [.state(.busy([.runLoopIdle]), pid: 7)])
@@ -57,7 +77,7 @@ struct IdleSyncQuiescenceTrackerTests {
 
   @Test("An idle period reported at the end of time stays settling rather than trapping")
   func overflow() {
-    var tracker = IdleSyncQuiescenceTracker(pid: 7, quietWindowMs: 300)
+    var tracker = IdleSyncQuiescenceTracker(pid: 7, quietWindowMs: 300, openedAt: 0)
     let received = tracker.receive(IdleSyncState(idleSince: .max, reasons: []), now: 1)
     #expect(received.events == [.state(.settling, pid: 7)])
     #expect(received.settleAt == .max)
