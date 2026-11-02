@@ -95,6 +95,7 @@ from idb.common.types import (
     ProfileKind,
     ProfileResult,
     ProfileTarget,
+    QuiescenceBackend,
     QuiescenceEvent,
     QuiescenceState,
     QuiescenceStateChanged,
@@ -734,16 +735,31 @@ class Client(ClientBase):
         bundle_id: str | None = None,
         busy_threshold_ms: int | None = None,
         quiet_window_ms: int | None = None,
+        backend: QuiescenceBackend = QuiescenceBackend.AXBRIDGE,
     ) -> AsyncGenerator[QuiescenceEvent, None]:
         request = AccessibilityQuiescenceRequest(
             pid=pid,
             bundle_id=bundle_id,
             busy_threshold_ms=busy_threshold_ms,
             quiet_window_ms=quiet_window_ms,
+            # Unset is AXBRIDGE, the only backend an older companion has.
+            backend=(
+                AccessibilityQuiescenceRequest.SHIMULATOR
+                if backend == QuiescenceBackend.SHIMULATOR
+                else None
+            ),
         )
         async with self.stub.accessibility_quiescence.open() as stream:
             await stream.send_message(request, end=True)
             async for response in stream:
+                if (
+                    backend == QuiescenceBackend.SHIMULATOR
+                    and response.backend != AccessibilityQuiescenceRequest.SHIMULATOR
+                ):
+                    raise IdbException(
+                        "The companion predates the shimulator backend and measured "
+                        "with axbridge instead; update idb_companion"
+                    )
                 yield _quiescence_event_from_grpc(response)
 
     async def _accessibility_wait_result(

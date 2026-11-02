@@ -58,6 +58,7 @@ from idb.common.types import (
     ProfileLaunch,
     ProfilePid,
     ProfileResult,
+    QuiescenceBackend,
     QuiescenceEvent,
     QuiescenceState,
     QuiescenceStateChanged,
@@ -1793,6 +1794,7 @@ class TestParser(TestCase):
                     "bundle_id": None,
                     "busy_threshold_ms": None,
                     "quiet_window_ms": 0,
+                    "backend": QuiescenceBackend.AXBRIDGE,
                 }
             ],
         )
@@ -1869,6 +1871,7 @@ class TestParser(TestCase):
                             "bundle_id": "com.example.app",
                             "busy_threshold_ms": 100,
                             "quiet_window_ms": None,
+                            "backend": QuiescenceBackend.AXBRIDGE,
                         }
                     ],
                 )
@@ -1915,6 +1918,39 @@ class TestParser(TestCase):
             self.assertEqual(
                 output.getvalue(), "quiet (pid 42)\nnow following pid 43\n"
             )
+
+    async def test_quiet_api_shimulator_asks_the_app(self) -> None:
+        calls, _ = self._stream_quiescence(
+            QuiescenceStateChanged(pid=42, state=QuiescenceState.QUIET),
+        )
+        with redirect_stdout(StringIO()) as output:
+            exit_code = await cli_main(
+                cmd_input=[
+                    "ui",
+                    "quiet",
+                    "5",
+                    "--api",
+                    "shimulator",
+                    "--pid",
+                    "42",
+                    "--busy-threshold-ms",
+                    "32",
+                ]
+            )
+        self.assertEqual(exit_code, 0)
+        self.assertEqual(output.getvalue(), "quiet (pid 42)\n")
+        self.assertEqual(
+            calls,
+            [
+                {
+                    "pid": 42,
+                    "bundle_id": None,
+                    "busy_threshold_ms": 32,
+                    "quiet_window_ms": None,
+                    "backend": QuiescenceBackend.SHIMULATOR,
+                }
+            ],
+        )
 
     async def test_quiet_target_exit_is_an_error(self) -> None:
         for arguments in [["5"], ["5", "--watch"]]:

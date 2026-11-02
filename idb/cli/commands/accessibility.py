@@ -34,6 +34,7 @@ from idb.common.types import (
     AccessibilityTarget,
     Client,
     IdbException,
+    QUIESCENCE_BACKEND_BY_NAME,
     QuiescenceEvent,
     QuiescenceState,
     QuiescenceStateChanged,
@@ -701,10 +702,21 @@ class AccessibilityQuietCommand(ClientCommand):
             "frontmost app",
         )
         parser.add_argument(
+            "--api",
+            choices=list(QUIESCENCE_BACKEND_BY_NAME),
+            default="axbridge",
+            help="What measures the application. axbridge reads the accessibility "
+            "runtime's idle notifications. shimulator asks the app itself, through "
+            "idb's shim: launch the app through idb with IDB_IDLE_SYNC=1 in its "
+            "environment (IDB_IDB_IDLE_SYNC=1 in the client's). With no --pid or "
+            "--bundle-id it measures the one armed app.",
+        )
+        parser.add_argument(
             "--busy-threshold-ms",
             type=int,
             help="Milliseconds a signal may go unanswered before the application "
-            "counts as busy (default: the companion's)",
+            "counts as busy; with --api shimulator, the shortest main-thread work "
+            "that makes it busy (default: the companion's)",
         )
         parser.add_argument(
             "--quiet-window-ms",
@@ -735,6 +747,7 @@ class AccessibilityQuietCommand(ClientCommand):
             bundle_id=args.bundle_id,
             busy_threshold_ms=args.busy_threshold_ms,
             quiet_window_ms=quiet_window_ms,
+            backend=QUIESCENCE_BACKEND_BY_NAME[args.api],
         )
         async with aclosing(events):
             if isinstance(wait, _QuietNow):

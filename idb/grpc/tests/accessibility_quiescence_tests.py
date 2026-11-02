@@ -7,6 +7,7 @@
 
 from idb.common.types import (
     IdbException,
+    QuiescenceBackend,
     QuiescenceState,
     QuiescenceStateChanged,
     QuiescenceTargetChanged,
@@ -97,3 +98,42 @@ class AccessibilityQuiescenceTests(TestCase):
                 client, _ = make_client("accessibility_quiescence", stream)
                 with self.assertRaises(IdbException):
                     [e async for e in client.accessibility_quiescence()]
+
+    async def test_the_shimulator_backend_is_requested_and_an_older_companion_refused(
+        self,
+    ) -> None:
+        shimulator = AccessibilityQuiescenceRequest.SHIMULATOR
+        stream = ScriptedStream(
+            Response(
+                pid=42,
+                backend=shimulator,
+                state=Response.StateChanged(state=Response.QUIET),
+            ),
+        )
+        client, _ = make_client("accessibility_quiescence", stream)
+        events = [
+            e
+            async for e in client.accessibility_quiescence(
+                pid=42, backend=QuiescenceBackend.SHIMULATOR
+            )
+        ]
+        self.assertEqual(
+            events, [QuiescenceStateChanged(pid=42, state=QuiescenceState.QUIET)]
+        )
+        self.assertEqual(
+            stream.sent,
+            [(AccessibilityQuiescenceRequest(pid=42, backend=shimulator), True)],
+        )
+
+        # A companion that predates the field measured with axbridge and says nothing.
+        older = ScriptedStream(
+            Response(pid=42, state=Response.StateChanged(state=Response.QUIET)),
+        )
+        client, _ = make_client("accessibility_quiescence", older)
+        with self.assertRaisesRegex(IdbException, "predates the shimulator backend"):
+            [
+                e
+                async for e in client.accessibility_quiescence(
+                    pid=42, backend=QuiescenceBackend.SHIMULATOR
+                )
+            ]

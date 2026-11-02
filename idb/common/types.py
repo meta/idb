@@ -54,6 +54,20 @@ class AccessibilityWaitResult:
         return self.found
 
 
+class QuiescenceBackend(Enum):
+    # The accessibility runtime's idle notifications, read by the guest reader.
+    AXBRIDGE = 1
+    # The Shimulator shim's idle module, inside an app launched with
+    # IDB_IDLE_SYNC=1 in its environment.
+    SHIMULATOR = 2
+
+
+QUIESCENCE_BACKEND_BY_NAME: dict[str, QuiescenceBackend] = {
+    "axbridge": QuiescenceBackend.AXBRIDGE,
+    "shimulator": QuiescenceBackend.SHIMULATOR,
+}
+
+
 class QuiescenceState(Enum):
     BUSY = "busy"
     SETTLING = "settling"
@@ -1391,9 +1405,11 @@ class Client(ABC):
         bundle_id: str | None = None,
         busy_threshold_ms: int | None = None,
         quiet_window_ms: int | None = None,
+        backend: QuiescenceBackend = QuiescenceBackend.AXBRIDGE,
     ) -> AsyncGenerator[QuiescenceEvent, None]:
         """Stream quiescence events for an application, or the frontmost one when
-        neither pid nor bundle_id is given. A None tunable takes the companion's default."""
+        neither pid nor bundle_id is given. A None tunable takes the companion's default.
+        With the shimulator backend and no target, the one armed application connected."""
         # pyrefly: ignore [invalid-yield]
         yield
 
