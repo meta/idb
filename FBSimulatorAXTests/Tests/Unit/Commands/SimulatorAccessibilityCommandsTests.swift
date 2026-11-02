@@ -1604,6 +1604,7 @@ final class SimulatorAccessibilityCommandsTests: XCTestCase {
     defer { element.close() }
     XCTAssertEqual(result.diagnostics?.unmatchedValues, ["App Window", "Confirm Action"])
     XCTAssertEqual(result.diagnostics?.truncated, false)
+    XCTAssertNil(result.diagnostics?.readTruncated, "host reads do not report tree completeness")
 
     let elementLabel = try await element.stringValue(forSearchableKey: .label)
     XCTAssertEqual(elementLabel, "OK")

@@ -11,7 +11,6 @@ import idb.common.plugin as plugin
 from idb.cli import BaseCommand
 from idb.common.types import IdbException
 
-
 _AGENT_GUIDE = """\
 idb agent guide
 
@@ -26,7 +25,7 @@ Read before acting
 Wait for element presence
 - On simulators, use `idb ui wait <marker> --match-key AXUniqueId --timeout 30` to let the companion poll for an element. Use this instead of busy-looping on `describe-all` or adding fixed sleeps while waiting for a screen to update.
 - Matching is a case-sensitive substring; omit `--match-key` to match a label.
-- With `--json`, a match returns `{"found": true}`. A timeout returns `found: false`, an `error` message, and a nonzero exit status. When available, `diagnostics` contains nonmatching values of the searched key from the final poll, whether the sample was truncated, and any read error. Other failures remain errors.
+- With `--json`, a match returns `{"found": true}`. A timeout returns `found: false`, an `error` message, and a nonzero exit status. When available, `diagnostics` contains nonmatching values of the searched key from the final poll, separate `sample_truncated` and `read_truncated` flags, and any read error. The legacy `truncated` flag covers either kind; separate flags are null with older companions; `read_truncated` is also null when the backend cannot report tree completeness. Other failures remain errors.
 - Presence does not establish visibility or hittability. Read the element again when you need its properties before acting.
 
 Interact by element identity, not coordinates

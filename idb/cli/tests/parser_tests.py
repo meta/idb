@@ -78,7 +78,6 @@ from idb.common.types import (
 from idb.grpc.idb_pb2 import AccessibilityInfoRequest
 from idb.utils.testing import AsyncContextManagerMock, AsyncMock, TestCase
 
-
 T = TypeVar("T")
 COMPANION_PATH: str | None = get_default_companion_path()
 DELIVERED_NOTIFICATION = DeliveredNotification(
@@ -1701,6 +1700,8 @@ class TestParser(TestCase):
                     "unmatched_values": ["Settings", "General"],
                     "truncated": False,
                     "read_error": None,
+                    "read_truncated": None,
+                    "sample_truncated": None,
                 },
             },
         )
@@ -1713,6 +1714,34 @@ class TestParser(TestCase):
                     unmatched_values=["Settings", "General"], truncated=True
                 ),
                 "Last poll's nonmatching AXLabel values (truncated):\n  'Settings'\n  'General'",
+            ),
+            (
+                AccessibilitySearchDiagnostics(
+                    unmatched_values=["Settings"],
+                    truncated=True,
+                    read_truncated=True,
+                    sample_truncated=False,
+                ),
+                "Last poll's nonmatching AXLabel values:\n  'Settings'"
+                "\nLast poll's tree read was truncated; the marker may be outside it.",
+            ),
+            (
+                AccessibilitySearchDiagnostics(
+                    unmatched_values=["Settings"],
+                    truncated=True,
+                    read_truncated=False,
+                    sample_truncated=True,
+                ),
+                "Last poll's nonmatching AXLabel values (truncated):\n  'Settings'",
+            ),
+            (
+                AccessibilitySearchDiagnostics(
+                    truncated=True,
+                    read_truncated=True,
+                    sample_truncated=True,
+                ),
+                "Last poll's nonmatching AXLabel values (truncated):\n  (none)"
+                "\nLast poll's tree read was truncated; the marker may be outside it.",
             ),
             (
                 AccessibilitySearchDiagnostics(),
