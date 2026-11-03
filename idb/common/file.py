@@ -12,7 +12,7 @@ import aiofiles
 
 def get_last_n_lines(file_path: str, n: int) -> str:
     with open(file_path) as f:
-        return "\n".join(f.readlines()[-n:])
+        return "".join(f.readlines()[-n:])
 
 
 async def generate_file_chunks(file_path: str) -> AsyncIterator[bytes]:
