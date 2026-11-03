@@ -264,6 +264,7 @@ _QUIESCENCE_STATES: dict[int, QuiescenceState] = {
 _QUIESCENCE_SIGNALS: dict[int, str] = {
     AccessibilityQuiescenceResponse.RUN_LOOP_IDLE: "run_loop_idle",
     AccessibilityQuiescenceResponse.ANIMATIONS_INACTIVE: "animations_inactive",
+    AccessibilityQuiescenceResponse.SCROLL_IDLE: "scroll_idle",
 }
 
 
