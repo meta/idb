@@ -11,19 +11,6 @@ import FBXCTestCore
 import Foundation
 import Testing
 
-private final class TargetSetDouble: TargetSet {
-  weak var delegate: (any TargetSetDelegate)?
-  private let targets: [String: any TargetInfo]
-
-  init(targets: [String: any TargetInfo]) {
-    self.targets = targets
-  }
-
-  var allTargetInfos: [any TargetInfo] { Array(targets.values) }
-
-  func target(withUDID udid: String) -> (any TargetInfo)? { targets[udid] }
-}
-
 /// Records which makers were called, in order.
 private final class MakerLog: @unchecked Sendable {
   private let lock = NSLock()

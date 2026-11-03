@@ -404,91 +404,10 @@ private func runClean(_ udid: String, userDefaults: UserDefaults, xcodeAvailable
 }
 
 private func runCompanionServer(_ udid: String, userDefaults: UserDefaults, xcodeAvailable: Bool, logger: IDBLogger, reporter: EventReporter) async throws {
-  let terminateOffline = userDefaults.bool(forKey: "-terminate-offline")
-  let idleShutdownTime = userDefaults.string(forKey: "-idle-shutdown-time").flatMap(Double.init).flatMap { $0 > 0 ? $0 : nil }
-
-  let target = try await targetForUDID(udid, userDefaults: userDefaults, xcodeAvailable: xcodeAvailable, warmUp: true, logger: logger)
-
-  reporter.addMetadata([
-    "udid": udid,
-    "target_type": target.targetType.stringRepresentation.lowercased(),
-  ])
-  reporter.report(EventReporterSubject(forEvent: "launched"))
-
-  let temporaryDirectory = TemporaryDirectory(logger: logger)
-  let storageManager = try IDBStorageManager(target: target, logger: logger)
-
-  let ports = IDBPortsConfiguration(arguments: userDefaults)
-
-  // The gRPC domain socket this companion serves on, if any. Removing it
-  // the instant shutdown begins stops clients from discovering a
-  // companion that is already shutting down.
-  let registeredSocketPath: String?
-  if case let .unixDomainSocket(path) = ports.swiftServerTarget {
-    registeredSocketPath = path
-  } else {
-    registeredSocketPath = nil
-  }
-  let removeRegisteredSocket: @Sendable () -> Void = {
-    if let registeredSocketPath {
-      Darwin.unlink(registeredSocketPath)
-    }
-  }
-
-  let commandExecutor = IDBCommandExecutor(
-    target: target,
-    storageManager: storageManager,
-    temporaryDirectory: temporaryDirectory,
-    debugserverPort: in_port_t(ports.debugserverPort),
-    logger: logger
-  )
-
-  let idleMonitor = idleShutdownTime.map {
-    IdleMonitor(idleTime: $0, logger: logger, onShutdownStarted: removeRegisteredSocket)
-  }
-
-  let swiftServer = try GRPCSwiftServer(
-    target: target,
-    commandExecutor: commandExecutor,
-    reporter: reporter,
-    logger: logger,
-    ports: ports,
-    idleMonitor: idleMonitor,
-    onShutdownStarted: removeRegisteredSocket
-  )
-
-  let serverDescription = try await swiftServer.start()
-  writeJSONToStdOut(serverDescription)
-
-  defer {
-    temporaryDirectory.cleanOnExit()
-    removeRegisteredSocket()
-  }
-
-  if let idleMonitor, let idleShutdownTime {
-    logger.info().log("Companion will shut down after \(Int(idleShutdownTime))s of inactivity")
-    idleMonitor.start()
-  }
-  if terminateOffline {
-    logger.info().log("Companion will terminate when target goes offline")
-  } else {
-    logger.info().log("Companion will stay alive if target goes offline")
-  }
-
-  // Race the completion conditions; whichever resolves first ends the companion.
-  // `Task.select` does not cancel the losers on the win path, so cancel them via
-  // `defer`. If this command is cancelled (signal), `Task.select`'s own
-  // `onCancel` cancels these children for us.
-  var raceTasks: [Task<Void, Error>] = [Task { try await swiftServer.waitUntilClosed() }]
-  if let idleMonitor {
-    raceTasks.append(Task { try await idleMonitor.waitUntilExpired() })
-  }
-  if terminateOffline {
-    nonisolated(unsafe) let target = target
-    raceTasks.append(Task { try await awaitTargetOffline(target, logger: logger) })
-  }
-  defer { raceTasks.forEach { $0.cancel() } }
-  _ = try await Task.select(raceTasks).value
+  let makers = try defaultTargetSetMakers(userDefaults, xcodeAvailable: xcodeAvailable, logger: logger)
+  try await CompanionServerSession.run(
+    udid, userDefaults: userDefaults, makingTargetSets: makers,
+    logger: logger, reporter: reporter, onStarted: writeJSONToStdOut)
 }
 
 private func runNotifier(_ notify: String, userDefaults: UserDefaults, xcodeAvailable: Bool, logger: ControlCoreLogger) async throws {

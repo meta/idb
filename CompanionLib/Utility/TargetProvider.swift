@@ -49,6 +49,25 @@ public enum TargetProvider {
   /// the sets before it cannot resolve the UDID. Resolving the sole or sole booted target needs
   /// every set, so creates them all; resolving the Mac needs none.
   public static func target(withUDID udid: String, makingTargetSets makers: [TargetSetMaker], warmUp: Bool, logger: ControlCoreLogger) async throws -> CompanionTarget {
+    let targetSets = try await makeTargetSets(withUDID: udid, makers: makers)
+    return try target(withUDID: udid, targetSets: targetSets, warmUp: warmUp, logger: logger)
+  }
+
+  /// Keeps discovery active until the operation using the target finishes.
+  public static func withTarget<Result>(
+    withUDID udid: String,
+    makingTargetSets makers: [TargetSetMaker],
+    warmUp: Bool,
+    logger: ControlCoreLogger,
+    _ body: (CompanionTarget) async throws -> Result
+  ) async throws -> Result {
+    let targetSets = try await makeTargetSets(withUDID: udid, makers: makers)
+    defer { withExtendedLifetime(targetSets) {} }
+    let target = try target(withUDID: udid, targetSets: targetSets, warmUp: warmUp, logger: logger)
+    return try await body(target)
+  }
+
+  private static func makeTargetSets(withUDID udid: String, makers: [TargetSetMaker]) async throws -> [TargetSet] {
     var targetSets: [TargetSet] = []
     switch udid.lowercased() {
     case "only", "booted":
@@ -66,7 +85,7 @@ public enum TargetProvider {
         }
       }
     }
-    return try target(withUDID: udid, targetSets: targetSets, warmUp: warmUp, logger: logger)
+    return targetSets
   }
 
   public static func target(withUDID udid: String, targetSets: [TargetSet], warmUp: Bool, logger: ControlCoreLogger) throws -> CompanionTarget {
