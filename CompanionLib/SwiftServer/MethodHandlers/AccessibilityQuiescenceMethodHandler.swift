@@ -194,6 +194,7 @@ struct AccessibilityQuiescenceMethodHandler {
     case .runLoopIdle: .runLoopIdle
     case .animationsInactive: .animationsInactive
     case .scrollIdle: .scrollIdle
+    case .interactionEnabled: .interactionEnabled
     }
   }
 }

@@ -31,6 +31,14 @@ struct IdleSyncQuiescenceTrackerTests {
         == [.state(.busy([.scrollIdle, .runLoopIdle]), pid: 7)])
   }
 
+  @Test("Ignored input is a signal of its own, so a host about to send input can tell it apart")
+  func interaction() {
+    var tracker = IdleSyncQuiescenceTracker(pid: 7, quietWindowMs: 0, openedAt: 0)
+    #expect(
+      tracker.receive(IdleSyncState(idleSince: nil, reasons: ["interaction"]), now: 1).events
+        == [.state(.busy([.interactionEnabled]), pid: 7)])
+  }
+
   @Test("With no quiet window, idle is quiet at once, and a repeated state is not reported again")
   func idleIsQuiet() {
     var tracker = IdleSyncQuiescenceTracker(pid: 7, quietWindowMs: 0, openedAt: 0)

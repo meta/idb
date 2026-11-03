@@ -676,6 +676,8 @@ message AccessibilityQuiescenceResponse {
     ANIMATIONS_INACTIVE = 2;
     // No scroll view is moving its content. SHIMULATOR backend only.
     SCROLL_IDLE = 3;
+    // The app accepts touches and key presses. SHIMULATOR backend only.
+    INTERACTION_ENABLED = 4;
   }
   // Sent once the state is known and then on every change.
   message StateChanged {

@@ -16,6 +16,9 @@ public enum QuiescenceSignal: String, Sendable, Hashable, CaseIterable {
   case animationsInactive = "animations_inactive"
   /// No scroll view in the application is moving its content. Reported only by the Shimulator backend.
   case scrollIdle = "scroll_idle"
+  /// The application accepts touches and key presses; one that ignores them drops input. Reported only by the
+  /// Shimulator backend.
+  case interactionEnabled = "interaction_enabled"
 }
 
 public enum QuiescenceState: Sendable, Equatable {
