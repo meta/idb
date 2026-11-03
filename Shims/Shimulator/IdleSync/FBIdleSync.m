@@ -13,10 +13,7 @@
 
 #if TARGET_OS_IPHONE
 
- #import <dlfcn.h>
- #import <mach/mach_time.h>
  #import <objc/runtime.h>
- #import <os/lock.h>
  #import <pthread.h>
  #import <stdatomic.h>
  #import <sys/time.h>
@@ -25,23 +22,12 @@
  #import <QuartzCore/QuartzCore.h>
  #import <UIKit/UIKit.h>
 
- #import <dispatch/dispatch.h>
- #import <mach-o/dyld.h>
- #import <mach-o/getsect.h>
-
 const uint64_t FBIdleSyncDefaultBusyThresholdMs = 8;
 
 // How long every condition must have stopped holding before the process counts as idle.
 static const uint64_t FBIdleQuietWindowMs = 100;
 // An animation longer than this is a spinner or a loop, which never ends while the UI waits.
 static const double FBIdleLongestTrackedAnimationSeconds = 2.0;
-// Work scheduled on the main thread at most this far ahead (`dispatch_after`, `performSelector:afterDelay:`, a
-// one-shot timer) is how an app shows something "shortly after"; the app stays busy until it has run.
-static const double FBIdleLongestTrackedDelaySeconds = 1.5;
-// One call site scheduling delayed work this many times within the window is a loop (a poll, a ticking label),
-// which never ends while the UI waits, so it is no longer tracked.
-static const uint32_t FBIdlePeriodicCount = 3;
-static const uint64_t FBIdlePeriodicWindowMs = 5000;
 
 // Main thread work shorter than this is a timer or a display link tick with nothing to show.
 static _Atomic(uint64_t) sBusyThresholdMs = FBIdleSyncDefaultBusyThresholdMs;
@@ -284,259 +270,6 @@ static void FBIdleObserveScrolling(void)
   method_setImplementation(method, (IMP)FBIdleSetContentOffset);
 }
 
- #pragma mark - Delayed work
-
-static _Atomic(bool) sArmed = false;
-static _Atomic(uint64_t) sDelayedWorkUntilMs = 0;
-
-typedef struct {
-  uintptr_t site;
-  uint64_t windowStartMs;
-  uint32_t count;
-  // The last whole window showed a loop.
-  bool periodic;
-} FBIdleCallSite;
-
-static os_unfair_lock sCallSitesLock = OS_UNFAIR_LOCK_INIT;
-static FBIdleCallSite sCallSites[128];
-
-// A site is a loop while its current window, or the whole window before it, holds more than the loop count, so a
-// loop is not tracked again each time a window starts, and a site that slows down is tracked from its next window.
-static bool FBIdleIsPeriodic(uintptr_t site, uint64_t now)
-{
-  os_unfair_lock_lock(&sCallSitesLock);
-  FBIdleCallSite *entry = &sCallSites[(site >> 2) % (sizeof(sCallSites) / sizeof(sCallSites[0]))];
-  if (entry->site != site || now < entry->windowStartMs) {
-    entry->site = site;
-    entry->windowStartMs = now;
-    entry->count = 0;
-    entry->periodic = false;
-  } else if (now - entry->windowStartMs > FBIdlePeriodicWindowMs) {
-    // A gap of a whole window after the last one means that window held nothing.
-    entry->periodic = entry->count > FBIdlePeriodicCount && now - entry->windowStartMs <= 2 * FBIdlePeriodicWindowMs;
-    entry->windowStartMs = now;
-    entry->count = 0;
-  }
-  entry->count++;
-  bool periodic = entry->periodic || entry->count > FBIdlePeriodicCount;
-  os_unfair_lock_unlock(&sCallSitesLock);
-  return periodic;
-}
-
-static void FBIdleNoteDelayedWork(double delaySeconds, uintptr_t site)
-{
-  if (!atomic_load(&sArmed) || !(delaySeconds > 0) || delaySeconds > FBIdleLongestTrackedDelaySeconds) {
-    return;
-  }
-  uint64_t now = FBIdleNowMs();
-  if (FBIdleIsPeriodic(site, now)) {
-    return;
-  }
-  // A timer may fire up to a tenth of its delay late (libdispatch's default leeway).
-  uint64_t until = now + (uint64_t)(delaySeconds * 1100) + 1;
-  uint64_t current = atomic_load(&sDelayedWorkUntilMs);
-  while (until > current && !atomic_compare_exchange_weak(&sDelayedWorkUntilMs, &current, until)) {}
-}
-
-// Set at load, before any delayed work is noted.
-static mach_timebase_info_data_t sTimebase = {1, 1};
-
-// Seconds until `when`, or -1 for a time on another clock (wall time) or never.
-static double FBIdleSecondsUntil(dispatch_time_t when)
-{
-  if (when == DISPATCH_TIME_FOREVER) {
-    return -1;
-  }
-  dispatch_time_t now = dispatch_time(DISPATCH_TIME_NOW, 0);
-  // The top two bits name the clock (wall, monotonic, uptime); only compare like with like.
-  const uint64_t clockBits = 3ULL << 62;
-  if ((when & clockBits) != (now & clockBits) || when <= now) {
-    return -1;
-  }
-  uint64_t ticks = (when & ~clockBits) - (now & ~clockBits);
-  return (double)ticks * sTimebase.numer / sTimebase.denom / NSEC_PER_SEC;
-}
-
-typedef void (*FBIdleDispatchAfterFunction)(dispatch_time_t, dispatch_queue_t, dispatch_block_t);
-typedef void (*FBIdleDispatchAfterFFunction)(dispatch_time_t, dispatch_queue_t, void *, dispatch_function_t);
-
-static void FBIdleDispatchAfter(dispatch_time_t when, dispatch_queue_t queue, dispatch_block_t block);
-static void FBIdleDispatchAfterF(dispatch_time_t when, dispatch_queue_t queue, void *context, dispatch_function_t work);
-
-// libdispatch's implementations. dyld points every other image's references at the wrappers, and rewrites `dlsym`
-// results the same way, but leaves the shim's own references to libdispatch: a lookup that returns a wrapper is
-// discarded, and the direct symbols stand in for it and until `FBIdleResolveDispatchAfter` runs.
-static _Atomic(FBIdleDispatchAfterFunction) sOriginalDispatchAfter = dispatch_after;
-static _Atomic(FBIdleDispatchAfterFFunction) sOriginalDispatchAfterF = dispatch_after_f;
-
-static void FBIdleResolveDispatchAfter(void)
-{
-  FBIdleDispatchAfterFunction after = (FBIdleDispatchAfterFunction)dlsym(RTLD_NEXT, "dispatch_after");
-  if (after != NULL && after != FBIdleDispatchAfter) {
-    atomic_store(&sOriginalDispatchAfter, after);
-  }
-  FBIdleDispatchAfterFFunction afterF = (FBIdleDispatchAfterFFunction)dlsym(RTLD_NEXT, "dispatch_after_f");
-  if (afterF != NULL && afterF != FBIdleDispatchAfterF) {
-    atomic_store(&sOriginalDispatchAfterF, afterF);
-  }
-}
-
-// A call site is where the work was scheduled and what it runs, so callers that share one scheduling helper (a
-// wrapper, a reactive scheduler) are told apart by their work.
-struct FBIdleBlockLayout {
-  void *isa;
-  int32_t flags;
-  int32_t reserved;
-  void *invoke;
-};
-
-static uintptr_t FBIdleSite(uintptr_t caller, uintptr_t work)
-{
-  return caller ^ (work * 0x9E3779B97F4A7C15ULL);
-}
-
-static uintptr_t FBIdleBlockWork(const void *block)
-{
-  return block == NULL ? 0 : (uintptr_t)((const struct FBIdleBlockLayout *)block)->invoke;
-}
-
-static uintptr_t FBIdleSelectorWork(id target, SEL action)
-{
-  return (uintptr_t)object_getClass(target) ^ (uintptr_t)sel_getName(action);
-}
-
-// Swift's `DispatchQueue.asyncAfter` calls `dispatch_after` from the Swift Dispatch library, so every Swift caller
-// would share one return address there; the call site is that function's caller.
-static _Atomic(uintptr_t) sSwiftDispatchTextStart = 0;
-static _Atomic(uintptr_t) sSwiftDispatchTextEnd = 0;
-
-static void FBIdleNoteImage(const struct mach_header *header, intptr_t slide)
-{
-  Dl_info info;
-  if (atomic_load(&sSwiftDispatchTextEnd) != 0 || dladdr(header, &info) == 0 || info.dli_fname == NULL) {
-    return;
-  }
-  const char *name = strrchr(info.dli_fname, '/');
-  if (name == NULL || strcmp(name + 1, "libswiftDispatch.dylib") != 0) {
-    return;
-  }
-  unsigned long size = 0;
-  uint8_t *text = getsegmentdata((const struct mach_header_64 *)header, "__TEXT", &size);
-  if (text != NULL) {
-    atomic_store(&sSwiftDispatchTextStart, (uintptr_t)text);
-    atomic_store(&sSwiftDispatchTextEnd, (uintptr_t)text + size);
-  }
-}
-
-static bool FBIdleIsInSwiftDispatch(uintptr_t address)
-{
-  return address >= atomic_load(&sSwiftDispatchTextStart) && address < atomic_load(&sSwiftDispatchTextEnd);
-}
-
-// The caller's caller is read only when the caller is the Swift Dispatch library, whose frames keep a frame pointer.
- #pragma clang diagnostic push
- #pragma clang diagnostic ignored "-Wframe-address"
-
-static void FBIdleDispatchAfter(dispatch_time_t when, dispatch_queue_t queue, dispatch_block_t block)
-{
-  if (atomic_load(&sArmed) && queue == dispatch_get_main_queue()) {
-    uintptr_t site = (uintptr_t)__builtin_return_address(0);
-    if (FBIdleIsInSwiftDispatch(site)) {
-      site = (uintptr_t)__builtin_return_address(1);
-    }
-    FBIdleNoteDelayedWork(FBIdleSecondsUntil(when), FBIdleSite(site, FBIdleBlockWork((const void *)block)));
-  }
-  atomic_load(&sOriginalDispatchAfter)(when, queue, block);
-}
-
-static void FBIdleDispatchAfterF(dispatch_time_t when, dispatch_queue_t queue, void *context, dispatch_function_t work)
-{
-  if (atomic_load(&sArmed) && queue == dispatch_get_main_queue()) {
-    uintptr_t site = (uintptr_t)__builtin_return_address(0);
-    if (FBIdleIsInSwiftDispatch(site)) {
-      site = (uintptr_t)__builtin_return_address(1);
-    }
-    FBIdleNoteDelayedWork(FBIdleSecondsUntil(when), FBIdleSite(site, (uintptr_t)work));
-  }
-  atomic_load(&sOriginalDispatchAfterF)(when, queue, context, work);
-}
-
- #pragma clang diagnostic pop
-
-// Calls from the app reach these.
-__attribute__((used, section("__DATA,__interpose"))) static const void *const FBIdleInterposeDispatchAfter[2] = {
-  (const void *)FBIdleDispatchAfter, (const void *)dispatch_after
-};
-__attribute__((used, section("__DATA,__interpose"))) static const void *const FBIdleInterposeDispatchAfterF[2] = {
-  (const void *)FBIdleDispatchAfterF, (const void *)dispatch_after_f
-};
-
-static void (*sOriginalPerformAfterDelay)(id, SEL, SEL, id, NSTimeInterval);
-static void (*sOriginalPerformAfterDelayInModes)(id, SEL, SEL, id, NSTimeInterval, NSArray *);
-
-static void FBIdlePerformAfterDelay(id target, SEL selector, SEL action, id argument, NSTimeInterval delay)
-{
-  if ([NSThread isMainThread]) {
-    FBIdleNoteDelayedWork(delay, FBIdleSite((uintptr_t)__builtin_return_address(0), FBIdleSelectorWork(target, action)));
-  }
-  sOriginalPerformAfterDelay(target, selector, action, argument, delay);
-}
-
-static void FBIdlePerformAfterDelayInModes(id target, SEL selector, SEL action, id argument, NSTimeInterval delay, NSArray *modes)
-{
-  if ([NSThread isMainThread]) {
-    FBIdleNoteDelayedWork(delay, FBIdleSite((uintptr_t)__builtin_return_address(0), FBIdleSelectorWork(target, action)));
-  }
-  sOriginalPerformAfterDelayInModes(target, selector, action, argument, delay, modes);
-}
-
-static NSTimer *(*sOriginalScheduledTimerWithBlock)(id, SEL, NSTimeInterval, BOOL, void (^)(NSTimer *));
-static NSTimer *(*sOriginalScheduledTimerWithTarget)(id, SEL, NSTimeInterval, id, SEL, id, BOOL);
-
-static NSTimer *FBIdleScheduledTimerWithBlock(id cls, SEL selector, NSTimeInterval interval, BOOL repeats, void (^block)(NSTimer *))
-{
-  if (!repeats && [NSThread isMainThread]) {
-    FBIdleNoteDelayedWork(interval, FBIdleSite((uintptr_t)__builtin_return_address(0), FBIdleBlockWork((const void *)block)));
-  }
-  return sOriginalScheduledTimerWithBlock(cls, selector, interval, repeats, block);
-}
-
-static NSTimer *FBIdleScheduledTimerWithTarget(id cls, SEL selector, NSTimeInterval interval, id target, SEL action, id userInfo, BOOL repeats)
-{
-  if (!repeats && [NSThread isMainThread]) {
-    FBIdleNoteDelayedWork(interval, FBIdleSite((uintptr_t)__builtin_return_address(0), FBIdleSelectorWork(target, action)));
-  }
-  return sOriginalScheduledTimerWithTarget(cls, selector, interval, target, action, userInfo, repeats);
-}
-
-static void FBIdleObserveDelayedWork(void)
-{
-  // Each original is stored before its replacement is installed, and a method that is missing is left alone.
-  Method perform = class_getInstanceMethod([NSObject class], @selector(performSelector:withObject:afterDelay:));
-  if (perform != NULL) {
-    sOriginalPerformAfterDelay = (void *)method_getImplementation(perform);
-    method_setImplementation(perform, (IMP)FBIdlePerformAfterDelay);
-  }
-  Method performInModes = class_getInstanceMethod([NSObject class], @selector(performSelector:withObject:afterDelay:inModes:));
-  if (performInModes != NULL) {
-    sOriginalPerformAfterDelayInModes = (void *)method_getImplementation(performInModes);
-    method_setImplementation(performInModes, (IMP)FBIdlePerformAfterDelayInModes);
-  }
-  Method blockTimer = class_getClassMethod([NSTimer class], @selector(scheduledTimerWithTimeInterval:repeats:block:));
-  if (blockTimer != NULL) {
-    sOriginalScheduledTimerWithBlock = (void *)method_getImplementation(blockTimer);
-    method_setImplementation(blockTimer, (IMP)FBIdleScheduledTimerWithBlock);
-  }
-  Method targetTimer = class_getClassMethod([NSTimer class], @selector(scheduledTimerWithTimeInterval:target:selector:userInfo:repeats:));
-  if (targetTimer != NULL) {
-    sOriginalScheduledTimerWithTarget = (void *)method_getImplementation(targetTimer);
-    method_setImplementation(targetTimer, (IMP)FBIdleScheduledTimerWithTarget);
-  }
-  // Called at once for every image already loaded, then for each one loaded later.
-  _dyld_register_func_for_add_image(FBIdleNoteImage);
-  atomic_store(&sArmed, true);
-}
-
  #pragma mark - Sampling
 
 FBIdleSyncSample FBIdleSyncSampleNow(void)
@@ -555,17 +288,15 @@ FBIdleSyncSample FBIdleSyncSampleNow(void)
   uint64_t lastWorkEnd = atomic_load(&sMainLastWorkEndMs);
   uint64_t animationsUntil = atomic_load(&sAnimationsUntilMs);
   uint64_t lastScroll = atomic_load(&sLastScrollMs);
-  uint64_t delayedUntil = atomic_load(&sDelayedWorkUntilMs);
   // Each condition holds through the settle window after it last held; one that ended after `now` was read holds.
   FBIdleSyncSample sample = {
     .mainBusy = working || lastWorkEnd + FBIdleQuietWindowMs > now,
     .animating = animationsUntil + FBIdleQuietWindowMs > now,
     .scrolling = lastScroll + FBIdleQuietWindowMs > now,
-    .delayed = delayedUntil + FBIdleQuietWindowMs > now,
     .lastInputAt = atomic_load(&sLastInputMs),
     .at = now,
   };
-  sample.idleSince = MAX(MAX(lastWorkEnd, animationsUntil), MAX(lastScroll, delayedUntil)) + FBIdleQuietWindowMs;
+  sample.idleSince = MAX(MAX(lastWorkEnd, animationsUntil), lastScroll) + FBIdleQuietWindowMs;
   return sample;
 }
 
@@ -580,8 +311,6 @@ void FBIdleSyncSetBusyThreshold(uint64_t milliseconds)
 // patternlint-disable-next-line static-initializer-constructor-attribute
 __attribute__((constructor)) static void FBIdleSyncLoad(void)
 {
-  // The interposed wrappers are live in every process the shim is loaded into, armed or not.
-  FBIdleResolveDispatchAfter();
   const char *armed = getenv("IDB_IDLE_SYNC");
   if (armed == NULL || strcmp(armed, "1") != 0) {
     return;
@@ -591,12 +320,10 @@ __attribute__((constructor)) static void FBIdleSyncLoad(void)
   atomic_store(&sMainWakeAtMs, now);
   atomic_store(&sMainLastWorkEndMs, now);
   atomic_store(&sMainAwake, true);
-  mach_timebase_info(&sTimebase);
   @autoreleasepool {
     FBIdleObserveAnimations();
     FBIdleObserveScrolling();
     FBIdleObserveInput();
-    FBIdleObserveDelayedWork();
     // The main run loop observer is installed on the main thread once the app's run loop exists.
     dispatch_async(dispatch_get_main_queue(), ^{
       FBIdleObserveHostReads();

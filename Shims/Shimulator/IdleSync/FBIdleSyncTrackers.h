@@ -17,9 +17,6 @@ typedef struct {
   bool animating;
   // A scroll view in a window moved its content within the settle window.
   bool scrolling;
-  // Main-thread work the app scheduled to run shortly (`dispatch_after`, `performSelector:afterDelay:`, a one-shot
-  // timer) is pending.
-  bool delayed;
   // Wall-clock milliseconds when the process last finished handling the end of a touch sequence or a key press, or 0
   // if it never has.
   uint64_t lastInputAt;

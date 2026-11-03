@@ -32,9 +32,6 @@ public enum IdleSyncReason: String, CaseIterable, Sendable {
   case animation
   /// A scroll view's content moving.
   case scroll
-  /// Main-thread work the app scheduled to run shortly: `dispatch_after` on the main queue,
-  /// `performSelector:afterDelay:`, a one-shot timer.
-  case delayed
 }
 
 /// What a process reports whenever it goes busy or idle, or what keeps it busy changes.
