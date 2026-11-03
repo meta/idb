@@ -1,8 +1,9 @@
 # Idle synchronization
 
 The `idle` capability reports when a process in the simulator is idle: its main
-run loop has no work to do, no animation is running and nothing is scrolling.
-It is computed inside the process, from load, by the trackers below.
+run loop has no work to do, no animation is running, nothing is scrolling and it
+accepts input. It is computed inside the process, from load, by the trackers
+below.
 
 It is armed by `IDB_IDLE_SYNC=1` in the process's launch environment. Without
 it, nothing in this directory runs. A process launched with `idb launch` gets it
@@ -16,6 +17,7 @@ prefix.
 | Main thread work | A run loop observer times each wake | A wake shorter than the busy threshold, 8 ms unless the host sets another (timers, display link ticks) |
 | Animations | `-[CALayer addAnimation:forKey:]`; the end time is scaled by the layer's effective speed | Longer than 2 s, repeating forever (spinners, loops), or on a paused layer (speed 0) |
 | Scrolling | `-[UIScrollView setContentOffset:]` changing the offset of a scroll view in a window, which every scroll goes through: drags, deceleration and programmatic scrolls | — |
+| Ignored input | `-[UIApplication isIgnoringInteractionEvents]`, read on the main thread as each run loop wake begins and ends: the app drops touches and key presses while it holds (`beginIgnoringInteractionEvents`, and UIKit during some transitions) | — |
 
 A host that reads the UI through the accessibility label of one of the app's
 own classes names that class in `IDB_IDLE_SYNC_HOST_READ_CLASS`. Time the main
@@ -42,7 +44,7 @@ changes, with the state as the response's `payload`:
 `idleSince` is the wall-clock time in milliseconds, which a simulator process
 shares with its host, when the current idle period began; it is absent while
 the process is busy. `reasons` names what keeps it busy (`main`, `animation`,
-`scroll`), and a host skips a reason it does not know.
+`scroll`, `interaction`), and a host skips a reason it does not know.
 `lastInputAt` is when the process last finished handling the end of a touch
 sequence or a key press (`-[UIApplication sendEvent:]` with every touch or press
 ended or cancelled), absent until it has handled one; it does not

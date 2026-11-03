@@ -30,7 +30,8 @@ public struct IdleSyncSample: Equatable, Sendable {
   }
 }
 
-/// The trackers the controller reads; the shim's observe the main run loop, Core Animation and scrolling.
+/// The trackers the controller reads; the shim's observe the main run loop, Core Animation, scrolling and whether the
+/// app ignores input.
 public protocol IdleSyncProbe {
   func sample() -> IdleSyncSample
   /// `nil` restores the trackers' own threshold.

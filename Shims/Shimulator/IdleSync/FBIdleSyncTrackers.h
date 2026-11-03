@@ -17,6 +17,8 @@ typedef struct {
   bool animating;
   // A scroll view in a window moved its content within the settle window.
   bool scrolling;
+  // The app ignores touch and key events, or stopped within the settle window.
+  bool ignoringInteraction;
   // Wall-clock milliseconds when the process last finished handling the end of a touch sequence or a key press, or 0
   // if it never has.
   uint64_t lastInputAt;

@@ -32,6 +32,8 @@ public enum IdleSyncReason: String, CaseIterable, Sendable {
   case animation
   /// A scroll view's content moving.
   case scroll
+  /// The app ignoring touch and key events, which it drops rather than queues.
+  case interaction
 }
 
 /// What a process reports whenever it goes busy or idle, or what keeps it busy changes.

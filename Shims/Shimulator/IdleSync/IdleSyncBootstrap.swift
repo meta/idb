@@ -17,6 +17,7 @@ private struct TrackerProbe: IdleSyncProbe {
     var reasons: [IdleSyncReason] = []
     for (holds, reason) in [
       (sample.mainBusy, IdleSyncReason.main), (sample.animating, .animation), (sample.scrolling, .scroll),
+      (sample.ignoringInteraction, .interaction),
     ] where holds {
       reasons.append(reason)
     }

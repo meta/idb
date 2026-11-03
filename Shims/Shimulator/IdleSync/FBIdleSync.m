@@ -36,6 +36,10 @@ static _Atomic(uint64_t) sMainWakeAtMs = 0;
 static _Atomic(uint64_t) sMainLastWorkEndMs = 0;
 static _Atomic(uint64_t) sAnimationsUntilMs = 0;
 static _Atomic(uint64_t) sLastScrollMs = 0;
+// Whether the app ignores touch and key events (`-[UIApplication beginIgnoringInteractionEvents]`, which UIKit also
+// counts through during some transitions), as last seen on the main thread, and when it last stopped.
+static _Atomic(bool) sIgnoringInteraction = false;
+static _Atomic(uint64_t) sInteractionResumedMs = 0;
 // When the app last finished handling the end of a touch sequence or a key press, so a host that
 // sent input can tell it has been handled.
 static _Atomic(uint64_t) sLastInputMs = 0;
@@ -62,6 +66,20 @@ static void FBIdleExtendAnimations(uint64_t untilMs)
 
  #pragma mark - Main run loop
 
+// The flag changes only on the main thread, so reading it at each wake and sleep sees every period it is set across
+// a sleep; a period inside one wake is covered by that wake's work.
+static void FBIdleNoteInteraction(uint64_t now)
+{
+  // Deprecated for apps, but still the count `beginIgnoringInteractionEvents` keeps.
+  #pragma clang diagnostic push
+  #pragma clang diagnostic ignored "-Wdeprecated-declarations"
+  bool ignoring = UIApplication.sharedApplication.isIgnoringInteractionEvents;
+  #pragma clang diagnostic pop
+  if (atomic_exchange(&sIgnoringInteraction, ignoring) && !ignoring) {
+    atomic_store(&sInteractionResumedMs, now);
+  }
+}
+
 static void FBIdleObserveMainRunLoop(void)
 {
   CFRunLoopObserverRef observer = CFRunLoopObserverCreateWithHandler(
@@ -77,7 +95,9 @@ static void FBIdleObserveMainRunLoop(void)
         atomic_store(&sReadMsInWake, 0);
         atomic_store(&sMainWakeAtMs, now);
         atomic_store(&sMainAwake, true);
+        FBIdleNoteInteraction(now);
       } else {
+        FBIdleNoteInteraction(now);
         // A wall clock that stepped back reads as no work, rather than as work that never ends.
         uint64_t wakeAt = atomic_load(&sMainWakeAtMs);
         uint64_t work = now > wakeAt ? now - wakeAt : 0;
@@ -288,15 +308,17 @@ FBIdleSyncSample FBIdleSyncSampleNow(void)
   uint64_t lastWorkEnd = atomic_load(&sMainLastWorkEndMs);
   uint64_t animationsUntil = atomic_load(&sAnimationsUntilMs);
   uint64_t lastScroll = atomic_load(&sLastScrollMs);
+  uint64_t interactionResumed = atomic_load(&sInteractionResumedMs);
   // Each condition holds through the settle window after it last held; one that ended after `now` was read holds.
   FBIdleSyncSample sample = {
     .mainBusy = working || lastWorkEnd + FBIdleQuietWindowMs > now,
     .animating = animationsUntil + FBIdleQuietWindowMs > now,
     .scrolling = lastScroll + FBIdleQuietWindowMs > now,
+    .ignoringInteraction = atomic_load(&sIgnoringInteraction) || interactionResumed + FBIdleQuietWindowMs > now,
     .lastInputAt = atomic_load(&sLastInputMs),
     .at = now,
   };
-  sample.idleSince = MAX(MAX(lastWorkEnd, animationsUntil), lastScroll) + FBIdleQuietWindowMs;
+  sample.idleSince = MAX(MAX(lastWorkEnd, animationsUntil), MAX(lastScroll, interactionResumed)) + FBIdleQuietWindowMs;
   return sample;
 }
 
