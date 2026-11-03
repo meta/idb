@@ -265,6 +265,7 @@ _QUIESCENCE_SIGNALS: dict[int, str] = {
     AccessibilityQuiescenceResponse.RUN_LOOP_IDLE: "run_loop_idle",
     AccessibilityQuiescenceResponse.ANIMATIONS_INACTIVE: "animations_inactive",
     AccessibilityQuiescenceResponse.SCROLL_IDLE: "scroll_idle",
+    AccessibilityQuiescenceResponse.INTERACTION_ENABLED: "interaction_enabled",
 }
 
 

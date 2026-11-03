@@ -68,7 +68,10 @@ class AccessibilityQuiescenceTests(TestCase):
                 pid=42,
                 state=Response.StateChanged(
                     state=Response.BUSY,
-                    busy_signals=[Response.SCROLL_IDLE, Response.RUN_LOOP_IDLE],
+                    busy_signals=[
+                        Response.SCROLL_IDLE,
+                        Response.INTERACTION_ENABLED,
+                    ],
                 ),
             ),
             Response(pid=42, touches_completed=Response.TouchesCompleted()),
@@ -90,7 +93,7 @@ class AccessibilityQuiescenceTests(TestCase):
                 QuiescenceStateChanged(
                     pid=42,
                     state=QuiescenceState.BUSY,
-                    busy_signals=("scroll_idle", "run_loop_idle"),
+                    busy_signals=("scroll_idle", "interaction_enabled"),
                 ),
                 QuiescenceTouchesCompleted(pid=42),
                 QuiescenceStateChanged(pid=42, state=QuiescenceState.SETTLING),
