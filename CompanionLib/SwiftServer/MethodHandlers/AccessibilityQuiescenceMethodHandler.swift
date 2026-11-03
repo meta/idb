@@ -193,6 +193,7 @@ struct AccessibilityQuiescenceMethodHandler {
     switch signal {
     case .runLoopIdle: .runLoopIdle
     case .animationsInactive: .animationsInactive
+    case .scrollIdle: .scrollIdle
     }
   }
 }

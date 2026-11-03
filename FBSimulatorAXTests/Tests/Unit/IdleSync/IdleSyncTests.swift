@@ -23,6 +23,14 @@ struct IdleSyncQuiescenceTrackerTests {
     #expect(received.settleAt == nil)
   }
 
+  @Test("Scrolling is a signal of its own, so a host can tell it from work running now")
+  func scroll() {
+    var tracker = IdleSyncQuiescenceTracker(pid: 7, quietWindowMs: 0, openedAt: 0)
+    #expect(
+      tracker.receive(IdleSyncState(idleSince: nil, reasons: ["scroll", "main"]), now: 1).events
+        == [.state(.busy([.scrollIdle, .runLoopIdle]), pid: 7)])
+  }
+
   @Test("With no quiet window, idle is quiet at once, and a repeated state is not reported again")
   func idleIsQuiet() {
     var tracker = IdleSyncQuiescenceTracker(pid: 7, quietWindowMs: 0, openedAt: 0)

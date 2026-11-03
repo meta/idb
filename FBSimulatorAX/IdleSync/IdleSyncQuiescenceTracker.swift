@@ -71,6 +71,7 @@ extension QuiescenceSignal {
     switch reason {
     case IdleSyncReason.main.rawValue: self = .runLoopIdle
     case IdleSyncReason.animation.rawValue: self = .animationsInactive
+    case IdleSyncReason.scroll.rawValue: self = .scrollIdle
     default: return nil
     }
   }

@@ -674,6 +674,8 @@ message AccessibilityQuiescenceResponse {
     SIGNAL_UNSPECIFIED = 0;
     RUN_LOOP_IDLE = 1;
     ANIMATIONS_INACTIVE = 2;
+    // No scroll view is moving its content. SHIMULATOR backend only.
+    SCROLL_IDLE = 3;
   }
   // Sent once the state is known and then on every change.
   message StateChanged {
