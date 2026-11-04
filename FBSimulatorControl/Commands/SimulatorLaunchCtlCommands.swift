@@ -104,6 +104,42 @@ public final class SimulatorLaunchCtlCommands: LaunchCtlCommands {
     return (serviceName, processIdentifier)
   }
 
+  /// Running services whose label names `bundleID` as a whole identifier,
+  /// regardless of the `UIKitApplication:` prefix. System sheets such as
+  /// SafariViewService do not appear as `UIKitApplication:<bid>` in
+  /// `launchctl list`, so a `UIKitApplication:`-only lookup reports no match
+  /// while the service is live. The caller decides ambiguity: an empty map
+  /// means absent, several entries mean the label is not unique.
+  public func runningServices(matchingBundleID bundleID: String) async throws -> [String: pid_t] {
+    Self.runningServices(matchingBundleID: bundleID, in: try await listServices())
+  }
+
+  static func runningServices(matchingBundleID bundleID: String, in services: [String: pid_t?]) -> [String: pid_t] {
+    var matches: [String: pid_t] = [:]
+    for (serviceName, processIdentifier) in services {
+      guard let processIdentifier, processIdentifier > 0 else {
+        continue
+      }
+      guard Self.serviceName(serviceName, matchesBundleID: bundleID) else {
+        continue
+      }
+      matches[serviceName] = processIdentifier
+    }
+    return matches
+  }
+
+  /// A launchctl label names `bundleID` only when the identifier stands whole:
+  /// the entire label, or trailed by the UIKit instance suffix (`bid[0x..]`).
+  /// A longer identifier that merely begins with it (`bid.helper`,
+  /// `bid.xctrunner`) belongs to a different service: resolving it would hand
+  /// launch handling or an AX read the wrong process.
+  static func serviceName(_ serviceName: String, matchesBundleID bundleID: String) -> Bool {
+    if serviceName == bundleID || serviceName.hasPrefix(bundleID + "[") {
+      return true
+    }
+    return extractApplicationBundleIdentifier(fromServiceName: serviceName) == bundleID
+  }
+
   public func serviceName(forProcess process: RunningProcessInfo) async throws -> String {
     try await serviceName(forProcessIdentifier: process.processIdentifier)
   }

@@ -210,7 +210,22 @@ public struct SimulatorApplicationCommands: ApplicationCommands {
     guard let regex = try? NSRegularExpression(pattern: pattern, options: []) else {
       throw SimulatorApplicationLookupError.searchPatternConstructionFailed(bundleID: bundleID)
     }
-    let (_, processIdentifier) = try await simulator.launchCtl.firstServiceNameAndProcessIdentifier(matching: regex)
+    do {
+      let (_, processIdentifier) = try await simulator.launchCtl.firstServiceNameAndProcessIdentifier(matching: regex)
+      return processIdentifier
+    } catch SimulatorLaunchCtlError.noMatchingProcesses {
+      // Fall through to the prefix-agnostic lookup below.
+    }
+    // Remote sheets (SafariViewService and similar) run without a
+    // `UIKitApplication:` label, so the primary lookup reports no match while
+    // the service is live.
+    let candidates = try await simulator.launchCtl.runningServices(matchingBundleID: bundleID)
+    guard candidates.count <= 1, let (_, processIdentifier) = candidates.first else {
+      if candidates.isEmpty {
+        throw SimulatorLaunchCtlError.noMatchingProcesses(pattern: regex.pattern)
+      }
+      throw SimulatorLaunchCtlError.multipleMatchingProcesses(pattern: regex.pattern, matches: candidates)
+    }
     return processIdentifier
   }
 

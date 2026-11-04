@@ -103,4 +103,66 @@ struct SimulatorLaunchCtlCommandsTests {
     #expect(livePidRunning)
     #expect(!absentPidRunning, "an unregistered pid is not running")
   }
+
+  // MARK: - runningServices(matchingBundleID:) fallback for remote sheets
+
+  @Test
+  func runningServicesMatchesBareServiceLabel() {
+    let services: [String: pid_t?] = ["com.apple.SafariViewService": 1234]
+    let matches = SimulatorLaunchCtlCommands.runningServices(matchingBundleID: "com.apple.SafariViewService", in: services)
+    #expect(matches == ["com.apple.SafariViewService": 1234])
+  }
+
+  @Test
+  func runningServicesMatchesUIKitApplicationLabel() {
+    let services: [String: pid_t?] = ["UIKitApplication:com.apple.SafariViewService[0x1234]": 1234]
+    let matches = SimulatorLaunchCtlCommands.runningServices(matchingBundleID: "com.apple.SafariViewService", in: services)
+    #expect(matches.count == 1)
+    #expect(matches.values.first == 1234)
+  }
+
+  @Test
+  func runningServicesSkipsStoppedAndUnrelatedServices() {
+    let services: [String: pid_t?] = [
+      "com.apple.SafariViewService": nil,
+      "UIKitApplication:com.hackbook[0x1]": 111,
+      "com.apple.mobilesafari": 222,
+    ]
+    let matches = SimulatorLaunchCtlCommands.runningServices(matchingBundleID: "com.apple.SafariViewService", in: services)
+    #expect(matches.isEmpty, "a stopped service and unrelated labels are not matches")
+  }
+
+  @Test
+  func runningServicesMatchesBracketSuffixedBareLabel() {
+    let services: [String: pid_t?] = ["com.apple.SafariViewService[0x1234]": 1234]
+    let matches = SimulatorLaunchCtlCommands.runningServices(matchingBundleID: "com.apple.SafariViewService", in: services)
+    #expect(matches.count == 1)
+    #expect(matches.values.first == 1234)
+  }
+
+  @Test
+  func runningServicesIgnoresLongerSiblingLabels() {
+    // Regression for test_ui_human's XCTestProbeUITests/testTargetInteraction:
+    // the probe target is absent, but the runner and a helper share its
+    // identifier as a prefix. Resolving either as the target hands launch
+    // handling the wrong process.
+    let services: [String: pid_t?] = [
+      "UIKitApplication:com.facebook.idb.xctestprobe.xctrunner[0x1]": 4321,
+      "com.facebook.idb.xctestprobe.helper": 5678,
+    ]
+    let matches = SimulatorLaunchCtlCommands.runningServices(matchingBundleID: "com.facebook.idb.xctestprobe", in: services)
+    #expect(matches.isEmpty, "dotted siblings are different services, not matches")
+  }
+
+  @Test
+  func runningServicesKeepsGenuinelyAmbiguousWholeMatches() {
+    let services: [String: pid_t?] = [
+      "com.apple.SafariViewService": 1234,
+      "UIKitApplication:com.apple.SafariViewService[0x1]": 5678,
+    ]
+    let matches = SimulatorLaunchCtlCommands.runningServices(matchingBundleID: "com.apple.SafariViewService", in: services)
+    #expect(matches.count == 2)
+    #expect(matches["com.apple.SafariViewService"] == 1234)
+    #expect(matches["UIKitApplication:com.apple.SafariViewService[0x1]"] == 5678)
+  }
 }
