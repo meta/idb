@@ -44,13 +44,13 @@ struct SimulatorDarwinNotificationObserverTests {
     #expect(fixture.device.tokenInvalidations == 0)
     fixture.device.change(state: 60)
     var iterator = subscription.changes.makeAsyncIterator()
-    guard let _ = try await iterator.next() else {
+    guard (try await iterator.next()) != nil else {
       Issue.record("Booted state ended the observation")
       return
     }
     fixture.device.changeDeviceState(rawState)
     do {
-      while let _ = try await iterator.next() { Issue.record("Unexpected change after leaving booted") }
+      while (try await iterator.next()) != nil { Issue.record("Unexpected change after leaving booted") }
       Issue.record("Expected not-booted failure")
     } catch {
       guard case SimulatorNotificationObservationError.notBooted = error else {
