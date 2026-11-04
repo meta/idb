@@ -42,6 +42,17 @@ struct SimulatorHIDEventRenderingTests {
     }.count
   }
 
+  /// The distance travelled between consecutive samples, and the time each step takes.
+  private func steps(_ event: SimulatorHIDEvent) throws -> (distances: [Double], delay: Double) {
+    let points = try touches(event).filter { $0.0 == .down }.map { ($0.1, $0.2) }
+    let delays = try #require(event.subEvents).compactMap {
+      if case let .delay(seconds) = $0 { return seconds }
+      return nil
+    }
+    let distances = zip(points, points.dropFirst()).map { hypot($1.0 - $0.0, $1.1 - $0.1) }
+    return (distances, try #require(delays.first))
+  }
+
   private func edges(_ event: SimulatorHIDEvent) throws -> [SimulatorHIDEdge] {
     try #require(event.subEvents).compactMap {
       if case let .touch(_, _, _, edge) = $0 { return edge }
@@ -217,6 +228,95 @@ struct SimulatorHIDEventRenderingTests {
     // (1 + 1) interpolated downs + 1 duplicate final down + 1 up.
     #expect(try touches(swipe).filter { $0.0 == .down }.count == 3)
     #expect(try touches(swipe).filter { $0.0 == .up }.count == 1)
+  }
+
+  // Without deceleration the swipe is the original one, event for event: every touch-down is followed by
+  // `duration / (steps + 2)`, the final touch-down is repeated, and the contact lifts at the end point.
+  @Test
+  func swipeWithoutDecelerationKeepsTheOriginalEvents() throws {
+    let swipe = SimulatorHIDEvent.swipe(0, yStart: 0, xEnd: 0, yEnd: 30, delta: 10, duration: 0.5, decelerationDuration: 0)
+    let events = try #require(swipe.subEvents)
+    #expect(events.count == 11)
+    for (index, y) in [0.0, 10.0, 20.0, 30.0, 30.0].enumerated() {
+      guard case let .touch(direction, x, actualY, _) = events[index * 2] else {
+        Issue.record("event \(index * 2) should be a touch: \(events[index * 2])")
+        continue
+      }
+      #expect(direction == .down)
+      #expect(x == 0)
+      #expect(abs(actualY - y) <= 1e-9, "touch \(index) should be at y \(y), got \(actualY)")
+      guard case let .delay(seconds) = events[index * 2 + 1] else {
+        Issue.record("event \(index * 2 + 1) should be a delay: \(events[index * 2 + 1])")
+        continue
+      }
+      #expect(abs(seconds - 0.1) <= 1e-12)
+    }
+    guard case let .touch(direction, x, y, _) = events[10] else {
+      Issue.record("the last event should be a touch: \(events[10])")
+      return
+    }
+    #expect(direction == .up)
+    #expect(x == 0)
+    #expect(y == 30)
+  }
+
+  // A decelerating swipe drops the repeated final touch-down: a touch per sample, a delay between
+  // consecutive samples, then the lift.
+  @Test
+  func deceleratingSwipeSpacesItsSamplesEvenly() throws {
+    let swipe = SimulatorHIDEvent.swipe(100, yStart: 100, xEnd: 100, yEnd: 200, delta: 10, duration: 0.3, decelerationDuration: SimulatorHIDEvent.swipeDecelerationDuration)
+    let touches = try touches(swipe)
+    #expect(touches.filter { $0.0 == .down }.count == 11)
+    #expect(touches.filter { $0.0 == .up }.count == 1)
+    #expect(try delayCount(swipe) == 10)
+    #expect(touches.last?.0 == .up)
+  }
+
+  // The guest flings a scroll view when a contact lifts faster than about 250 points per second,
+  // measured over the last samples that moved. A 200-point swipe over 0.3 seconds travels at more than
+  // twice that, so it has to have slowed to rest by the time it lifts.
+  @Test
+  func swipeSlowsToRestBeforeLifting() throws {
+    let event = SimulatorHIDEvent.swipe(207, yStart: 650, xEnd: 207, yEnd: 450, delta: 10, duration: 0.3, decelerationDuration: SimulatorHIDEvent.swipeDecelerationDuration)
+    let (distances, delay) = try steps(event)
+    let finalSteps = Int((0.05 / delay).rounded(.up))
+    let finalSpeed = distances.suffix(finalSteps).reduce(0, +) / (Double(finalSteps) * delay)
+    #expect(finalSpeed < 250, "the last 50 ms move at \(finalSpeed) points per second")
+    let cruisingSpeed = try #require(distances.first) / delay
+    #expect(cruisingSpeed > 600, "the swipe should still travel quickly before it slows, got \(cruisingSpeed)")
+  }
+
+  // Slowing down must not overshoot: the contact only ever moves towards the end point, and the samples
+  // span the whole duration the caller asked for.
+  @Test
+  func swipeTravelsMonotonicallyToTheEndPointOverItsDuration() throws {
+    let event = SimulatorHIDEvent.swipe(0, yStart: 0, xEnd: 0, yEnd: 200, delta: 10, duration: 0.3, decelerationDuration: SimulatorHIDEvent.swipeDecelerationDuration)
+    let ys = try touches(event).map(\.2)
+    #expect(zip(ys, ys.dropFirst()).allSatisfy { $0 <= $1 }, "positions should never move backwards: \(ys)")
+    #expect(ys.first == 0)
+    #expect(abs(try #require(ys.last) - 200) <= 1e-9)
+    let (distances, delay) = try steps(event)
+    #expect(abs(Double(distances.count) * delay - 0.3) <= 1e-9)
+  }
+
+  // With no time to spread the samples over there is nothing to slow down in, so a zero-duration
+  // decelerating swipe still interpolates evenly and produces finite coordinates.
+  @Test
+  func zeroDurationDeceleratingSwipeInterpolatesEvenly() throws {
+    let event = SimulatorHIDEvent.swipe(0, yStart: 0, xEnd: 0, yEnd: 100, delta: 10, duration: 0, decelerationDuration: SimulatorHIDEvent.swipeDecelerationDuration)
+    let ys = try touches(event).filter { $0.0 == .down }.map(\.2)
+    #expect(ys == stride(from: 0.0, through: 100.0, by: 10.0).map { $0 })
+  }
+
+  @Test
+  func swipeDecelerationIsOffUnlessTheEnvironmentTurnsItOn() {
+    #expect(!SimulatorHIDEvent.isSwipeDecelerationEnabled(environmentValue: nil))
+    for off in ["", "0", "false", "off", "slow"] {
+      #expect(!SimulatorHIDEvent.isSwipeDecelerationEnabled(environmentValue: off), "\(off)")
+    }
+    for on in ["1", "true", "YES", "On"] {
+      #expect(SimulatorHIDEvent.isSwipeDecelerationEnabled(environmentValue: on), "\(on)")
+    }
   }
 
   // MARK: - Pinch

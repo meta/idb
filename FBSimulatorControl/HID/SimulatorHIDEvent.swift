@@ -160,14 +160,41 @@ public extension SimulatorHIDEvent {
     return .composite(events)
   }
 
-  /// A swipe from `(xStart,yStart)` to `(xEnd,yEnd)`, interpolated at `delta` points per sample.
+  /// How long a swipe spends slowing from its travelling speed to rest before it lifts.
+  ///
+  /// The guest takes a contact's release velocity from the last samples that moved; samples that repeat
+  /// a position carry no motion, so holding still before lifting does not slow it. A contact lifted
+  /// while still moving faster than about 250 points per second makes a scroll view coast past the end
+  /// point. Slowing to rest over this long keeps the release velocity below that on every runtime.
+  static let swipeDecelerationDuration: Double = 0.15
+
+  /// The `decelerationDuration` a swipe uses when its caller passes none. Slowing to rest is opt-in:
+  /// it is `swipeDecelerationDuration` only while `IDB_SWIPE_DECELERATION` is `1`, `true`, `yes` or `on`
+  /// in the process's environment, and zero otherwise, which keeps the original constant-speed swipe.
+  static let defaultSwipeDecelerationDuration: Double =
+    isSwipeDecelerationEnabled(environmentValue: ProcessInfo.processInfo.environment["IDB_SWIPE_DECELERATION"])
+    ? swipeDecelerationDuration : 0
+
+  static func isSwipeDecelerationEnabled(environmentValue value: String?) -> Bool {
+    guard let value else {
+      return false
+    }
+    return ["1", "true", "yes", "on"].contains(value.lowercased())
+  }
+
+  /// A swipe from `(xStart,yStart)` to `(xEnd,yEnd)`, one sample per `delta` points of travel.
+  ///
+  /// With a positive `decelerationDuration`, samples are evenly spaced in time across `duration`; the
+  /// contact moves at constant speed, then slows to rest over the last `decelerationDuration` (all of
+  /// `duration`, when that is shorter), so the content moves with the contact and stops where it stops.
+  /// With zero, the swipe is the original constant-speed one, which lifts at full speed.
   ///
   /// `edge` tags every contact in the gesture, not just the first: the guest reads the edge flag off
   /// whichever contact it is inspecting, so a gesture that announced an edge only on touch-down would
   /// be read as an ordinary drag from its second sample onwards.
   static func swipe(
     _ xStart: Double, yStart: Double, xEnd: Double, yEnd: Double, delta: Double, duration: Double,
-    edge: SimulatorHIDEdge = .none
+    edge: SimulatorHIDEdge = .none, decelerationDuration: Double = defaultSwipeDecelerationDuration
   ) -> SimulatorHIDEvent {
     var events: [SimulatorHIDEvent] = []
     let distance = sqrt(pow(yEnd - yStart, 2) + pow(xEnd - xStart, 2))
@@ -176,6 +203,33 @@ public extension SimulatorHIDEvent {
       effectiveDelta = defaultSwipeDelta
     }
     let steps = max(1, Int(distance / effectiveDelta))
+    guard decelerationDuration > 0 else {
+      return constantSpeedSwipe(
+        xStart, yStart: yStart, xEnd: xEnd, yEnd: yEnd, steps: steps, duration: duration, edge: edge)
+    }
+    let stepDelay = duration / Double(steps)
+    let deceleration = duration > 0 ? min(max(0, decelerationDuration), duration) / duration : 0
+
+    for i in 0...steps {
+      let travelled = swipeTravelFraction(Double(i) / Double(steps), decelerationFraction: deceleration)
+      events.append(
+        .touch(
+          direction: .down, x: xStart + (xEnd - xStart) * travelled, y: yStart + (yEnd - yStart) * travelled,
+          edge: edge))
+      if i < steps {
+        events.append(.delay(stepDelay))
+      }
+    }
+    events.append(.touch(direction: .up, x: xEnd, y: yEnd, edge: edge))
+
+    return .composite(events)
+  }
+
+  private static func constantSpeedSwipe(
+    _ xStart: Double, yStart: Double, xEnd: Double, yEnd: Double, steps: Int, duration: Double,
+    edge: SimulatorHIDEdge
+  ) -> SimulatorHIDEvent {
+    var events: [SimulatorHIDEvent] = []
 
     let dx = (xEnd - xStart) / Double(steps)
     let dy = (yEnd - yStart) / Double(steps)
@@ -196,6 +250,18 @@ public extension SimulatorHIDEvent {
     return .composite(events)
   }
 
+  /// The fraction of a swipe's travel covered `progress` of the way through its duration: constant speed,
+  /// then a speed falling linearly to zero over the final `decelerationFraction` of the duration.
+  private static func swipeTravelFraction(_ progress: Double, decelerationFraction: Double) -> Double {
+    let cruise = 1 - decelerationFraction
+    let speed = 1 / (cruise + decelerationFraction / 2)
+    guard progress > cruise else {
+      return speed * progress
+    }
+    let slowing = min(progress, 1) - cruise
+    return speed * (cruise + slowing - slowing * slowing / (2 * decelerationFraction))
+  }
+
   /// How far across the screen an edge swipe travels, as a fraction of the axis it moves along. Half
   /// the screen is comfortably past the thresholds the system gestures commit at, without running the
   /// contact into the opposite edge.
@@ -208,6 +274,9 @@ public extension SimulatorHIDEvent {
   /// `screenSize` is in points. The gesture starts one point inside the edge rather than exactly on it,
   /// because the far edge of the screen is `size - 1` in a coordinate space that starts at zero, and
   /// travels `edgeSwipeTravelFraction` of the way across.
+  ///
+  /// It never slows to rest: the system gestures read the flick, and slowing to rest first can turn a
+  /// swipe up from the bottom into the App Switcher instead of Home.
   ///
   /// `.none` is accepted and produces a stationary contact at the screen centre with no edge flag, so
   /// a caller threading an edge through from a CLI argument does not have to special-case it.
@@ -243,7 +312,7 @@ public extension SimulatorHIDEvent {
 
     return swipe(
       Double(start.x), yStart: Double(start.y), xEnd: Double(end.x), yEnd: Double(end.y),
-      delta: delta, duration: duration, edge: edge)
+      delta: delta, duration: duration, edge: edge, decelerationDuration: 0)
   }
 
   /// A press-and-drag: hold at the source for `pressDuration`, travel over interpolated samples spread
