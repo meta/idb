@@ -350,9 +350,11 @@ class AccessibilityFixtureTestCase(IdbEndToEndTestCase):
     async def wait_for_scroll(
         self, before: dict[str, float], direction: str
     ) -> tuple[dict[str, float], dict[str, Any]]:
-        """Where the rows are once the list has moved the way it was scrolled, and the reading that showed it."""
+        """Where the rows are once the list has moved the way it was scrolled and stopped, and the reading that showed it."""
+        previous: dict[str, float] | None = None
 
         async def read() -> tuple[dict[str, float], dict[str, Any]]:
+            nonlocal previous
             snapshot = await self.describe_all_complete("axbridge")
             after = _row_positions(snapshot)
             movement = _row_movement(before, after)
@@ -362,6 +364,12 @@ class AccessibilityFixtureTestCase(IdbEndToEndTestCase):
                 sign * delta > MINIMUM_SCROLL_DISTANCE for delta in movement.values()
             ):
                 raise NotReady(f"Row movement after scrolling {direction}: {movement}")
+            # `idb ui scroll` returns while the list is still animating, and a
+            # row read mid-animation is somewhere else by the time it is used.
+            settled = after == previous
+            previous = after
+            if not settled:
+                raise NotReady(f"The list is still moving after scrolling {direction}")
             return after, snapshot
 
         return await wait_until(
