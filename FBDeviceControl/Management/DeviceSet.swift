@@ -146,10 +146,10 @@ public final class DeviceSet: TargetSet, TargetSetDelegate, CustomStringConverti
   public func targetAdded(_ targetInfo: any TargetInfo, in targetSet: any TargetSet) {
     if let amDevice = targetInfo as? MobileDevice {
       let view = amDevice.notificationView()
-      notifications.enqueue { [self] in amDeviceAdded(view) }
+      notifications.enqueue { [weak self] in self?.amDeviceAdded(view) }
     } else if let restorableDevice = targetInfo as? RestorableDevice {
       let view = restorableDevice.notificationView()
-      notifications.enqueue { [self] in restorableDeviceAdded(view) }
+      notifications.enqueue { [weak self] in self?.restorableDeviceAdded(view) }
     } else {
       logger.log("Ignoring \(targetInfo) as it is not a valid target type")
     }
@@ -158,10 +158,10 @@ public final class DeviceSet: TargetSet, TargetSetDelegate, CustomStringConverti
   public func targetRemoved(_ targetInfo: any TargetInfo, in targetSet: any TargetSet) {
     if targetInfo is MobileDevice {
       let identifier = targetInfo.uniqueIdentifier
-      notifications.enqueue { [self] in amDeviceRemoved(identifier: identifier) }
+      notifications.enqueue { [weak self] in self?.amDeviceRemoved(identifier: identifier) }
     } else if targetInfo is RestorableDevice {
       let identifier = targetInfo.uniqueIdentifier
-      notifications.enqueue { [self] in restorableDeviceRemoved(identifier: identifier) }
+      notifications.enqueue { [weak self] in self?.restorableDeviceRemoved(identifier: identifier) }
     } else {
       logger.log("Ignoring \(targetInfo) as it is not a valid target type")
     }
@@ -177,7 +177,7 @@ public final class DeviceSet: TargetSet, TargetSetDelegate, CustomStringConverti
       assertionFailure("No existing device to update for \(targetInfo)")
       return
     }
-    notifications.enqueue { [self] in processTargetUpdated(view) }
+    notifications.enqueue { [weak self] in self?.processTargetUpdated(view) }
   }
 
   private func processTargetUpdated(_ targetInfo: any TargetInfo) {
