@@ -1205,11 +1205,38 @@ final class AXBridgeReadsTests: XCTestCase {
       XCTFail("a missing identifier must time out")
     } catch let UIAutomationError.timedOut(_, _, _, _, diagnostics) {
       XCTAssertEqual(diagnostics?.unmatchedValues, ["settings_id"])
-      XCTAssertEqual(diagnostics?.truncated, true)
+      XCTAssertEqual(diagnostics?.truncated, false)
+      XCTAssertEqual(diagnostics?.readTruncated, true)
       XCTAssertNil(diagnostics?.readError)
     }
     let readCount = await transport.readCount
     XCTAssertEqual(readCount, 1)
+  }
+
+  func testNativeWaitSeparatesSampleBoundsFromTreeReadBounds() async throws {
+    for readTruncated in [false, true] {
+      for (labels, sampleTruncated, sampleCount) in [
+        (["Settings"], false, 1),
+        ((0..<51).map { "label \($0)" }, true, 50),
+        ([String(repeating: "x", count: 201)], true, 1),
+      ] {
+        let response = try treeAnswer(
+          [AXWire.Node.children.rawValue: labels.map { [AXWire.Node.label.rawValue: $0] }],
+          pid: 42, truncated: readTruncated)
+        let (reader, transport) = nativeWaitReader(responses: [response])
+        do {
+          try await reader.wait(.marker(value: "missing", key: .label, depth: 10), timeout: 0, pollInterval: 0)
+          XCTFail("a missing label must time out")
+        } catch let UIAutomationError.timedOut(_, _, _, _, diagnostics) {
+          XCTAssertEqual(diagnostics?.truncated, sampleTruncated)
+          XCTAssertEqual(diagnostics?.readTruncated, readTruncated)
+          XCTAssertEqual(diagnostics?.unmatchedValues.count, sampleCount)
+          XCTAssertNil(diagnostics?.readError)
+        }
+        let readCount = await transport.readCount
+        XCTAssertEqual(readCount, 1, "diagnostics must reuse the final poll's read")
+      }
+    }
   }
 
   func testSearchReturnsOnlyVisitedNonmatchingValuesOfTheKey() {

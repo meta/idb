@@ -221,7 +221,6 @@ from idb.grpc.xctest_log_parser import XCTestLogParser
 from idb.grpc.xctrace import xctrace_drain_until_running, xctrace_generate_bytes
 from idb.utils.contextlib import asynccontextmanager
 
-
 APPROVE_MAP: dict[Permission, "ApproveRequest.Permission"] = {
     Permission.PHOTOS: ApproveRequest.PHOTOS,
     Permission.CAMERA: ApproveRequest.CAMERA,
@@ -797,6 +796,16 @@ class Client(ClientBase):
                 unmatched_values=list(wait.diagnostics.unmatched_values),
                 truncated=wait.diagnostics.truncated,
                 read_error=wait.diagnostics.read_error or None,
+                read_truncated=(
+                    wait.diagnostics.read_truncated
+                    if wait.diagnostics.HasField("read_truncated")
+                    else None
+                ),
+                sample_truncated=(
+                    wait.diagnostics.sample_truncated
+                    if wait.diagnostics.HasField("sample_truncated")
+                    else None
+                ),
             )
         return AccessibilityWaitResult(
             found=result == AccessibilityActionResponse.FOUND,

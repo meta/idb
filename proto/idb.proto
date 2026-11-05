@@ -623,8 +623,16 @@ message AccessibilityActionResponse {
   message WaitDiagnostics {
     // Nonmatching values of the searched key from the final poll only.
     repeated string unmatched_values = 1;
+    // Legacy aggregate: the sample OR tree read was truncated. Retained for
+    // older clients; use the separate flags below to judge search completeness.
     bool truncated = 2;
     string read_error = 3;
+    // Present, even when false, when the backend reports tree completeness.
+    // Absent on older companions or backends that cannot report it.
+    optional bool read_truncated = 4;
+    // New companions explicitly populate this flag, even when false. Absent
+    // on older companions that supply only the ambiguous legacy aggregate.
+    optional bool sample_truncated = 5;
   }
 }
 
