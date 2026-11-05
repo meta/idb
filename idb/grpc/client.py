@@ -1134,6 +1134,7 @@ class Client(ClientBase):
                 is_local=self.is_local,
                 pid=None,
                 supported_compressions=self.companion.supported_compressions,
+                zstd_zip_streams=self.companion.zstd_zip_streams,
                 install_connect_to=self.companion.install_connect_to,
             ),
             # Extract the companion metadata from the response.

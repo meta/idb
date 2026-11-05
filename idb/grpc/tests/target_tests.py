@@ -293,6 +293,38 @@ class FocusTests(TestCase):
 
 
 class DescribeTests(TestCase):
+    async def test_reports_whether_the_companion_takes_zstd_zip_streams(
+        self,
+    ) -> None:
+        for advertised in (True, False):
+            with self.subTest(advertised=advertised):
+                client = Client.__new__(Client)
+                client.logger = MagicMock()
+                client.stub = MagicMock()
+                client.stub.describe = AsyncMock(
+                    return_value=TargetDescriptionResponse(
+                        target_description=GrpcTargetDescription(
+                            udid="a", target_type="simulator"
+                        ),
+                    )
+                )
+                client.companion = CompanionInfo(
+                    udid="a",
+                    is_local=False,
+                    pid=None,
+                    address=TCPAddress(host="localhost", port=1),
+                    zstd_zip_streams=advertised,
+                )
+
+                description = await client.describe()
+
+                self.assertEqual(
+                    json.loads(description.as_json)["companion_info"][
+                        "zstd_zip_streams"
+                    ],
+                    advertised,
+                )
+
     async def test_reports_whether_the_companion_takes_install_connect_to(
         self,
     ) -> None:
