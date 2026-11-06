@@ -15,6 +15,8 @@ public enum SimulatorNotificationError: Error {
   case jsonNotADictionary
   case selectorUnavailable
   case undecodableDeliveredNotification(line: String, reason: String)
+  case serviceExtensionUnsupported
+  case serviceExtensionFailed(String)
 }
 
 extension SimulatorNotificationError: LocalizedError {
@@ -26,6 +28,10 @@ extension SimulatorNotificationError: LocalizedError {
       return "Failed to deserialize notification json: not a dictionary"
     case .selectorUnavailable:
       return "SimDevice doesn't have sendPushNotificationForBundleID selector"
+    case .serviceExtensionUnsupported:
+      return "Notification service extension delivery requires an iPhone or iPad simulator and a valid app bundle identifier"
+    case let .serviceExtensionFailed(reason):
+      return "Notification service extension delivery failed: \(reason)"
     case let .undecodableDeliveredNotification(line, reason):
       return "Failed to decode delivered notification '\(line)': \(reason)"
     }
@@ -40,7 +46,20 @@ public struct SimulatorNotificationCommands {
     self.simulator = simulator
   }
 
-  public func sendPush(forBundleID bundleID: String, jsonPayload: String) async throws {
+  public func sendPush(forBundleID bundleID: String, jsonPayload: String, processServiceExtension: Bool = false) async throws {
+    if processServiceExtension {
+      guard [.iPhone, .iPad].contains(simulator.productFamily), SimulatorFrameworkBridgeStaging.bundleIdentity(bundleID) != nil else {
+        throw SimulatorNotificationError.serviceExtensionUnsupported
+      }
+      let result = try await simulator.frameworkBridge(.notifications(.sendWithServiceExtension(bundleID: bundleID, jsonPayload: jsonPayload)))
+      guard result.exitCode == 0 else {
+        throw SimulatorNotificationError.serviceExtensionFailed(result.error ?? "The guest could not process the notification")
+      }
+      guard result.answers.count == 1, case .notificationServiceExtension = result.answers[0] else {
+        throw SimulatorNotificationError.serviceExtensionFailed("The guest returned no NSE processing outcome")
+      }
+      return
+    }
 
     guard let data = jsonPayload.data(using: .utf8) else {
       throw SimulatorNotificationError.jsonNotUTF8
