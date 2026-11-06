@@ -65,19 +65,25 @@ async def stop_wrapper(
     stream: Stream[_TSend, _TRecv], stop: asyncio.Event
 ) -> AsyncIterator[_TRecv]:
     stop_future = asyncio.ensure_future(stop.wait())
-    while True:
-        read = asyncio.ensure_future(stream.recv_message())
-        done, pending = await asyncio.wait(
-            [stop_future, read], return_when=asyncio.FIRST_COMPLETED
-        )
-        if stop_future in done:
-            read.cancel()
-            return
-        result = read.result()
-        if result is None:
-            # Reached the end of the stream
-            return
-        yield result
+    try:
+        while True:
+            read = asyncio.ensure_future(stream.recv_message())
+            done, pending = await asyncio.wait(
+                [stop_future, read], return_when=asyncio.FIRST_COMPLETED
+            )
+            if stop_future in done:
+                read.cancel()
+                return
+            result = read.result()
+            if result is None:
+                # Reached the end of the stream
+                return
+            yield result
+    finally:
+        # The CLI waits for every pending task before it exits, and stop may
+        # never be set once the stream has ended on its own.
+        stop_future.cancel()
+        await asyncio.wait([stop_future])
 
 
 async def cancel_wrapper(

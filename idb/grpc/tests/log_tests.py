@@ -183,11 +183,6 @@ class LogStreamTests(TestCase):
                     with self.assertRaises(StopAsyncIteration):
                         await anext(iterator)
 
-                    if termination == "eof":
-                        # Complete stop_wrapper's normal-EOF stop task.
-                        stop.set()
-                        await asyncio.sleep(0)
-
                     self.assertEqual(stream.sent, [(expected_request, True)])
                     self.assertEqual(
                         sum(action == "cancel" for action, _ in stream.transcript),

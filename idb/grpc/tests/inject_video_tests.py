@@ -86,9 +86,6 @@ class InjectVideoTest(TestCase):
                 front_path=str(front.resolve()),
                 loop=False,
             )
-        # Complete stop_wrapper's normal-EOF stop task.
-        stop.set()
-        await asyncio.sleep(0)
 
         self.assertEqual(seen, [[], ["Camera"], ["Camera", "Recorder"]])
         self.assertEqual(
