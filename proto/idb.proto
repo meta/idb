@@ -195,6 +195,9 @@ message CompanionInfo {
   // Whether the companion accepts InstallRequest.connect_to with a url
   // payload. Companions without it reject an install stream that carries one.
   bool install_connect_to = 10;
+  // Whether local notification delivery can invoke the application's service
+  // extension. Clients must reject that mode when this capability is absent.
+  bool supports_notification_service_extension = 11;
 }
 
 enum Setting {
@@ -1649,6 +1652,10 @@ message DebuggerInfo {
 message SendNotificationRequest {
   string bundle_id = 1;
   string json_payload = 2;
+  // Invoke the application's notification service extension before delivery.
+  // False preserves ordinary delivery. Requires the companion's advertised
+  // supports_notification_service_extension capability; never falls back.
+  bool process_service_extension = 3;
 }
 
 message SendNotificationResponse {}

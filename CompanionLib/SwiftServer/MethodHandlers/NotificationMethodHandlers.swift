@@ -14,7 +14,12 @@ struct SendNotificationMethodHandler {
   let target: CompanionTarget
 
   func handle(request: Idb_SendNotificationRequest, context: ServerContext) async throws -> Idb_SendNotificationResponse {
-    try await target.simulator().notification.sendPush(forBundleID: request.bundleID, jsonPayload: request.jsonPayload)
+    let simulator = try target.simulator()
+    try await withRPCCancellation(context.cancellation) {
+      try await simulator.notification.sendPush(
+        forBundleID: request.bundleID, jsonPayload: request.jsonPayload,
+        processServiceExtension: request.processServiceExtension)
+    }
     return .init()
   }
 }

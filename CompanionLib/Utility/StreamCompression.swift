@@ -41,5 +41,6 @@ extension Idb_CompanionInfo {
     zstdZipStreams = true
     zipStreamDestinations = [.app, .xctest, .dsym, .framework]
     installConnectTo = true
+    supportsNotificationServiceExtension = true
   }
 }
