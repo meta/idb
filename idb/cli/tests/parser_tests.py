@@ -14,7 +14,7 @@ import tempfile
 from argparse import ArgumentParser, Namespace
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager, redirect_stderr, redirect_stdout
-from io import StringIO
+from io import BytesIO, StringIO, TextIOWrapper
 from types import ModuleType
 from typing import Any, TypeVar
 from unittest.mock import ANY, MagicMock, patch
@@ -3501,6 +3501,70 @@ class TestParser(TestCase):
         self.client_mock.debugserver_status = AsyncMock(return_value=["aaa", "bbb"])
         await cli_main(cmd_input=["debugserver", "status"])
         self.client_mock.debugserver_status.assert_called_once()
+
+    async def test_profile_trace_prints_the_tables_of_the_trace_report(self) -> None:
+        self.client_mock.profile = AsyncMock(
+            return_value=ProfileResult(
+                report={
+                    "trace": {
+                        "runs": [],
+                        "tables": [
+                            {
+                                "schema": "time-profile",
+                                "columns": [
+                                    {"mnemonic": "time", "name": "Sample Time"},
+                                    {"mnemonic": "stack", "name": "Backtrace"},
+                                ],
+                                "rowCount": 2,
+                                "rows": [
+                                    {
+                                        "values": [
+                                            {"text": "00:00.001"},
+                                            {
+                                                "backtrace": {
+                                                    "frames": [
+                                                        {"symbol": "inner"},
+                                                        {"symbol": "outer"},
+                                                    ]
+                                                }
+                                            },
+                                        ]
+                                    }
+                                ],
+                            }
+                        ],
+                    }
+                },
+                tool_output=b"raw tool output",
+                artifact=None,
+            )
+        )
+        output = StringIO()
+        with redirect_stdout(output), redirect_stderr(StringIO()):
+            self.assertEqual(
+                await cli_main(cmd_input=["profile", "trace", "--pid", "1"]), 0
+            )
+        self.assertEqual(
+            output.getvalue(),
+            "time-profile (1 of 2 rows)\nSample Time\tBacktrace\n"
+            "00:00.001\tinner < outer\n\n",
+        )
+
+    async def test_profile_trace_without_a_trace_report_prints_the_tool_output(
+        self,
+    ) -> None:
+        self.client_mock.profile = AsyncMock(
+            return_value=ProfileResult(
+                report=None, tool_output=b"raw tool output", artifact=None
+            )
+        )
+        output = TextIOWrapper(BytesIO(), encoding="utf-8")
+        with redirect_stdout(output), redirect_stderr(StringIO()):
+            self.assertEqual(
+                await cli_main(cmd_input=["profile", "trace", "--pid", "1"]), 0
+            )
+        output.flush()
+        self.assertEqual(output.buffer.getvalue(), b"raw tool output")
 
     async def test_xctrace_record_profiles_a_trace(self) -> None:
         self.client_mock.profile = AsyncMock(

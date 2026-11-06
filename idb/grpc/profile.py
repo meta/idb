@@ -99,7 +99,7 @@ def message_to_json(message: Message) -> dict[str, object]:
     output: dict[str, object] = {}
     for field in message.DESCRIPTOR.fields:
         value = getattr(message, field.name)
-        if field.is_repeated:
+        if _is_repeated(field):
             output[field.json_name] = [_value_to_json(field, item) for item in value]
             continue
         has_presence = (
@@ -109,6 +109,19 @@ def message_to_json(message: Message) -> dict[str, object]:
             continue
         output[field.json_name] = _value_to_json(field, value)
     return output
+
+
+# `FieldDescriptorProto.Label.LABEL_REPEATED`, which protobuf 7 no longer exposes on `FieldDescriptor`.
+_LABEL_REPEATED = 3
+
+
+def _is_repeated(field: object) -> bool:
+    # `is_repeated` replaces `label`, which protobuf 6 deprecates and 7 removes; the C++
+    # implementation of older protobufs, still bundled in some builds, has only `label`.
+    is_repeated = getattr(field, "is_repeated", None)
+    if is_repeated is not None:
+        return bool(is_repeated)
+    return getattr(field, "label", None) == _LABEL_REPEATED
 
 
 def _value_to_json(field: FieldDescriptor, value: object) -> object:

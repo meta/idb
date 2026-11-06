@@ -13,6 +13,7 @@ import os
 import tarfile
 import tempfile
 import warnings
+from types import SimpleNamespace
 
 from grpclib.const import Status
 from grpclib.exceptions import GRPCError, ProtocolError
@@ -36,7 +37,12 @@ from idb.grpc.idb_pb2 import (
     ProfileResponse,
     ProfileTraceReport,
 )
-from idb.grpc.profile import message_to_json, ProfileException, start_request
+from idb.grpc.profile import (
+    _is_repeated,
+    message_to_json,
+    ProfileException,
+    start_request,
+)
 from idb.grpc.tests.stream_test_support import make_client
 from idb.utils.testing import TestCase
 
@@ -137,6 +143,18 @@ class ProfileJSONTests(TestCase):
         with warnings.catch_warnings():
             warnings.simplefilter("error", DeprecationWarning)
             message_to_json(_leaks_result().result.report)
+
+
+class RepeatedFieldTests(TestCase):
+    def test_a_descriptor_without_is_repeated_is_read_by_its_label(self) -> None:
+        # The C++ implementation of protobuf 3, which some builds still bundle, has no `is_repeated`.
+        self.assertTrue(_is_repeated(SimpleNamespace(label=3)))
+        self.assertFalse(_is_repeated(SimpleNamespace(label=1)))
+        self.assertFalse(_is_repeated(SimpleNamespace(label=2)))
+
+    def test_is_repeated_wins_over_label(self) -> None:
+        self.assertTrue(_is_repeated(SimpleNamespace(is_repeated=True, label=1)))
+        self.assertFalse(_is_repeated(SimpleNamespace(is_repeated=False, label=3)))
 
 
 class _ProfileStream:

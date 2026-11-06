@@ -328,7 +328,8 @@ class ProfileTraceCommand(ProfileCommand):
         return signal_handler_event("profile trace")
 
     def print_result(self, args: Namespace, result: ProfileResult) -> None:
-        if args.json or result.report is None:
+        trace = None if result.report is None else result.report.get("trace")
+        if args.json or not isinstance(trace, dict):
             super().print_result(args, result)
             return
-        print(human_format_trace(result.report))
+        print(human_format_trace(trace))
