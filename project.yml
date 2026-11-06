@@ -755,6 +755,8 @@ targets:
         buildPhase: resources
       - path: FBProfilingCoreTests/Fixtures/probe_xctrace_toc.xml
         buildPhase: resources
+      - path: FBProfilingCoreTests/Fixtures/replhost_leaks_untyped.txt
+        buildPhase: resources
     settings:
       base:
         MACOSX_DEPLOYMENT_TARGET: "15.0"

@@ -14,6 +14,9 @@ enum TestFixtures {
   static let probeLeaksPath = Bundle(for: BundleFinder.self)
     .path(forResource: "probe_leaks", ofType: "txt")!
 
+  static let replhostLeaksUntypedPath = Bundle(for: BundleFinder.self)
+    .path(forResource: "replhost_leaks_untyped", ofType: "txt")!
+
   static let probeHeapPath = Bundle(for: BundleFinder.self)
     .path(forResource: "probe_heap", ofType: "txt")!
 

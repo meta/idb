@@ -29,12 +29,20 @@ public enum RuntimeToolOutputParser {
     }
     let lines = text.split(separator: "\n", omittingEmptySubsequences: false)
 
-    var roots: [(kind: LeakKind, typeName: String, nodes: Int, bytes: UInt64, indent: Int)] = []
+    var roots: [(kind: LeakKind, typeName: String?, nodes: Int, bytes: UInt64, indent: Int)] = []
     for line in lines {
-      guard let match = line.prefixMatch(of: #/( *)(\d+) \(([\d.]+ ?[KMG]?)(?: bytes)?\) (ROOT LEAK|ROOT CYCLE): <(.+?) 0x[0-9a-f]+>/#),
+      // A root leaks could type is `<Type 0xADDRESS>`; one it could not, such as a plain malloc block, is `0xADDRESS [size]`.
+      guard
+        let match = line.prefixMatch(
+          of: #/( *)(\d+) \(([\d.]+ ?[KMG]?)(?: bytes)?\) (ROOT LEAK|ROOT CYCLE): (?:<(.+?) 0x[0-9a-f]+>|0x[0-9a-f]+ \[\d+\])/#),
         let kind = LeakKind(rawValue: String(match.4))
       else { continue }
-      roots.append((kind, String(match.5), Int(match.2) ?? 0, parseSize(match.3), match.1.count))
+      roots.append((kind, match.5.map(String.init), Int(match.2) ?? 0, parseSize(match.3), match.1.count))
+    }
+    let leakCount = Int(totals.1) ?? 0
+    // Every leak is reachable from a root, so a count without roots means the tree is in a form this parser cannot read.
+    if leakCount > 0, roots.isEmpty {
+      throw ProfileReportParseError.missingSection(tool: "leaks", section: "leak roots")
     }
     // The base indent varies between reports; roots nested inside a cycle are indented further and already counted.
     let baseIndent = roots.map(\.indent).min() ?? 0
@@ -65,7 +73,7 @@ public enum RuntimeToolOutputParser {
 
     return LeaksReport(
       process: process,
-      leakCount: Int(totals.1) ?? 0,
+      leakCount: leakCount,
       leakedBytes: UInt64(totals.2) ?? 0,
       groups: stableSorted(
         groupOrder.map { key in
@@ -221,7 +229,7 @@ public enum RuntimeToolOutputParser {
 
   private struct GroupKey: Hashable {
     let kind: LeakKind
-    let typeName: String
+    let typeName: String?
   }
 
   /// The header every runtime tool prints above its first `----` line.

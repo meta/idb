@@ -92,6 +92,21 @@ struct ProfileTranslationTests {
   }
 
   @Test
+  func anUntypedLeakGroupHasAnEmptyTypeName() throws {
+    let json = #"""
+      {"process": {"name": "Probe", "pid": 42}, "leakCount": 3, "leakedBytes": 96, "allocationStacks": [],
+        "groups": [{"kind": "ROOT LEAK", "roots": 1, "nodes": 2, "bytes": 64}, {"kind": "ROOT CYCLE", "typeName": "Node", "roots": 1, "nodes": 1, "bytes": 32}]}
+      """#
+    let leaks = try JSONDecoder().decode(LeaksReport.self, from: Data(json.utf8))
+
+    let report = ProfileTranslation.report(.leaks(leaks)).leaks
+
+    #expect(report.groups.map(\.typeName) == ["", "Node"])
+    #expect(report.groups.map(\.kind) == [.leak, .cycle])
+    #expect(report.groups.map(\.nodes) == [2, 1])
+  }
+
+  @Test
   func aMeasuredCPUPercentageIsPresent() {
     let sample = ResourceSample(
       pid: 42, processName: "Probe", timestampMs: 0, elapsedMs: 100, cpuPct: 0, footprintBytes: 1, residentBytes: 2,

@@ -57,7 +57,9 @@ public struct LeaksReport: Codable, Equatable, Sendable {
 
 public struct LeakGroup: Codable, Equatable, Sendable {
   public let kind: LeakKind
-  public let typeName: String
+  /// The type leaks names the roots by. Absent for roots it could not type, such as plain malloc blocks, which it
+  /// prints by address alone.
+  public let typeName: String?
   public let roots: Int
   /// Allocations reachable from the roots, the roots included.
   public let nodes: Int

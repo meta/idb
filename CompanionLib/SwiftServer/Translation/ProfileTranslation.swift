@@ -167,7 +167,7 @@ enum ProfileTranslation {
       $0.groups = report.groups.map { group in
         .with {
           $0.kind = leakKind(group.kind)
-          $0.typeName = group.typeName
+          $0.typeName = group.typeName ?? ""
           $0.roots = UInt64(group.roots)
           $0.nodes = UInt64(group.nodes)
           $0.bytes = group.bytes

@@ -1,0 +1,78 @@
+Process:         ReplHost [81473]
+Path:            ~/Library/Developer/CoreSimulator/Devices/4CD991B1-D40E-403F-A03B-3FAA5EAA640A/data/Containers/Bundle/Application/833C758D-4F45-4ECA-9D7F-CDDF16E618D8/ReplHost.app/ReplHost
+Load Address:    0x10002c000
+Identifier:      com.facebook.idb.replhost
+Version:         1.0 (1)
+Code Type:       ARM64
+Platform:        iOS Simulator
+Parent Process:  launchd_sim [73266]
+Target Type:     corpse (Roots Present)
+
+Date/Time:       2026-11-06 14:29:45.878 -0800
+Launch Time:     2026-11-06 14:29:39.713 -0800
+OS Version:      iPhone OS 27.0 (24A434)
+Report Version:  7
+Analysis Tool:   /Library/Developer/CoreSimulator/Volumes/iOS_24A434/Library/Developer/CoreSimulator/Profiles/Runtimes/iOS 27.0.simruntime/Contents/Resources/RuntimeRoot/usr/bin/leaks
+Analysis Tool Version:  iOS Simulator 27.0 (24A434)
+
+Physical footprint:         24.8M
+Physical footprint (peak):  25.1M
+Idle exit:                  untracked
+----
+
+leaks Report Version: 4.0
+Process 81473: 73710 nodes malloced for 8103 KB
+Process 81473: 39 leaks for 1248 total leaked bytes.
+
+    39 (1.22K) << TOTAL >>
+
+      7 (224 bytes) ROOT LEAK: 0x101204460 [32]
+         6 (192 bytes) 0x101204620 [32]
+            5 (160 bytes) 0x101204680 [32]
+               4 (128 bytes) 0x101204740 [32]
+                  3 (96 bytes) 0x101204840 [32]
+                     2 (64 bytes) 0x1012049a0 [32]
+                        1 (32 bytes) 0x101204c60 [32]
+
+      4 (128 bytes) ROOT LEAK: 0x1011ed9c0 [32]
+         3 (96 bytes) 0x1011ed9e0 [32]
+            2 (64 bytes) 0x1011eda00 [32]
+               1 (32 bytes) 0x1011eda20 [32]
+
+      3 (96 bytes) ROOT LEAK: 0x1011edde0 [32]
+         2 (64 bytes) 0x1011ee2c0 [32]
+            1 (32 bytes) 0x1011ee460 [32]
+
+      3 (96 bytes) ROOT LEAK: 0x1011f8460 [32]
+         2 (64 bytes) 0x1011f84a0 [32]
+            1 (32 bytes) 0x1011f8580 [32]
+
+      3 (96 bytes) ROOT LEAK: 0x1011f87c0 [32]
+         2 (64 bytes) 0x1011f88a0 [32]
+            1 (32 bytes) 0x1011f88c0 [32]
+
+      3 (96 bytes) ROOT LEAK: 0x1011f9d80 [32]
+         2 (64 bytes) 0x1011fa5e0 [32]
+            1 (32 bytes) 0x1011fa7a0 [32]
+
+      2 (64 bytes) ROOT LEAK: 0x1011ec600 [32]
+         1 (32 bytes) 0x1011ec620 [32]
+
+      2 (64 bytes) ROOT LEAK: 0x1011ecd40 [32]
+         1 (32 bytes) 0x1011ed4e0 [32]
+
+      2 (64 bytes) ROOT LEAK: 0x1011eec00 [32]
+         1 (32 bytes) 0x1011ef020 [32]
+
+      2 (64 bytes) ROOT LEAK: 0x1011eff60 [32]
+         1 (32 bytes) 0x1011f8020 [32]
+
+      2 (64 bytes) ROOT LEAK: 0x1011f9600 [32]
+         1 (32 bytes) 0x1011f9660 [32]
+
+      1 (32 bytes) ROOT LEAK: 0x100c00600 [32]
+      1 (32 bytes) ROOT LEAK: 0x1011ec640 [32]
+      1 (32 bytes) ROOT LEAK: 0x1011ed9a0 [32]
+      1 (32 bytes) ROOT LEAK: 0x1011f93a0 [32]
+      1 (32 bytes) ROOT LEAK: 0x1011f94c0 [32]
+      1 (32 bytes) ROOT LEAK: 0x1011faba0 [32]

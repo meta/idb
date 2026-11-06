@@ -58,6 +58,37 @@ struct RuntimeToolOutputParserTests {
   }
 
   @Test
+  func leaksGroupsRootsItCouldNotTypeWithoutATypeName() throws {
+    let report = try RuntimeToolOutputParser.leaks(fixture(TestFixtures.replhostLeaksUntypedPath))
+
+    #expect(report.process.identifier == "com.facebook.idb.replhost")
+    #expect(report.leakCount == 39)
+    #expect(report.leakedBytes == 1248)
+    #expect(report.groups == [LeakGroup(kind: .leak, typeName: nil, roots: 17, nodes: 39, bytes: 1248)])
+    #expect(report.allocationStacks.isEmpty)
+  }
+
+  @Test
+  func leaksWithoutLeaksHasNoGroups() throws {
+    let text = try fixture(TestFixtures.replhostLeaksUntypedPath)
+    let header = try #require(text.components(separatedBy: "leaks Report Version").first)
+
+    let report = try RuntimeToolOutputParser.leaks(header + "Process 81473: 0 leaks for 0 total leaked bytes.\n")
+
+    #expect(report.leakCount == 0)
+    #expect(report.groups.isEmpty)
+  }
+
+  @Test
+  func leaksCountedButNoRootReadableIsAnError() throws {
+    let text = try fixture(TestFixtures.replhostLeaksUntypedPath).replacingOccurrences(of: "ROOT LEAK: ", with: "LEAK ROOT: ")
+
+    #expect(throws: ProfileReportParseError.missingSection(tool: "leaks", section: "leak roots")) {
+      try RuntimeToolOutputParser.leaks(text)
+    }
+  }
+
+  @Test
   func heapListsClassesLargestFirst() throws {
     let report = try RuntimeToolOutputParser.heap(fixture(TestFixtures.probeHeapPath))
 
