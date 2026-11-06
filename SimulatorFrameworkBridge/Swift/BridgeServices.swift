@@ -86,6 +86,12 @@ public enum BridgeServices {
         #else
         return DeliveredNotificationsService.handleAction("delivered", bundleID: identifier, directory: nil, timeout: 0, output: output)
         #endif
+      case let .sendWithServiceExtension(identifier, jsonPayload):
+        #if os(iOS)
+        return NotificationServiceExtensionService.send(bundleID: identifier, jsonPayload: jsonPayload, output: output)
+        #else
+        return unavailable("Notification service extension delivery", output: output)
+        #endif
       case let .clearDelivered(identifier):
         #if os(tvOS)
         return unavailable("The notifications clear-delivered action", output: output)

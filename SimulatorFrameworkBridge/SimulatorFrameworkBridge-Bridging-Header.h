@@ -15,6 +15,7 @@
 #import "Runtime/HealthSettingsClient.h"
 #import "Runtime/KeyedArchiveReference.h"
 #import "Runtime/NetworkConfigurationStore.h"
+#import "Runtime/NotificationServiceExtensionClient.h"
 #import "Runtime/NotificationSettingsClient.h"
 #import "Runtime/PhotoLibraryClient.h"
 #import "Runtime/PrivacyRuntime.h"

@@ -14,6 +14,7 @@ framework module SimulatorFrameworkBridgeRuntime {
   header "LockScreenClient.h"
   header "NetworkConfigurationStore.h"
   header "NotificationSettingsClient.h"
+  header "NotificationServiceExtensionClient.h"
   header "PhotoLibraryClient.h"
   header "PrivacyRuntime.h"
   header "SystemConfigurationLoader.h"

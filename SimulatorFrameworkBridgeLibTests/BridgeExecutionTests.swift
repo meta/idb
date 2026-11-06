@@ -56,8 +56,8 @@ final class BridgeExecutionTests: XCTestCase {
     // A request whose identity survives decoding is answered under that identity, so the host can
     // match the failure to what it sent instead of reporting a mismatched response.
     let unanswerable: [(String, String)] = [
-      (#"{"version":7,"id":"future-version","command":{"ping":{}}}"#, "unsupportedVersion(7)"),
-      (#"{"version":6,"id":"future-command","command":{"future":{}}}"#, "command"),
+      (#"{"version":8,"id":"future-version","command":{"ping":{}}}"#, "unsupportedVersion(8)"),
+      (#"{"version":7,"id":"future-command","command":{"future":{}}}"#, "command"),
     ]
     for (text, expected) in unanswerable {
       let reply = BridgeRPC.process(Data(text.utf8), execute: execute)

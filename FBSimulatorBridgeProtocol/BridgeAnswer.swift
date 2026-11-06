@@ -18,6 +18,7 @@ import Foundation
   /// A dynamic-store key's value, as a binary property list.
   case dynamicStoreSnapshot(Data)
   case lockScreen(BridgeLockScreenState)
+  case notificationServiceExtension(BridgeNotificationServiceExtensionOutcome)
 
   // Swift names an unlabelled payload `_0`; these name it for what it holds.
   private enum AccessibilityCodingKeys: String, CodingKey { case _0 = "answer" }
@@ -27,6 +28,7 @@ import Foundation
   private enum NetworkConfigurationCodingKeys: String, CodingKey { case _0 = "configuration" }
   private enum DynamicStoreSnapshotCodingKeys: String, CodingKey { case _0 = "propertyList" }
   private enum LockScreenCodingKeys: String, CodingKey { case _0 = "state" }
+  private enum NotificationServiceExtensionCodingKeys: String, CodingKey { case _0 = "outcome" }
 
   /// The answer as the host reports it: one line of JSON, its keys sorted.
   public func jsonLine() throws -> String {
@@ -38,6 +40,7 @@ import Foundation
     case let .networkConfiguration(configuration): try configuration.jsonLine()
     case let .dynamicStoreSnapshot(propertyList): try Self.line(propertyList)
     case let .lockScreen(state): try Self.line(state)
+    case let .notificationServiceExtension(outcome): try Self.line(outcome)
     }
   }
 

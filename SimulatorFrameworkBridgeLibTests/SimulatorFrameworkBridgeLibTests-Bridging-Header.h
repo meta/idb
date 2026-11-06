@@ -15,5 +15,6 @@
 #import "HealthTestRuntime.h"
 #import "NetworkConfigurationTestRuntime.h"
 #import "NotificationExceptionRuntime.h"
+#import "NotificationServiceExtensionTestRuntime.h"
 #import "PhotosTestRuntime.h"
 #import "ServiceTestRuntime.h"

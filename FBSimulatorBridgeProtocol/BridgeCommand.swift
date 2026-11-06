@@ -33,6 +33,7 @@ import Foundation
     case revoke(bundleID: String)
     case delivered(bundleID: String)
     case clearDelivered(bundleID: String)
+    case sendWithServiceExtension(bundleID: String, jsonPayload: String)
   }
 
   @frozen public enum Health: Codable, Equatable, Sendable {
@@ -91,7 +92,7 @@ import Foundation
     case let .notifications(command):
       switch command {
       case .list, .delivered: true
-      case .approve, .revoke, .clearDelivered: false
+      case .approve, .revoke, .clearDelivered, .sendWithServiceExtension: false
       }
     case let .health(command):
       switch command {

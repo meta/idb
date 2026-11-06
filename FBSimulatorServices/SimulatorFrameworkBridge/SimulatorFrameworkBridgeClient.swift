@@ -22,7 +22,7 @@ extension BridgeCommand {
   var route: SimulatorFrameworkBridgeRoute {
     if case let .notifications(command) = self {
       switch command {
-      case let .delivered(bundleID), let .clearDelivered(bundleID):
+      case let .delivered(bundleID), let .clearDelivered(bundleID), let .sendWithServiceExtension(bundleID, _):
         if let bundleIdentity = SimulatorFrameworkBridgeStaging.bundleIdentity(bundleID) {
           return .staged(bundleIdentity: bundleIdentity)
         }
@@ -64,6 +64,7 @@ extension BridgeCommand {
       case .revoke: "notifications revoke"
       case .delivered: "notifications delivered"
       case .clearDelivered: "notifications clear-delivered"
+      case .sendWithServiceExtension: "notifications send-service-extension"
       }
     case let .health(command):
       switch command {
