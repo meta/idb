@@ -3388,10 +3388,16 @@ class TestParser(TestCase):
             ["send-notification", "com.foo.bar", payload],
         ):
             with self.subTest(command=command):
-                send_notification = AsyncMock()
-                self.client_mock.send_notification = send_notification
-                await cli_main(cmd_input=command)
-                send_notification.assert_called_once_with("com.foo.bar", payload)
+                for requested in (False, True):
+                    send_notification = AsyncMock()
+                    self.client_mock.send_notification = send_notification
+                    await cli_main(
+                        cmd_input=command
+                        + (["--service-extension"] if requested else [])
+                    )
+                    send_notification.assert_called_once_with(
+                        "com.foo.bar", payload, process_service_extension=requested
+                    )
 
     async def test_notification_list(self) -> None:
         self.client_mock.delivered_notifications = AsyncMock(

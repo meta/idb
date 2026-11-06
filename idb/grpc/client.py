@@ -9,6 +9,7 @@ import asyncio
 import codecs
 import functools
 import inspect
+import json
 import logging
 import os
 import shutil
@@ -1081,11 +1082,36 @@ class Client(ClientBase):
         await self.stub.simulate_memory_warning(SimulateMemoryWarningRequest())
 
     @log_and_handle_exceptions("send_notification")
-    async def send_notification(self, bundle_id: str, json_payload: str) -> None:
+    async def send_notification(
+        self,
+        bundle_id: str,
+        json_payload: str,
+        *,
+        process_service_extension: bool = False,
+    ) -> None:
+        if '"idb-service-extension"' in json_payload:
+            try:
+                payload = json.loads(json_payload)
+            except json.JSONDecodeError as error:
+                raise IdbException(f"Invalid notification payload: {error}") from error
+            if isinstance(payload, dict) and "idb-service-extension" in payload:
+                requested = payload.pop("idb-service-extension")
+                if not isinstance(requested, bool):
+                    raise IdbException("idb-service-extension must be a boolean")
+                process_service_extension = process_service_extension or requested
+                json_payload = json.dumps(payload)
+        if (
+            process_service_extension
+            and not self.companion.supports_notification_service_extension
+        ):
+            raise IdbException(
+                "The companion does not support notification service extension delivery"
+            )
         await self.stub.send_notification(
             SendNotificationRequest(
                 bundle_id=bundle_id,
                 json_payload=json_payload,
+                process_service_extension=process_service_extension,
             )
         )
 
@@ -1136,6 +1162,9 @@ class Client(ClientBase):
                 supported_compressions=self.companion.supported_compressions,
                 zstd_zip_streams=self.companion.zstd_zip_streams,
                 install_connect_to=self.companion.install_connect_to,
+                supports_notification_service_extension=(
+                    self.companion.supports_notification_service_extension
+                ),
             ),
             # Extract the companion metadata from the response.
             metadata=response.companion.metadata,

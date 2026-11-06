@@ -270,6 +270,22 @@ class CompanionToPyTests(unittest.TestCase):
             ).install_connect_to
         )
 
+    def test_maps_notification_service_extension_capability(self) -> None:
+        address = TCPAddress(host="localhost", port=1)
+        self.assertFalse(
+            companion_to_py(
+                companion=GrpcCompanionInfo(udid="a"), address=address
+            ).supports_notification_service_extension
+        )
+        self.assertTrue(
+            companion_to_py(
+                companion=GrpcCompanionInfo(
+                    udid="a", supports_notification_service_extension=True
+                ),
+                address=address,
+            ).supports_notification_service_extension
+        )
+
     def test_omits_unknown_compressions(self) -> None:
         companion = companion_to_py(
             companion=GrpcCompanionInfo(udid="a", supported_compressions=[99]),
@@ -346,6 +362,7 @@ class DescribeTests(TestCase):
                     pid=None,
                     address=TCPAddress(host="localhost", port=1),
                     install_connect_to=advertised,
+                    supports_notification_service_extension=advertised,
                 )
 
                 description = await client.describe()
@@ -353,6 +370,15 @@ class DescribeTests(TestCase):
                 companion_info = description.companion_info
                 assert companion_info is not None
                 self.assertEqual(companion_info.install_connect_to, advertised)
+                self.assertEqual(
+                    companion_info.supports_notification_service_extension, advertised
+                )
+                self.assertEqual(
+                    json.loads(description.as_json)["companion_info"][
+                        "supports_notification_service_extension"
+                    ],
+                    advertised,
+                )
                 self.assertEqual(
                     json.loads(description.as_json)["companion_info"][
                         "install_connect_to"

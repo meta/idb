@@ -276,6 +276,7 @@ class CompanionInfo:
     supported_compressions: "frozenset[Compression]" = frozenset()
     zstd_zip_streams: bool = False
     install_connect_to: bool = False
+    supports_notification_service_extension: bool = False
 
 
 @dataclass(frozen=True)
@@ -1231,8 +1232,13 @@ class Client(ABC):
         pass
 
     @abstractmethod
-    async def send_notification(self, bundle_id: str, json_payload: str) -> None:
-        pass
+    async def send_notification(
+        self,
+        bundle_id: str,
+        json_payload: str,
+        *,
+        process_service_extension: bool = False,
+    ) -> None: ...
 
     @abstractmethod
     async def delivered_notifications(

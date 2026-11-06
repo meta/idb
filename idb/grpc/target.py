@@ -75,6 +75,9 @@ def companion_to_py(companion: GrpcCompanionInfo, address: Address) -> Companion
         ),
         zstd_zip_streams=companion.zstd_zip_streams,
         install_connect_to=companion.install_connect_to,
+        supports_notification_service_extension=(
+            companion.supports_notification_service_extension
+        ),
     )
 
 

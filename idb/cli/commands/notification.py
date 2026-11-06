@@ -29,10 +29,20 @@ class NotificationSendCommand(ClientCommand):
         parser.add_argument(
             "json_payload", help="Notification data in json format", type=str
         )
+        parser.add_argument(
+            "--service-extension",
+            dest="process_service_extension",
+            action="store_true",
+            help="Process the notification through the app's service extension",
+        )
         super().add_parser_arguments(parser)
 
     async def run_with_client(self, args: Namespace, client: Client) -> None:
-        await client.send_notification(args.bundle_id, args.json_payload)
+        await client.send_notification(
+            args.bundle_id,
+            args.json_payload,
+            process_service_extension=args.process_service_extension,
+        )
 
 
 class SendNotificationCommand(NotificationSendCommand):
