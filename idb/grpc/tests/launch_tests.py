@@ -8,6 +8,8 @@ from __future__ import annotations
 
 import asyncio
 import tempfile
+import threading
+from collections import deque
 from pathlib import Path
 from unittest.mock import call, patch
 
@@ -19,6 +21,7 @@ from idb.grpc.idb_pb2 import (
     LaunchResponse,
     ProcessOutput,
 )
+from idb.grpc.launch import drain_launch_stream, MAX_BUFFERED_OUTPUT_BYTES
 from idb.grpc.tests.stream_test_support import make_client, ScriptedStream
 from idb.utils.testing import TestCase
 
@@ -289,6 +292,129 @@ class LaunchStreamTests(TestCase):
                     open_rpc.assert_called_once_with()
                     self.assertTrue(stream.entered)
                     self.assertTrue(stream.exited)
+
+
+class LaunchOutputBufferingTests(TestCase):
+    async def test_blocked_output_reader_does_not_stop_stream_reads(self) -> None:
+        chunks = [b"first", b"second", b"third"]
+        stream, written, reads_when_released = await self._drain_with_blocked_stdout(
+            chunks, max_buffered_output_bytes=None
+        )
+
+        self.assertEqual(reads_when_released, [len(chunks) + 1])
+        self.assertEqual(written, chunks)
+        self.assertEqual(stream.transcript[-1], ("recv", None))
+
+    async def test_full_buffer_stops_stream_reads_until_output_is_written(
+        self,
+    ) -> None:
+        chunks = [b"aaaa", b"bbbb", b"cccc"]
+        _, written, reads_when_released = await self._drain_with_blocked_stdout(
+            chunks, max_buffered_output_bytes=4
+        )
+
+        self.assertEqual(reads_when_released, [2])
+        self.assertEqual(written, chunks)
+
+    async def test_write_error_surfaces_while_output_keeps_arriving(self) -> None:
+        for max_buffered_output_bytes in (MAX_BUFFERED_OUTPUT_BYTES, 4):
+            with self.subTest(max_buffered_output_bytes=max_buffered_output_bytes):
+                stream = ScriptedStream(
+                    *(
+                        LaunchResponse(
+                            output=ProcessOutput(
+                                interface=ProcessOutput.STDOUT, data=b"x" * 4
+                            )
+                        )
+                        for _ in range(50)
+                    )
+                )
+                with patch("idb.grpc.launch.sys") as stdio:
+                    stdio.stdout.buffer.write.side_effect = BrokenPipeError()
+                    async with asyncio.timeout(5):
+                        with self.assertRaises(BrokenPipeError):
+                            await drain_launch_stream(
+                                stream, None, max_buffered_output_bytes
+                            )
+
+    async def test_buffered_output_is_written_when_the_stream_fails(self) -> None:
+        chunks = [b"first", b"second", b"third"]
+        responses = deque(
+            LaunchResponse(
+                output=ProcessOutput(interface=ProcessOutput.STDOUT, data=chunk)
+            )
+            for chunk in chunks
+        )
+        failure = ProtocolError("launch response failed")
+        failed = threading.Event()
+        written: list[bytes] = []
+
+        async def recv_message() -> LaunchResponse:
+            if responses:
+                return responses.popleft()
+            failed.set()
+            raise failure
+
+        def blocking_write(data: bytes) -> None:
+            failed.wait(timeout=1)
+            written.append(data)
+
+        stream = ScriptedStream[LaunchResponse]()
+        with patch.object(stream, "recv_message", side_effect=recv_message):
+            with patch("idb.grpc.launch.sys") as stdio:
+                stdio.stdout.buffer.write.side_effect = blocking_write
+                async with asyncio.timeout(5):
+                    with self.assertRaises(ProtocolError) as raised:
+                        await drain_launch_stream(stream, None)
+
+        self.assertIs(raised.exception, failure)
+        self.assertEqual(written, chunks)
+
+    async def _drain_with_blocked_stdout(
+        self, chunks: list[bytes], max_buffered_output_bytes: int | None
+    ) -> tuple[ScriptedStream[LaunchResponse], list[bytes], list[int]]:
+        stream = ScriptedStream(
+            *(
+                LaunchResponse(
+                    output=ProcessOutput(interface=ProcessOutput.STDOUT, data=chunk)
+                )
+                for chunk in chunks
+            )
+        )
+        release = threading.Event()
+        written: list[bytes] = []
+        reads_when_released: list[int] = []
+
+        def reads() -> int:
+            return sum(1 for entry in stream.transcript if entry[0] == "recv")
+
+        def blocking_write(data: bytes) -> None:
+            if not written:
+                release.wait(timeout=1)
+                reads_when_released.append(reads())
+            written.append(data)
+
+        kwargs = (
+            {}
+            if max_buffered_output_bytes is None
+            else {"max_buffered_output_bytes": max_buffered_output_bytes}
+        )
+        expected_reads = len(chunks) + 1 if max_buffered_output_bytes is None else 2
+        with patch("idb.grpc.launch.sys") as stdio:
+            stdio.stdout.buffer.write.side_effect = blocking_write
+            async with asyncio.timeout(5):
+                drain = asyncio.create_task(drain_launch_stream(stream, None, **kwargs))
+                try:
+                    while reads() < expected_reads:
+                        await asyncio.sleep(0.01)
+                    await asyncio.sleep(0.05)
+                    release.set()
+                    await drain
+                finally:
+                    release.set()
+                    drain.cancel()
+                    await asyncio.gather(drain, return_exceptions=True)
+        return stream, written, reads_when_released
 
 
 class _StopDrivenLaunchStream(ScriptedStream[LaunchResponse]):
