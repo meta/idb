@@ -5,6 +5,7 @@
 # LICENSE file in the root directory of this source tree.
 
 
+import asyncio
 import logging
 from argparse import Namespace
 from types import ModuleType
@@ -12,7 +13,18 @@ from unittest import mock
 
 from idb.common import plugin
 from idb.common.command import Command
-from idb.common.types import CompanionInfo, IdbException, LoggingMetadata, TCPAddress
+from idb.common.types import (
+    AppScreenshotCapture,
+    Client,
+    CompanionInfo,
+    IdbException,
+    LoggingMetadata,
+    Screenshot,
+    ScreenshotFormat,
+    ScreenshotOptions,
+    ScreenshotUnit,
+    TCPAddress,
+)
 from idb.utils.testing import TestCase
 
 
@@ -109,6 +121,158 @@ class GetAgentInstructionsTest(TestCase):
     def test_no_plugins_yield_empty_instructions(self) -> None:
         with mock.patch.object(plugin, "PLUGINS", []):
             self.assertEqual(plugin.get_agent_instructions(names=["agent"]), "")
+
+
+class _AppCapturePlugin(ModuleType):
+    def __init__(self, result: object, error: BaseException | None = None) -> None:
+        super().__init__("app_capture")
+        self.result = result
+        self.error = error
+        self.calls: list[tuple[Client, str, ScreenshotOptions]] = []
+
+    async def capture_app_screenshot(
+        self, client: Client, bundle_id: str, options: ScreenshotOptions
+    ) -> object:
+        self.calls.append((client, bundle_id, options))
+        if self.error is not None:
+            raise self.error
+        return self.result
+
+
+class AppScreenshotPluginTest(TestCase):
+    def setUp(self) -> None:
+        self.client = mock.Mock(spec=Client)
+        self.client.companion = CompanionInfo(
+            "target-1", True, None, TCPAddress("localhost", 1)
+        )
+        self.image = Screenshot(
+            b"\x89PNG\r\n\x1a\nimage",
+            app_capture=AppScreenshotCapture("nonce-1", "target-1", "com.example.app"),
+        )
+
+    async def test_app_capture_returns_the_first_provider_result_without_telemetry(
+        self,
+    ) -> None:
+        first = _AppCapturePlugin(self.image)
+        later = _AppCapturePlugin(self.image)
+        with (
+            mock.patch.object(
+                plugin, "PLUGINS", [ModuleType("unrelated"), first, later]
+            ),
+            mock.patch.object(plugin, "on_invocation_result") as observe,
+        ):
+            result = await plugin.capture_app_screenshot(
+                self.client, "com.example.app", ScreenshotOptions()
+            )
+        self.assertIs(result, self.image)
+        self.assertEqual(
+            first.calls, [(self.client, "com.example.app", ScreenshotOptions())]
+        )
+        self.assertEqual(later.calls, [])
+        observe.assert_not_called()
+
+    async def test_an_absent_provider_is_unsupported_not_a_target_capture(self) -> None:
+        with mock.patch.object(plugin, "PLUGINS", [ModuleType("unrelated")]):
+            with self.assertRaisesRegex(IdbException, "unsupported"):
+                await plugin.capture_app_screenshot(
+                    self.client, "com.example.app", ScreenshotOptions()
+                )
+        self.client.screenshot.assert_not_called()
+
+    async def test_provider_failures_and_cancellation_never_try_a_second_provider(
+        self,
+    ) -> None:
+        for error in (
+            IdbException("refused"),
+            RuntimeError("broken"),
+            asyncio.CancelledError(),
+        ):
+            first = _AppCapturePlugin(self.image, error)
+            later = _AppCapturePlugin(self.image)
+            with mock.patch.object(plugin, "PLUGINS", [first, later]):
+                with self.assertRaises(type(error)) as raised:
+                    await plugin.capture_app_screenshot(
+                        self.client, "com.example.app", ScreenshotOptions()
+                    )
+            self.assertIs(raised.exception, error)
+            self.assertEqual(len(first.calls), 1)
+            self.assertEqual(later.calls, [])
+            self.client.screenshot.assert_not_called()
+
+    async def test_invalid_bundle_options_and_companion_fail_before_provider(
+        self,
+    ) -> None:
+        provider = _AppCapturePlugin(self.image)
+        with mock.patch.object(plugin, "PLUGINS", [provider]):
+            for bundle_id in (
+                "",
+                " ",
+                "--flag",
+                ".",
+                "com.app/path",
+                "com.app\n",
+                "é.app",
+                "a" * 257,
+            ):
+                with self.subTest(bundle_id=bundle_id), self.assertRaises(IdbException):
+                    await plugin.capture_app_screenshot(
+                        self.client, bundle_id, ScreenshotOptions()
+                    )
+            for options in (
+                ScreenshotOptions(format=ScreenshotFormat.JPEG),
+                ScreenshotOptions(format=ScreenshotFormat.TIFF),
+                ScreenshotOptions(compression_quality=1),
+                ScreenshotOptions(scale_factor=1),
+                ScreenshotOptions(max_width=100),
+                ScreenshotOptions(unit=ScreenshotUnit.POINTS),
+            ):
+                with self.subTest(options=options), self.assertRaises(IdbException):
+                    await plugin.capture_app_screenshot(
+                        self.client, "com.example.app", options
+                    )
+            self.client.companion = None
+            with self.assertRaises(IdbException):
+                await plugin.capture_app_screenshot(
+                    self.client, "com.example.app", ScreenshotOptions()
+                )
+        self.assertEqual(provider.calls, [])
+        self.client.screenshot.assert_not_called()
+
+    async def test_invalid_provider_results_cannot_be_reported_as_app_captures(
+        self,
+    ) -> None:
+        markers = (
+            None,
+            AppScreenshotCapture("nonce", "other", "com.example.app"),
+            AppScreenshotCapture("nonce", "target-1", "com.other"),
+            AppScreenshotCapture(" ", "target-1", "com.example.app"),
+            AppScreenshotCapture("x" * 257, "target-1", "com.example.app"),
+        )
+        results = [
+            None,
+            b"not a Screenshot",
+            Screenshot(b"not PNG", app_capture=self.image.app_capture),
+            Screenshot(
+                bytes(self.image),
+                format=ScreenshotFormat.JPEG,
+                app_capture=self.image.app_capture,
+            ),
+        ]
+        results.extend(
+            Screenshot(bytes(self.image), app_capture=marker) for marker in markers
+        )
+        for result in results:
+            first = _AppCapturePlugin(result)
+            later = _AppCapturePlugin(self.image)
+            with (
+                mock.patch.object(plugin, "PLUGINS", [first, later]),
+                self.assertRaises(IdbException),
+            ):
+                await plugin.capture_app_screenshot(
+                    self.client, "com.example.app", ScreenshotOptions()
+                )
+            self.assertEqual(later.calls, [])
+        self.client.screenshot.assert_not_called()
 
 
 class PluginDispatchTest(TestCase):

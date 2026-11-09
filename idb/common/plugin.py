@@ -11,6 +11,7 @@ import asyncio
 import importlib
 import logging
 import os
+import re
 import ssl
 from argparse import ArgumentParser, Namespace
 from collections.abc import Awaitable, Callable, Iterator
@@ -22,7 +23,17 @@ from types import ModuleType
 from typing import cast, List, overload, ParamSpec, TypeVar
 
 from idb.common.command import Command
-from idb.common.types import CompanionInfo, IdbException, LoggingMetadata
+from idb.common.types import (
+    AppScreenshotCapture,
+    Client,
+    CompanionInfo,
+    DEFAULT_SCREENSHOT_OPTIONS,
+    IdbException,
+    LoggingMetadata,
+    Screenshot,
+    ScreenshotFormat,
+    ScreenshotOptions,
+)
 
 
 def package_exists(package_name: str) -> bool:
@@ -201,6 +212,71 @@ def on_command_parsed(logger: Logger, command: Command, args: Namespace) -> None
                 f"on_command_parsed plugin {plugin.__name__} failed, "
                 "swallowing exception"
             )
+
+
+def validate_app_screenshot_options(bundle_id: str, options: ScreenshotOptions) -> None:
+    """Reject requests that an application capture provider cannot honor."""
+    if (
+        len(bundle_id) > 256
+        or re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9.-]*", bundle_id) is None
+    ):
+        raise IdbException(
+            "Application screenshots require a valid bundle identifier of at most 256 characters"
+        )
+    if options != DEFAULT_SCREENSHOT_OPTIONS:
+        raise IdbException(
+            "Application screenshots support only PNG with default capture options"
+        )
+
+
+async def capture_app_screenshot(
+    client: Client, bundle_id: str, options: ScreenshotOptions
+) -> Screenshot:
+    """Capture an explicit application through the first provider, with no fallback."""
+    validate_app_screenshot_options(bundle_id, options)
+    companion = getattr(client, "companion", None)
+    if (
+        not isinstance(companion, CompanionInfo)
+        or not companion.udid.strip()
+        or len(companion.udid) > 256
+    ):
+        raise IdbException(
+            "Application screenshots require an identified connected companion"
+        )
+    for provider in PLUGINS:
+        method = getattr(provider, "capture_app_screenshot", None)
+        if method is None:
+            continue
+        if not callable(method):
+            raise IdbException("The application screenshot provider is not callable")
+        capture = cast(
+            Callable[[Client, str, ScreenshotOptions], Awaitable[object]], method
+        )
+        result = await capture(client, bundle_id, options)
+        if (
+            not isinstance(result, Screenshot)
+            or result.format != ScreenshotFormat.PNG
+            or not result.startswith(b"\x89PNG\r\n\x1a\n")
+        ):
+            raise IdbException(
+                "The application screenshot provider did not return a PNG screenshot"
+            )
+        marker = result.app_capture
+        if (
+            not isinstance(marker, AppScreenshotCapture)
+            or marker.target_udid != companion.udid
+            or marker.bundle_id != bundle_id
+            or not isinstance(marker.capture_nonce, str)
+            or not marker.capture_nonce.strip()
+            or len(marker.capture_nonce) > 256
+        ):
+            raise IdbException(
+                "The application screenshot provider returned missing or mismatched capture attribution"
+            )
+        return result
+    raise IdbException(
+        "Application screenshots are unsupported: no capture provider is available"
+    )
 
 
 def on_invocation_result(

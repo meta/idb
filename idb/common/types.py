@@ -396,7 +396,17 @@ DEFAULT_SCREENSHOT_OPTIONS: ScreenshotOptions = ScreenshotOptions()
 #
 # Every measurement is None when the companion did not report one, which is the
 # case for a companion older than the fields on the request.
+@dataclass(frozen=True)
+class AppScreenshotCapture:
+    """The application and target attributed to one explicit capture invocation."""
+
+    capture_nonce: str
+    target_udid: str
+    bundle_id: str
+
+
 class Screenshot(bytes):
+    app_capture: AppScreenshotCapture | None
     format: ScreenshotFormat
     width: int | None
     height: int | None
@@ -416,6 +426,7 @@ class Screenshot(bytes):
         source_width: int | None = None,
         source_height: int | None = None,
         screen_scale: float | None = None,
+        app_capture: AppScreenshotCapture | None = None,
     ) -> "Screenshot":
         screenshot = super().__new__(cls, data)
         screenshot.format = format
@@ -424,6 +435,7 @@ class Screenshot(bytes):
         screenshot.source_width = source_width
         screenshot.source_height = source_height
         screenshot.screen_scale = screen_scale
+        screenshot.app_capture = app_capture
         return screenshot
 
     def __repr__(self) -> str:
@@ -1067,6 +1079,8 @@ class Companion(ABC):
 
 # Exposes the resource-specific commands that imply a connected companion
 class Client(ABC):
+    companion: CompanionInfo
+
     @abstractmethod
     async def list_apps(
         self, fetch_process_state: bool = True

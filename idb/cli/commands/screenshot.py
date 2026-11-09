@@ -10,11 +10,14 @@ import sys
 from argparse import ArgumentParser, ArgumentTypeError, Namespace
 from collections.abc import Iterator
 from contextlib import contextmanager
+from dataclasses import asdict
 from typing import IO
 
 from idb.cli import ClientCommand
+from idb.common import plugin
 from idb.common.types import (
     Client,
+    CompanionInfo,
     IdbException,
     Screenshot,
     ScreenshotCrop,
@@ -49,6 +52,12 @@ class ScreenshotCommand(ClientCommand):
             "dest_path",
             help="The destination file path to write to or - (dash) to write to stdout",
             type=str,
+        )
+        parser.add_argument(
+            "--app-bundle-id",
+            type=str,
+            default=None,
+            help="Capture this application's window instead of the whole target; requires a capture provider and default PNG options",
         )
         parser.add_argument(
             "--format",
@@ -115,13 +124,34 @@ class ScreenshotCommand(ClientCommand):
         )
         super().add_parser_arguments(parser)
 
-    async def run_with_client(self, args: Namespace, client: Client) -> None:
+    def prepare_capture(self, args: Namespace) -> tuple[ScreenshotOptions, str | None]:
+        """Resolve the pre-I/O capture intent used by all screenshot frontends."""
         if args.json and args.dest_path == "-":
             raise IdbException(
                 "The image and the --json metadata cannot both go to stdout; "
                 "write the image to a file"
             )
-        screenshot = await client.screenshot(options=self._options(args))
+        options = self._options(args)
+        bundle_id = getattr(args, "app_bundle_id", None)
+        if bundle_id is not None:
+            plugin.validate_app_screenshot_options(bundle_id, options)
+        return options, bundle_id
+
+    async def run_with_client(self, args: Namespace, client: Client) -> None:
+        options, bundle_id = self.prepare_capture(args)
+        if bundle_id is None:
+            screenshot = await client.screenshot(options=options)
+        else:
+            requested_udid = getattr(args, "udid", None)
+            companion = getattr(client, "companion", None)
+            if requested_udid is not None and (
+                not isinstance(companion, CompanionInfo)
+                or requested_udid != companion.udid
+            ):
+                raise IdbException(
+                    "The connected companion does not match the requested target"
+                )
+            screenshot = await plugin.capture_app_screenshot(client, bundle_id, options)
         with screenshot_file(args.dest_path) as f:
             f.write(screenshot)
         if args.json:
@@ -147,7 +177,7 @@ class ScreenshotCommand(ClientCommand):
 
 def _metadata(screenshot: Screenshot) -> dict[str, object]:
     # None for anything a companion older than these fields did not report.
-    return {
+    metadata: dict[str, object] = {
         "format": screenshot.format.value,
         "byte_count": len(screenshot),
         "width": screenshot.width,
@@ -156,6 +186,9 @@ def _metadata(screenshot: Screenshot) -> dict[str, object]:
         "source_height": screenshot.source_height,
         "screen_scale": screenshot.screen_scale,
     }
+    if screenshot.app_capture is not None:
+        metadata["app_capture"] = asdict(screenshot.app_capture)
+    return metadata
 
 
 @contextmanager

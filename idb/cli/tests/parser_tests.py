@@ -38,6 +38,8 @@ from idb.common.types import (
     AccessibilitySearchableKey,
     AccessibilitySearchDiagnostics,
     AccessibilityWaitResult,
+    AppScreenshotCapture,
+    CompanionInfo,
     Compression,
     CrashLogQuery,
     DeliveredNotification,
@@ -164,6 +166,19 @@ class AsyncGeneratorMock(AsyncMock):
             return self.iter_list[self.iter_pos]
         except IndexError:
             raise StopAsyncIteration()
+
+
+class _AppCapturePlugin(ModuleType):
+    def __init__(self, image: object, error: Exception | None = None) -> None:
+        super().__init__("app_capture")
+        self.image = image
+        self.error = error
+        self.capture = AsyncMock(side_effect=error, return_value=image)
+
+    async def capture_app_screenshot(
+        self, client: object, bundle_id: str, options: ScreenshotOptions
+    ) -> object:
+        return await self.capture(client, bundle_id, options)
 
 
 class TestParser(TestCase):
@@ -2722,6 +2737,150 @@ class TestParser(TestCase):
             with open(path, "rb") as f:
                 self.assertEqual(f.read(), b"png bytes")
         self.client_mock.screenshot.assert_called_once_with(options=ScreenshotOptions())
+
+    async def test_app_screenshot_uses_the_connected_target_and_reports_only_capture_attribution(
+        self,
+    ) -> None:
+        self.client_mock.companion = CompanionInfo(
+            "target-1", True, None, TCPAddress("localhost", 1)
+        )
+        marker = AppScreenshotCapture("nonce-1", "target-1", "com.example.app")
+        image = Screenshot(b"\x89PNG\r\n\x1a\nimage", app_capture=marker)
+        provider = _AppCapturePlugin(image)
+        output = StringIO()
+        with (
+            tempfile.TemporaryDirectory() as directory,
+            patch.object(plugin, "PLUGINS", [provider]),
+            patch.object(plugin, "load_cli_plugins"),
+            redirect_stdout(output),
+        ):
+            path = os.path.join(directory, "out.png")
+            self.assertEqual(
+                await cli_main(
+                    cmd_input=[
+                        "screenshot",
+                        path,
+                        "--app-bundle-id",
+                        marker.bundle_id,
+                        "--udid",
+                        "target-1",
+                        "--json",
+                    ]
+                ),
+                0,
+            )
+            with open(path, "rb") as file:
+                self.assertEqual(file.read(), bytes(image))
+        provider.capture.assert_called_once_with(
+            self.client_mock, marker.bundle_id, ScreenshotOptions()
+        )
+        self.client_mock.screenshot.assert_not_called()
+        metadata = json.loads(output.getvalue())
+        self.assertEqual(
+            metadata["app_capture"],
+            {
+                "capture_nonce": "nonce-1",
+                "target_udid": "target-1",
+                "bundle_id": marker.bundle_id,
+            },
+        )
+        self.assertEqual(
+            set(metadata),
+            {
+                "format",
+                "byte_count",
+                "width",
+                "height",
+                "source_width",
+                "source_height",
+                "screen_scale",
+                "app_capture",
+            },
+        )
+
+    async def test_app_screenshot_rejects_wrong_target_and_every_transform_before_capture_or_file_write(
+        self,
+    ) -> None:
+        self.client_mock.companion = CompanionInfo(
+            "target-1", True, None, TCPAddress("localhost", 1)
+        )
+        provider = _AppCapturePlugin(
+            Screenshot(
+                b"\x89PNG\r\n\x1a\nimage",
+                app_capture=AppScreenshotCapture(
+                    "nonce", "target-1", "com.example.app"
+                ),
+            )
+        )
+        for flags in (
+            ["--udid", "other"],
+            ["--format", "jpeg"],
+            ["--format", "tiff"],
+            ["--crop", "0,0,1,1"],
+            ["--compression-quality", "1"],
+            ["--scale-factor", "1"],
+            ["--max-width", "100"],
+            ["--max-height", "100"],
+            ["--units", "points"],
+            ["--app-bundle-id", "com.app/path"],
+        ):
+            with (
+                self.subTest(flags=flags),
+                tempfile.TemporaryDirectory() as directory,
+                patch.object(plugin, "PLUGINS", [provider]),
+                patch.object(plugin, "load_cli_plugins"),
+            ):
+                path = os.path.join(directory, "out.png")
+                with open(path, "wb") as file:
+                    file.write(b"existing")
+                self.assertEqual(
+                    await cli_main(
+                        cmd_input=[
+                            "screenshot",
+                            path,
+                            "--app-bundle-id",
+                            "com.example.app",
+                            *flags,
+                        ]
+                    ),
+                    1,
+                )
+                with open(path, "rb") as file:
+                    self.assertEqual(file.read(), b"existing")
+        provider.capture.assert_not_called()
+        self.client_mock.screenshot.assert_not_called()
+
+    async def test_app_screenshot_provider_failure_or_unbound_result_never_creates_a_file(
+        self,
+    ) -> None:
+        self.client_mock.companion = CompanionInfo(
+            "target-1", True, None, TCPAddress("localhost", 1)
+        )
+        for provider in (
+            None,
+            _AppCapturePlugin(None),
+            _AppCapturePlugin(Screenshot(b"\x89PNG\r\n\x1a\nimage")),
+            _AppCapturePlugin(None, IdbException("refused")),
+        ):
+            with (
+                tempfile.TemporaryDirectory() as directory,
+                patch.object(plugin, "PLUGINS", [] if provider is None else [provider]),
+                patch.object(plugin, "load_cli_plugins"),
+            ):
+                path = os.path.join(directory, "out.png")
+                self.assertEqual(
+                    await cli_main(
+                        cmd_input=[
+                            "screenshot",
+                            path,
+                            "--app-bundle-id",
+                            "com.example.app",
+                        ]
+                    ),
+                    1,
+                )
+                self.assertFalse(os.path.exists(path))
+        self.client_mock.screenshot.assert_not_called()
 
     async def test_screenshot_every_flag_reaches_the_options(self) -> None:
         self.client_mock.screenshot = AsyncMock(return_value=Screenshot(b"jpeg"))
