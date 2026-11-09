@@ -44,7 +44,7 @@ def package_exists(package_name: str) -> bool:
 
 
 PLUGIN_PACKAGE_NAMES = ["idb.fb.plugin"]
-CLI_PLUGIN_PACKAGE_NAMES = ["idb.fb.cli_plugin"]
+CLI_PLUGIN_PACKAGE_NAMES = ["idb.fb.cli_plugin", "idb.fb.app_screenshot_plugin"]
 
 
 def _load_plugins(package_names: list[str]) -> list[ModuleType]:
