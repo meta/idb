@@ -288,6 +288,19 @@ class ScreenDimensions:
     height_points: int | None
 
 
+@dataclass(frozen=True)
+class Display:
+    unique_id: str
+    name: str
+    active: bool
+    integrated: bool
+    # Width and height are in pixels, in the current interface orientation, and
+    # each is 0 when the display reports no usable value for it.
+    width: int
+    height: int
+    density: float
+
+
 # The encoding of a screenshot. Values are the names the companion reports back
 # in the response, so they are the wire contract as well as the CLI's choices.
 class ScreenshotFormat(Enum):
@@ -481,6 +494,10 @@ class TargetDescription:
     extended: DeviceDetails | None = None
     diagnostics: DeviceDetails | None = None
     metadata: LoggingMetadata = field(default_factory=dict)
+    # Every display a booted simulator reports when its companion describes it, if
+    # the simulator reports which of them are active. Empty otherwise, including
+    # when the companion cannot read the displays or predates this field.
+    displays: tuple[Display, ...] = ()
 
     @property
     def as_json(self) -> str:

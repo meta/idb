@@ -13,11 +13,13 @@ from idb.common.types import (
     Address,
     CompanionInfo,
     Compression,
+    Display,
     ScreenDimensions,
     TargetDescription,
 )
 from idb.grpc.idb_pb2 import (
     CompanionInfo as GrpcCompanionInfo,
+    Display as GrpcDisplay,
     Payload,
     ScreenDimensions as GrpcScreenDimensions,
     TargetDescription as GrpcTargetDescription,
@@ -50,6 +52,7 @@ def target_to_py(
             json.loads(target.diagnostics.decode()) if len(target.diagnostics) else {}
         ),
         metadata=(json.loads(metadata.decode()) if len(metadata) else {}),
+        displays=tuple(display_to_py(display) for display in target.displays),
     )
 
 
@@ -101,6 +104,18 @@ def screen_dimensions_to_py(dimensions: GrpcScreenDimensions) -> ScreenDimension
         density=dimensions.density,
         width_points=dimensions.width_points,
         height_points=dimensions.height_points,
+    )
+
+
+def display_to_py(display: GrpcDisplay) -> Display:
+    return Display(
+        unique_id=display.unique_id,
+        name=display.name,
+        active=display.active,
+        integrated=display.integrated,
+        width=display.width,
+        height=display.height,
+        density=display.density,
     )
 
 

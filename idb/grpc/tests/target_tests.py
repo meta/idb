@@ -13,6 +13,7 @@ from idb.common.format import json_data_target_info, target_description_from_dic
 from idb.common.types import (
     CompanionInfo,
     Compression,
+    Display,
     TargetDescription,
     TargetType,
     TCPAddress,
@@ -20,6 +21,7 @@ from idb.common.types import (
 from idb.grpc.client import Client
 from idb.grpc.idb_pb2 import (
     CompanionInfo as GrpcCompanionInfo,
+    Display as GrpcDisplay,
     FocusRequest,
     Payload,
     TargetDescription as GrpcTargetDescription,
@@ -228,6 +230,15 @@ class TargetToPyTests(unittest.TestCase):
         self.assertEqual(data["companion"], "127.0.0.1:35511")
         self.assertFalse(data["is_local"])
 
+    def test_has_no_displays_from_a_companion_that_predates_them(self) -> None:
+        target = target_to_py(
+            target=_described_device(b""),
+            companion=_REMOTE_COMPANION,
+            metadata=b"",
+        )
+        self.assertEqual(target.displays, ())
+        self.assertEqual(json.loads(target.as_json)["displays"], [])
+
 
 class CompanionToPyTests(unittest.TestCase):
     def test_maps_supported_compressions(self) -> None:
@@ -309,6 +320,83 @@ class FocusTests(TestCase):
 
 
 class DescribeTests(TestCase):
+    async def test_reports_each_display_of_the_simulator(self) -> None:
+        client = Client.__new__(Client)
+        client.logger = MagicMock()
+        client.stub = MagicMock()
+        client.stub.describe = AsyncMock(
+            return_value=TargetDescriptionResponse(
+                target_description=GrpcTargetDescription(
+                    udid="a",
+                    target_type="simulator",
+                    displays=[
+                        GrpcDisplay(
+                            unique_id="cover-id",
+                            name="LCD",
+                            active=False,
+                            integrated=True,
+                            width=1398,
+                            height=2034,
+                            density=3.0,
+                        ),
+                        GrpcDisplay(
+                            unique_id="inner-id",
+                            name="LCD-1",
+                            active=True,
+                            integrated=True,
+                            width=2853,
+                            height=2007,
+                            density=3.0,
+                        ),
+                    ],
+                ),
+            )
+        )
+        client.companion = CompanionInfo(
+            udid="a",
+            is_local=False,
+            pid=None,
+            address=TCPAddress(host="localhost", port=1),
+        )
+
+        description = await client.describe()
+
+        self.assertEqual(
+            description.displays,
+            (
+                Display(
+                    unique_id="cover-id",
+                    name="LCD",
+                    active=False,
+                    integrated=True,
+                    width=1398,
+                    height=2034,
+                    density=3.0,
+                ),
+                Display(
+                    unique_id="inner-id",
+                    name="LCD-1",
+                    active=True,
+                    integrated=True,
+                    width=2853,
+                    height=2007,
+                    density=3.0,
+                ),
+            ),
+        )
+        self.assertEqual(
+            json.loads(description.as_json)["displays"][1],
+            {
+                "unique_id": "inner-id",
+                "name": "LCD-1",
+                "active": True,
+                "integrated": True,
+                "width": 2853,
+                "height": 2007,
+                "density": 3.0,
+            },
+        )
+
     async def test_reports_whether_the_companion_takes_zstd_zip_streams(
         self,
     ) -> None:
