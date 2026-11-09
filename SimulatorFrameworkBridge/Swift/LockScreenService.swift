@@ -102,10 +102,13 @@ private extension LockScreenStatus {
 
 /// Reports SpringBoard's lock state, and locks and unlocks the device through SpringBoard.
 ///
-/// A lock goes through SpringBoard's lock screen service. An unlock goes through SpringBoard's
-/// accessibility server, the request Switch Control uses: SpringBoard unlocks its UI and returns to the
-/// app that was in front before the lock. A device with a passcode cannot be unlocked this way, so it is
-/// refused.
+/// A lock goes through SpringBoard's lock screen service. The host unlocks a device without a passcode by
+/// pressing the Home button before it asks for an unlock, which SpringBoard honours on every runtime, so an
+/// unlock first gives SpringBoard `homePressTimeout` to act on that press. Only if the device is still locked
+/// does it go through SpringBoard's accessibility server, the request Switch Control uses, which SpringBoard
+/// honours before iOS 27 and ignores from it; waiting first keeps the two from both acting. Either way
+/// SpringBoard unlocks its UI and returns to the app that was in front before the lock. A device with a
+/// passcode cannot be unlocked this way, so it is refused.
 ///
 /// Both are idempotent: a device already in the requested state is reported as it is, with nothing sent
 /// to SpringBoard. A change succeeds only once SpringBoard reports the new state, so a request it does
@@ -117,6 +120,7 @@ private extension LockScreenStatus {
 enum LockScreenService {
   static let requestTimeout: TimeInterval = 10
   static let settleTimeout: TimeInterval = 5
+  static let homePressTimeout: TimeInterval = 2
 
   static func state(runtime: LockScreenRuntime = SpringBoardLockScreen()) -> Result<LockScreenStatus, LockScreenError> {
     runtime.status().map { .success($0) } ?? .failure(.unreadable)
@@ -141,6 +145,14 @@ enum LockScreenService {
       return .failure(.passcodeEnabled)
     }
     let verb = wantLocked ? "lock" : "unlock"
+    if !wantLocked {
+      guard let unlockedByHome = runtime.status(afterWaitingForLocked: false, timeout: homePressTimeout) else {
+        return .failure(.unreadableAfter(verb: verb))
+      }
+      if !unlockedByHome.locked {
+        return .success(unlockedByHome)
+      }
+    }
     switch wantLocked ? runtime.lock(timeout: requestTimeout) : runtime.unlock() {
     case .completed:
       break

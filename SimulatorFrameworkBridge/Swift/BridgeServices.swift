@@ -180,7 +180,7 @@ public enum BridgeServices {
       }
     switch result {
     case let .success(status):
-      return output.write(.lockScreen(BridgeLockScreenState(locked: status.locked))) ? 0 : 1
+      return output.write(.lockScreen(BridgeLockScreenState(locked: status.locked, passcodeEnabled: status.passcodeEnabled))) ? 0 : 1
     case let .failure(error):
       return Int32(output.failure(error.localizedDescription))
     }

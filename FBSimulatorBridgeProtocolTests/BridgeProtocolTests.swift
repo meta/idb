@@ -244,8 +244,8 @@ struct BridgeProtocolTests {
         BridgeResult(exitCode: 0, answers: [.dynamicStoreSnapshot(Data([0, 255]))])
       ),
       (
-        .lockScreen(.unlock), #"{"answers":[{"lockScreen":{"state":{"locked":false}}}],"exitCode":0}"#,
-        BridgeResult(exitCode: 0, answers: [.lockScreen(BridgeLockScreenState(locked: false))])
+        .lockScreen(.unlock), #"{"answers":[{"lockScreen":{"state":{"locked":false,"passcodeEnabled":false}}}],"exitCode":0}"#,
+        BridgeResult(exitCode: 0, answers: [.lockScreen(BridgeLockScreenState(locked: false, passcodeEnabled: false))])
       ),
     ]
     for (command, text, result) in fixtures {

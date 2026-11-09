@@ -12,6 +12,8 @@ import Foundation
 /// SpringBoard's lock state after a lock screen command.
 public struct SimulatorLockState: Decodable, Sendable {
   public let locked: Bool
+  /// Nil when the guest does not report it.
+  let passcodeEnabled: Bool?
 }
 
 public enum SimulatorLockScreenError: Error {
@@ -31,6 +33,11 @@ extension SimulatorLockScreenError: LocalizedError {
 ///
 /// `lock` and `unlock` are idempotent and return only once SpringBoard reports the requested state;
 /// `unlock` fails on a device with a passcode. iOS only.
+///
+/// An unlock presses the Home button, which SpringBoard honours on every runtime, and only on a device the guest
+/// reports locked without a passcode; from iOS 27 SpringBoard ignores the guest's own unlock request. The guest's
+/// unlock then waits for SpringBoard to act on the press, falls back to its own request, and succeeds only once
+/// SpringBoard reports the device unlocked. A guest that does not report the passcode gets no press.
 public struct SimulatorLockScreenCommands {
 
   private let simulator: Simulator
@@ -48,7 +55,26 @@ public struct SimulatorLockScreenCommands {
   }
 
   public func unlock() async throws -> SimulatorLockState {
-    try await run(.unlock)
+    try await Self.unlock(
+      state: { try await run(.state) },
+      pressHome: { try await simulator.hid.connect().send(event: .shortButtonPress(.homeButton), logger: simulator.logger) },
+      unlock: { try await run(.unlock) })
+  }
+
+  static func unlock(
+    state: () async throws -> SimulatorLockState,
+    pressHome: () async throws -> Void,
+    unlock: () async throws -> SimulatorLockState
+  ) async throws -> SimulatorLockState {
+    let current = try await state()
+    guard current.locked else {
+      return current
+    }
+    // A device with a passcode would show its keypad for the press; the guest refuses it without touching it.
+    if current.passcodeEnabled == false {
+      try await pressHome()
+    }
+    return try await unlock()
   }
 
   private func run(_ command: BridgeCommand.LockScreen) async throws -> SimulatorLockState {

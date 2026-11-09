@@ -14,9 +14,9 @@ It adds these commands to `Simulator`:
 | `network` | Sets, lists and clears the proxy and DNS configuration |
 | `preferences` | Applies settings (`SimulatorSetting`): appearance, Dynamic Type, accessibility, keyboard, and raw preferences |
 | `orientation` | Reads and sets the physical device orientation, confirming that a change took effect |
-| `lockScreen` | Reads SpringBoard's lock state, and locks and unlocks the device through SpringBoard rather than the lock button's toggle |
+| `lockScreen` | Reads SpringBoard's lock state, and locks and unlocks the device through SpringBoard rather than the lock button's toggle; an unlock presses the Home button, which SpringBoard honours on every runtime, before the helper confirms it |
 
-Each of these runs some or all of its work in the helper; the rest writes the Simulator's data directory or its defaults directly, and writing an orientation goes through the Simulator's HID services. The helper is staged and spawned on demand and talks to the host over a Unix domain socket. The connection is held per Simulator and reused, so a warm call does not pay to start the helper again. [`FBSimulatorAX`](../FBSimulatorAX/README.md) reads accessibility through the same helper, and [`FBSimulatorCodeInjection`](../FBSimulatorCodeInjection/README.md) starts the Simulator-wide REPL through it.
+Each of these runs some or all of its work in the helper; the rest writes the Simulator's data directory or its defaults directly, and writing an orientation, and the Home button press of an unlock, go through the Simulator's HID services. The helper is staged and spawned on demand and talks to the host over a Unix domain socket. The connection is held per Simulator and reused, so a warm call does not pay to start the helper again. [`FBSimulatorAX`](../FBSimulatorAX/README.md) reads accessibility through the same helper, and [`FBSimulatorCodeInjection`](../FBSimulatorCodeInjection/README.md) starts the Simulator-wide REPL through it.
 
 ### Notification service extensions
 

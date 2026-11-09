@@ -58,6 +58,7 @@ struct BridgeAnswerTests {
     ),
     (.health(.clear(bundleID: "app", ok: true, error: nil)), #"{"action":"clear","bundleID":"app","ok":true}"#),
     (.lockScreen(BridgeLockScreenState(locked: true)), #"{"locked":true}"#),
+    (.lockScreen(BridgeLockScreenState(locked: true, passcodeEnabled: false)), #"{"locked":true,"passcodeEnabled":false}"#),
     (.health(.clear(bundleID: "app", ok: false, error: "clear failed")), #"{"action":"clear","bundleID":"app","error":"clear failed","ok":false}"#),
     (
       .health(

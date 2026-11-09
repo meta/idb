@@ -30,8 +30,13 @@ private final class FakeLockScreen: LockScreenRuntime {
   var completionMovesState = true
   /// Whether the read after a change fails, as a momentary MIG failure would.
   var readAfterChangeFails = false
+  /// Whether SpringBoard unlocks while the service first waits, as it does for the host's Home button press.
+  var unlocksForHomePress = false
+  /// Whether the read while waiting for the Home button press fails.
+  var readWhileWaitingForHomeFails = false
   private(set) var requests: [String] = []
   private(set) var reads = 0
+  private(set) var waits: [TimeInterval] = []
 
   init(_ current: LockScreenStatus?) {
     self.current = current
@@ -44,6 +49,16 @@ private final class FakeLockScreen: LockScreenRuntime {
 
   func status(afterWaitingForLocked locked: Bool, timeout: TimeInterval) -> LockScreenStatus? {
     reads += 1
+    waits.append(timeout)
+    if requests.isEmpty {
+      if readWhileWaitingForHomeFails {
+        return nil
+      }
+      if unlocksForHomePress, let current {
+        self.current = LockScreenStatus(locked: false, passcodeEnabled: current.passcodeEnabled)
+      }
+      return current
+    }
     return readAfterChangeFails ? nil : current
   }
 
@@ -97,12 +112,40 @@ struct LockScreenServiceTests {
     #expect(springBoard.requests == ["lock"])
   }
 
-  @Test("Unlock unlocks a locked device and reports it unlocked")
+  @Test("Unlock asks SpringBoard to unlock a device the Home button press did not, and reports it unlocked")
   func unlockUnlocksALockedDevice() {
     let springBoard = FakeLockScreen(locked)
 
     #expect(run(.unlock, on: springBoard) == .success(unlocked))
     #expect(springBoard.requests == ["unlock"])
+    #expect(springBoard.waits == [LockScreenService.homePressTimeout, LockScreenService.settleTimeout])
+  }
+
+  @Test("Unlock sends nothing once SpringBoard unlocks for the Home button press")
+  func unlockLeavesAHomePressAlone() {
+    let springBoard = FakeLockScreen(locked)
+    springBoard.unlocksForHomePress = true
+
+    #expect(run(.unlock, on: springBoard) == .success(unlocked))
+    #expect(springBoard.requests.isEmpty)
+    #expect(springBoard.waits == [LockScreenService.homePressTimeout])
+  }
+
+  @Test("A failed read while waiting for the Home button press is reported, and nothing is sent")
+  func failedReadWhileWaitingForHomeIsReported() {
+    let springBoard = FakeLockScreen(locked)
+    springBoard.readWhileWaitingForHomeFails = true
+
+    #expect(run(.unlock, on: springBoard) == .failure(.unreadableAfter(verb: "unlock")))
+    #expect(springBoard.requests.isEmpty)
+  }
+
+  @Test("Lock does not wait for a Home button press")
+  func lockDoesNotWaitForHome() {
+    let springBoard = FakeLockScreen(unlocked)
+
+    #expect(run(.lock, on: springBoard) == .success(locked))
+    #expect(springBoard.waits == [LockScreenService.settleTimeout])
   }
 
   @Test(
@@ -179,9 +222,10 @@ struct LockScreenServiceTests {
     #expect(result == .failure(.unreadableAfter(verb: verb)))
     #expect(
       LockScreenError.unreadableAfter(verb: verb).localizedDescription == "Could not read the lock state from SpringBoard after the \(verb)")
-    // SpringBoard did move the state; the service does not read again to find out.
+    // SpringBoard did move the state; the service does not read again to find out. An unlock also read once
+    // while it waited for the Home button press.
     #expect(springBoard.current == (startsLocked ? unlocked : locked))
-    #expect(springBoard.reads == 2)
+    #expect(springBoard.reads == (action == .unlock ? 3 : 2))
     #expect(springBoard.requests == [verb])
   }
 

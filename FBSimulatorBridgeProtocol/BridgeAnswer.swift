@@ -54,9 +54,12 @@ import Foundation
 /// SpringBoard's lock state.
 public struct BridgeLockScreenState: Codable, Equatable, Sendable {
   public let locked: Bool
+  /// Whether the device has a passcode; absent from a guest that does not report it.
+  public let passcodeEnabled: Bool?
 
-  public init(locked: Bool) {
+  public init(locked: Bool, passcodeEnabled: Bool? = nil) {
     self.locked = locked
+    self.passcodeEnabled = passcodeEnabled
   }
 }
 
