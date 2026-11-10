@@ -77,14 +77,16 @@ public enum ScreenshotRenderer {
     transformed image: CGImage,
     sourceSize: CGSize,
     encoding: ScreenshotEncoding,
-    screenScale: Double?
+    screenScale: Double?,
+    displayID: String? = nil
   ) throws -> ScreenshotResult {
     ScreenshotResult(
       imageData: try encode(image, encoding: encoding),
       format: encoding.format,
       size: CGSize(width: image.width, height: image.height),
       sourceSize: sourceSize,
-      screenScale: screenScale
+      screenScale: screenScale,
+      displayID: displayID
     )
   }
 

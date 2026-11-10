@@ -125,7 +125,7 @@ public final class SimulatorScreenshotCommands: ScreenshotCommands {
     guard try await stillCurrent() else { throw SimulatorDisplayError.changed }
     return try ScreenshotRenderer.render(
       transformed: captured.image, sourceSize: captured.sourceSize,
-      encoding: configuration.encoding, screenScale: display.scale)
+      encoding: configuration.encoding, screenScale: display.scale, displayID: display.uniqueID)
   }
 
   private func connectToImage() async throws -> SimulatorImage {

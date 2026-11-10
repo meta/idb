@@ -52,6 +52,32 @@ struct ScreenshotRendererTests {
     #expect(result.size == fixtureSize)
     #expect(result.sourceSize == fixtureSize)
     #expect(result.screenScale == 2)
+    #expect(result.displayID == nil, "encoded input does not identify a display")
+  }
+
+  @Test
+  func anIdentifiedCaptureKeepsItsDisplayThroughEncoding() throws {
+    let result = try ScreenshotRenderer.render(
+      transformed: try fixtureImage(), sourceSize: fixtureSize, encoding: .jpeg(quality: 0.8),
+      screenScale: 2, displayID: "captured-screen")
+    #expect(result.displayID == "captured-screen")
+    #expect(try decode(result.imageData).type == .jpeg)
+    #expect(try decode(result.imageData).size == fixtureSize)
+  }
+
+  @Test
+  func capturesWithoutADisplayIdentityRemainUnidentifiedThroughEncoding() throws {
+    let image = try fixtureImage()
+    let unidentified = try ScreenshotRenderer.render(
+      transformed: image, sourceSize: fixtureSize, encoding: .png,
+      screenScale: 2, displayID: nil)
+    let emptyIdentity = try ScreenshotRenderer.render(
+      transformed: image, sourceSize: fixtureSize, encoding: .png,
+      screenScale: 2, displayID: "")
+    #expect(unidentified.displayID == nil)
+    #expect(emptyIdentity.displayID == nil)
+    #expect(emptyIdentity.imageData == unidentified.imageData)
+    #expect(try decode(emptyIdentity.imageData).size == fixtureSize)
   }
 
   @Test

@@ -212,6 +212,8 @@ An iPhone Duo has two integrated displays, only one of which is active at a time
 - `.configuration(generation:)` names a configuration read from `displays.configuration()` or `displays.configurations()`, so that coordinates computed against it cannot reach a display that has since changed. Operations fail with `SimulatorDisplayError.changed` once it is replaced, and a framebuffer bound to it ends.
 - `.main` is the display with `displayClass` 0, which is the cover display of an iPhone Duo. Framebuffers and screenshots only.
 
+A screenshot result names the identified display it captured through `displayID`. A direct main-screen capture, including the fallback from `.active`, leaves that field nil rather than attributing its pixels to a display resolved separately.
+
 Only `.active` falls back: every other selection fails rather than reaching a display other than the one selected.
 
 #### Switching displays

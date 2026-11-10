@@ -12,7 +12,19 @@ import Foundation
 
 // The simulator's accessibility reading and UI automation, added onto `Simulator` from outside
 // `FBSimulatorControl` so that consumers with no interest in accessibility do not link it.
+
+/// A foreground application lookup on an identified display, not an atomic screen capture.
+public struct FrontmostApplicationObservation: Sendable {
+  public let processIdentifier: pid_t
+  public let displayID: String
+}
+
 extension Simulator {
+
+  /// Resolves the active display's frontmost application without walking its tree or asserting automation mode.
+  public func observeFrontmostApplication(timing: SimulatorAccessibilityTiming? = nil) async throws -> FrontmostApplicationObservation {
+    try await accessibility.observeFrontmostApplication(timing: timing)
+  }
 
   /// The converged UI-automation surface for `backend` — element reads and element-targeted actions
   /// over a single query-shaped API. Every call returns a fresh reader; the readers are cheap, and

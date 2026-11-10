@@ -159,13 +159,16 @@ public struct ScreenshotResult: Sendable {
   public let sourceSize: CGSize
   /// Pixels per point, or `nil` on a target that does not report its screen scale.
   public let screenScale: Double?
+  /// The display identified by the capture, or nil when no nonempty identity was reported.
+  public let displayID: String?
 
-  public init(imageData: Data, format: ScreenshotImageFormat, size: CGSize, sourceSize: CGSize, screenScale: Double?) {
+  public init(imageData: Data, format: ScreenshotImageFormat, size: CGSize, sourceSize: CGSize, screenScale: Double?, displayID: String? = nil) {
     self.imageData = imageData
     self.format = format
     self.size = size
     self.sourceSize = sourceSize
     self.screenScale = screenScale
+    self.displayID = displayID.flatMap { $0.isEmpty ? nil : $0 }
   }
 }
 

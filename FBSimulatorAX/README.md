@@ -427,6 +427,12 @@ A read can claim a [requesting client](#requesting-clients) with `AccessibilityR
 
 Operations reach the display a `DisplaySelection` names and fail rather than reach another; see the multiple displays section of [the `FBSimulatorControl` README](../FBSimulatorControl/README.md).
 
+### Foreground application observations
+
+`Simulator.observeFrontmostApplication(timing:)` resolves the active display's foreground application through the host translator and returns its process identifier together with that display's unique ID. It reads only the root needed for the SpringBoard staleness check, never walks the tree, and does not assert automation mode. The accessibility requests use the supplied timing bounds, or the simulator's defaults. A missing or unidentified active display, a missing process identifier, or a failed lookup throws rather than returning a guessed identity. Cancellation propagates.
+
+This is an observation at lookup time, not a transaction with a screenshot: matching observations before and after capture do not exclude a foreground switch away and back, or establish which source the process loaded.
+
 ### The accessibility model
 
 Every reader produces the same model, so a consumer can use one result regardless of which backend read it.

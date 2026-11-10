@@ -146,6 +146,22 @@ final class SimulatorAccessibilityCommands {
 
   // MARK: - Resolution
 
+  func observeFrontmostApplication(timing: SimulatorAccessibilityTiming? = nil) async throws -> FrontmostApplicationObservation {
+    try validateAccessibility()
+    guard let simulator else { throw WeakTargetError.simulator }
+    guard let display = try await readDisplay(),
+      case let .identified(identified) = display.interactionDisplay,
+      identified.isActive, !identified.uniqueID.isEmpty
+    else { throw SimulatorDisplayError.noActiveIntegratedDisplay }
+    let request = AXTranslationRequest(
+      kind: .frontmostApplication, display: display, clientType: .noClient,
+      transport: resolvedTransport(simulator), timing: timing ?? simulator.accessibilityTiming)
+    let element = try await accessibilityElement(request: request, diagnosesSpringBoard: true)
+    defer { element.close() }
+    guard element.processIdentifier > 0 else { throw AccessibilityError.noTranslationObject(.frontmost) }
+    return FrontmostApplicationObservation(processIdentifier: element.processIdentifier, displayID: identified.uniqueID)
+  }
+
   /// Resolves a query to a concrete accessibility element via the point / matching / frontmost
   /// mechanism. `clientType` is carried by every translator request made for the element, from
   /// resolution through serialization, and `timing` bounds them; nil is the simulator's. Callers own the
