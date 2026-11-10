@@ -43,6 +43,7 @@ struct DescribeMethodHandler {
       $0.companion = Idb_CompanionInfo.with {
         $0.udid = target.udid
         $0.setStreamCapabilities()
+        $0.screenshotAppContext = true
         if let metadata = try? JSONSerialization.data(withJSONObject: reporter.metadata) {
           $0.metadata = metadata
         }

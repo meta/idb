@@ -26,6 +26,7 @@ struct ConnectMethodHandler {
         $0.udid = target.udid
         $0.isLocal = isLocal
         $0.setStreamCapabilities()
+        $0.screenshotAppContext = true
 
         do {
           $0.metadata = try JSONSerialization.data(withJSONObject: reporter.metadata, options: [])

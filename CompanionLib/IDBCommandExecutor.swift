@@ -140,6 +140,11 @@ public final class IDBCommandExecutor {
     CompanionAccessibility(target: target)
   }
 
+  /// Screenshot commands remain behind the shared executor when an RPC's child task holds it.
+  func screenshot(configuration: ScreenshotConfiguration) async throws -> ScreenshotResult {
+    try await target.screenshot.take(configuration: configuration)
+  }
+
   // MARK: - REPL screenshot & recording
 
   /// The companion-host directory the target uses for per-target files. REPL

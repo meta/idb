@@ -29,18 +29,7 @@ struct ReplAppIdentity: Equatable {
 
   /// `BuildInfo.json` sits at the bundle root on iOS and under `Contents/Resources` on macOS.
   static func buildUUID(inBundleAt bundlePath: String) -> String? {
-    for relativePath in ["BuildInfo.json", "Contents/Resources/BuildInfo.json"] {
-      let url = URL(fileURLWithPath: bundlePath).appendingPathComponent(relativePath)
-      guard let data = try? Data(contentsOf: url),
-        let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-        let uuid = object["build_uuid"] as? String,
-        !uuid.isEmpty
-      else {
-        continue
-      }
-      return uuid
-    }
-    return nil
+    BundleBuildIdentity.buildUUID(inBundleAt: bundlePath)
   }
 }
 

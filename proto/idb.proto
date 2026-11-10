@@ -198,6 +198,11 @@ message CompanionInfo {
   // Whether local notification delivery can invoke the application's service
   // extension. Clients must reject that mode when this capability is absent.
   bool supports_notification_service_extension = 11;
+  // Understands ScreenshotRequest.include_app_context and returns an explicit
+  // observation context, including UNAVAILABLE when this target cannot observe
+  // it. Absent on older peers; clients must not infer app identity from an
+  // absent response.
+  bool screenshot_app_context = 12;
 }
 
 enum Setting {
@@ -390,6 +395,9 @@ message ScreenshotRequest {
     Fit fit = 5;
   }
   Unit unit = 6;
+  // Opt-in observations from this screenshot attempt. Unset performs no app
+  // observations. Older companions ignore this and omit app_context.
+  bool include_app_context = 7;
 }
 
 message ScreenshotResponse {
@@ -414,6 +422,43 @@ message ScreenshotResponse {
   // 0 when the target does not report a screen scale, which is also when a
   // request in POINTS is rejected.
   double screen_scale = 5;
+  // Absent unless requested and understood by the companion. This context is
+  // descriptive evidence, never a certificate of the pixels' application or
+  // source.
+  ScreenshotAppContext app_context = 6;
+}
+
+message ScreenshotAppObservation {
+  string app_name = 1;
+  string bundle_id = 2;
+  // Read from the installed bundle, not from the running executable or source
+  // tree.
+  string installed_build_uuid = 3;
+  uint64 process_id = 4;
+  int64 observed_at_ms = 5;
+}
+
+message ScreenshotAppContext {
+  uint32 version = 1;
+  enum State {
+    STATE_UNSPECIFIED = 0;
+    // Matching samples around capture do not exclude a switch away and back,
+    // process-id reuse, bundle replacement, or a source reload during capture.
+    MATCHING_OBSERVATIONS = 1;
+    UNAVAILABLE = 2;
+  }
+  State state = 2;
+  // Empty for matching observations. Otherwise one of: unsupported_target,
+  // display_unavailable, foreground_unavailable, app_unavailable,
+  // build_unavailable, context_changed.
+  string reason = 3;
+  string target_udid = 4;
+  // The display identified by capture, empty when capture could not name it.
+  string display_id = 5;
+  int64 capture_started_at_ms = 6;
+  int64 capture_finished_at_ms = 7;
+  ScreenshotAppObservation before = 8;
+  ScreenshotAppObservation after = 9;
 }
 
 message FocusRequest {}

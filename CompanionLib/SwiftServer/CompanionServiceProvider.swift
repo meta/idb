@@ -417,7 +417,7 @@ final class CompanionServiceProvider: Idb_CompanionService.SimpleServiceProtocol
 
   func screenshot(request: Idb_ScreenshotRequest, context: ServerContext) async throws -> Idb_ScreenshotResponse {
     return try await trackedUnaryCall(context, request: request) {
-      try await ScreenshotMethodHandler(target: target)
+      try await ScreenshotMethodHandler(target: target, commandExecutor: commandExecutor)
         .handle(request: request, context: context)
     }
   }
