@@ -275,6 +275,7 @@ class CompanionInfo:
     metadata: LoggingMetadata = field(default_factory=dict)
     supported_compressions: "frozenset[Compression]" = frozenset()
     zstd_zip_streams: bool = False
+    screenshot_app_context: bool = False
     install_connect_to: bool = False
     supports_notification_service_extension: bool = False
 
@@ -418,8 +419,33 @@ class AppScreenshotCapture:
     bundle_id: str
 
 
+@dataclass(frozen=True)
+class ScreenshotAppObservation:
+    """Application context sampled beside a screenshot, not loaded-source proof."""
+
+    app_name: str
+    bundle_id: str
+    installed_build_uuid: str
+    process_id: int
+    observed_at_ms: int
+
+
+@dataclass(frozen=True)
+class ScreenshotAppContext:
+    version: int
+    state: str
+    reason: str
+    target_udid: str
+    display_id: str
+    capture_started_at_ms: int
+    capture_finished_at_ms: int
+    before: ScreenshotAppObservation | None
+    after: ScreenshotAppObservation | None
+
+
 class Screenshot(bytes):
     app_capture: AppScreenshotCapture | None
+    app_context: ScreenshotAppContext | None
     format: ScreenshotFormat
     width: int | None
     height: int | None
@@ -440,6 +466,7 @@ class Screenshot(bytes):
         source_height: int | None = None,
         screen_scale: float | None = None,
         app_capture: AppScreenshotCapture | None = None,
+        app_context: ScreenshotAppContext | None = None,
     ) -> "Screenshot":
         screenshot = super().__new__(cls, data)
         screenshot.format = format
@@ -449,6 +476,7 @@ class Screenshot(bytes):
         screenshot.source_height = source_height
         screenshot.screen_scale = screen_scale
         screenshot.app_capture = app_capture
+        screenshot.app_context = app_context
         return screenshot
 
     def __repr__(self) -> str:

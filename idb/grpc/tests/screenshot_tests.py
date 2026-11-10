@@ -36,6 +36,40 @@ def _response(**kwargs: object) -> ScreenshotResponse:
 
 
 class ScreenshotTests(TestCase):
+    def test_absent_context_is_backward_compatible(self) -> None:
+        screenshot = screenshot_from_grpc(ScreenshotOptions(), _response())
+        self.assertIsNone(screenshot.app_context)
+        self.assertEqual(b"image", bytes(screenshot))
+
+    def test_application_context_is_transported_without_certifying_source(self) -> None:
+        response = _response()
+        context = response.app_context
+        context.version = 1
+        context.state = 1
+        context.target_udid = "target-1"
+        context.display_id = "display-1"
+        context.capture_started_at_ms = 2
+        context.capture_finished_at_ms = 3
+        for observation, timestamp in ((context.before, 1), (context.after, 4)):
+            observation.app_name = "App"
+            observation.bundle_id = "com.example"
+            observation.installed_build_uuid = "build-1"
+            observation.process_id = 123
+            observation.observed_at_ms = timestamp
+        screenshot = screenshot_from_grpc(ScreenshotOptions(), response)
+        self.assertIsNotNone(screenshot.app_context)
+        self.assertEqual("build-1", screenshot.app_context.before.installed_build_uuid)
+        self.assertEqual(b"image", bytes(screenshot))
+        context.version = 999
+        self.assertIsNone(
+            screenshot_from_grpc(ScreenshotOptions(), response).app_context
+        )
+        context.version = 1
+        context.state = 999
+        self.assertIsNone(
+            screenshot_from_grpc(ScreenshotOptions(), response).app_context
+        )
+
     # Request
 
     def test_default_options_are_an_empty_request(self) -> None:

@@ -275,6 +275,25 @@ class AppScreenshotPluginTest(TestCase):
         self.client.screenshot.assert_not_called()
 
 
+class ScreenshotContextPluginTest(TestCase):
+    def test_context_collection_is_off_without_a_requesting_plugin(self) -> None:
+        with mock.patch.object(plugin, "PLUGINS", []):
+            self.assertFalse(plugin.should_collect_screenshot_context())
+
+    def test_context_plugin_failure_cannot_suppress_a_later_request(self) -> None:
+        failing = mock.Mock(
+            should_collect_screenshot_context=mock.Mock(
+                side_effect=RuntimeError("failed")
+            )
+        )
+        requesting = mock.Mock(
+            should_collect_screenshot_context=mock.Mock(return_value=True)
+        )
+        with mock.patch.object(plugin, "PLUGINS", [failing, requesting]):
+            self.assertTrue(plugin.should_collect_screenshot_context())
+        requesting.should_collect_screenshot_context.assert_called_once()
+
+
 class PluginDispatchTest(TestCase):
     def test_rejection_propagates(self) -> None:
         rejecting = _RejectingPlugin("rejecting")

@@ -1066,7 +1066,12 @@ class Client(ClientBase):
     async def screenshot(
         self, options: ScreenshotOptions = DEFAULT_SCREENSHOT_OPTIONS
     ) -> Screenshot:
-        response = await self.stub.screenshot(screenshot_to_grpc(options))
+        request = screenshot_to_grpc(options)
+        request.include_app_context = (
+            self.companion.screenshot_app_context
+            and plugin.should_collect_screenshot_context()
+        )
+        response = await self.stub.screenshot(request)
         return screenshot_from_grpc(options, response)
 
     @log_and_handle_exceptions("set_location")
@@ -1161,6 +1166,7 @@ class Client(ClientBase):
                 pid=None,
                 supported_compressions=self.companion.supported_compressions,
                 zstd_zip_streams=self.companion.zstd_zip_streams,
+                screenshot_app_context=self.companion.screenshot_app_context,
                 install_connect_to=self.companion.install_connect_to,
                 supports_notification_service_extension=(
                     self.companion.supports_notification_service_extension

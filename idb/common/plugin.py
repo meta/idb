@@ -279,6 +279,20 @@ async def capture_app_screenshot(
     )
 
 
+def should_collect_screenshot_context() -> bool:
+    """Whether a plugin requests best-effort application context for this capture."""
+    for plugin in PLUGINS:
+        method = getattr(plugin, "should_collect_screenshot_context", None)
+        if method is None:
+            continue
+        try:
+            if method() is True:
+                return True
+        except Exception:
+            logger.exception("Screenshot context plugin failed")
+    return False
+
+
 def on_invocation_result(
     name: str, result: object, metadata: LoggingMetadata
 ) -> LoggingMetadata:

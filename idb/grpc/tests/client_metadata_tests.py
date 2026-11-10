@@ -9,10 +9,16 @@ import logging
 from unittest import mock
 
 from idb.common import plugin
-from idb.common.types import TCPAddress
+from idb.common.types import CompanionInfo, TCPAddress
 from idb.grpc import client as client_module
 from idb.grpc.client import Client
-from idb.grpc.idb_pb2 import CompanionInfo as GrpcCompanionInfo, ConnectResponse
+from idb.grpc.idb_pb2 import (
+    CompanionInfo as GrpcCompanionInfo,
+    ConnectResponse,
+    ScreenshotResponse,
+    TargetDescription,
+    TargetDescriptionResponse,
+)
 from idb.utils.testing import TestCase
 
 
@@ -28,6 +34,46 @@ class ClientMetadataTest(TestCase):
             self.assertEqual("capture-1", client.metadata.get("capture"))
 
         self.assertNotIn("capture", client.metadata)
+
+    async def test_screenshot_context_needs_both_peer_capability_and_plugin_optin(
+        self,
+    ) -> None:
+        for supported, enabled in ((False, True), (True, False), (True, True)):
+            stub = mock.MagicMock()
+            stub.screenshot = mock.AsyncMock(
+                return_value=ScreenshotResponse(image_data=b"image", image_format="png")
+            )
+            client = Client(
+                stub,
+                CompanionInfo(
+                    "target-1",
+                    True,
+                    None,
+                    TCPAddress("localhost", 1),
+                    screenshot_app_context=supported,
+                ),
+                logging.getLogger("test"),
+            )
+            with mock.patch.object(
+                plugin, "should_collect_screenshot_context", return_value=enabled
+            ):
+                image = await client.screenshot()
+            self.assertEqual(
+                supported and enabled,
+                stub.screenshot.call_args.args[0].include_app_context,
+            )
+            self.assertEqual(b"image", image)
+            self.assertIsNone(image.app_context)
+            stub.describe = mock.AsyncMock(
+                return_value=TargetDescriptionResponse(
+                    target_description=TargetDescription(
+                        udid="target-1", target_type="simulator"
+                    )
+                )
+            )
+            described = await client.describe()
+            assert described.companion_info is not None
+            self.assertEqual(supported, described.companion_info.screenshot_app_context)
 
     async def test_build_reports_the_handshake_companion_to_plugins(self) -> None:
         stub = mock.MagicMock()

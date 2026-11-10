@@ -9,6 +9,8 @@ from idb.common.types import (
     DEFAULT_SCREENSHOT_OPTIONS,
     IdbException,
     Screenshot,
+    ScreenshotAppContext,
+    ScreenshotAppObservation,
     ScreenshotFormat,
     ScreenshotOptions,
     ScreenshotUnit,
@@ -95,4 +97,54 @@ def screenshot_from_grpc(
         source_width=response.source.width or None,
         source_height=response.source.height or None,
         screen_scale=response.screen_scale or None,
+        app_context=_app_context(response),
+    )
+
+
+def _app_context(response: ScreenshotResponse) -> ScreenshotAppContext | None:
+    if not response.HasField("app_context"):
+        return None
+    context = response.app_context
+    if context.version != 1:
+        return None
+    states = {1: "matching_observations", 2: "unavailable"}
+    state = states.get(context.state)
+    if state is None:
+        return None
+
+    def observation(which: str) -> ScreenshotAppObservation | None:
+        if not context.HasField(which):
+            return None
+        value = getattr(context, which)
+        if (
+            value.process_id <= 0
+            or value.observed_at_ms <= 0
+            or len(value.app_name) > 256
+            or len(value.bundle_id) > 256
+            or len(value.installed_build_uuid) > 128
+        ):
+            return None
+        return ScreenshotAppObservation(
+            value.app_name,
+            value.bundle_id,
+            value.installed_build_uuid,
+            value.process_id,
+            value.observed_at_ms,
+        )
+
+    if any(
+        len(value) > 256
+        for value in (context.target_udid, context.display_id, context.reason)
+    ):
+        return None
+    return ScreenshotAppContext(
+        context.version,
+        state,
+        context.reason,
+        context.target_udid,
+        context.display_id,
+        context.capture_started_at_ms,
+        context.capture_finished_at_ms,
+        observation("before"),
+        observation("after"),
     )
