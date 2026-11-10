@@ -31,7 +31,7 @@ enum XCTestResultToolOperation {
 
   public static func json(from path: String, forId bundleObjectId: String?, logger: ControlCoreLogger?, timeout: TimeInterval? = nil) async throws -> [String: Any] {
     logger?.log("Getting json for id \(bundleObjectId ?? "nil")")
-    var arguments = ["get", "--path", path, "--format", "json"]
+    var arguments = withLegacyFlag(["get", "--path", path, "--format", "json"])
     if let bundleObjectId, !bundleObjectId.isEmpty {
       arguments.append(contentsOf: ["--id", bundleObjectId])
     }
@@ -40,14 +40,14 @@ enum XCTestResultToolOperation {
 
   public static func exportFile(from path: String, to destination: String, forId bundleObjectId: String, logger: ControlCoreLogger?, timeout: TimeInterval? = nil) async throws {
     _ = try await xcresulttool(
-      arguments: ["export", "--path", path, "--output-path", destination, "--id", bundleObjectId, "--type", "file"],
+      arguments: withLegacyFlag(["export", "--path", path, "--output-path", destination, "--id", bundleObjectId, "--type", "file"]),
       logger: logger,
       timeout: timeout)
   }
 
   public static func exportDirectory(from path: String, to destination: String, forId bundleObjectId: String, logger: ControlCoreLogger?) async throws {
     _ = try await xcresulttool(
-      arguments: ["export", "--path", path, "--output-path", destination, "--id", bundleObjectId, "--type", "directory"],
+      arguments: withLegacyFlag(["export", "--path", path, "--output-path", destination, "--id", bundleObjectId, "--type", "directory"]),
       logger: logger)
   }
 
@@ -62,6 +62,14 @@ enum XCTestResultToolOperation {
     } else {
       throw XCTestResultToolError.unrecognizedScreenshotEncoding(encoding: encodeType)
     }
+  }
+
+  /// `xcresulttool get` and `export` in this form exit 64 unless passed `--legacy`.
+  static func withLegacyFlag(_ arguments: [String]) -> [String] {
+    guard let subcommand = arguments.first else {
+      return arguments
+    }
+    return [subcommand, "--legacy"] + arguments.dropFirst()
   }
 
   private static func xcresulttool(arguments: [String], logger: ControlCoreLogger?, timeout: TimeInterval? = nil) async throws -> String {

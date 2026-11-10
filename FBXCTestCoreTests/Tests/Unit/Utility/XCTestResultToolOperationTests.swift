@@ -103,6 +103,60 @@ final class XCTestResultToolOperationTests {
     }
   }
 
+  // MARK: - Legacy flag
+
+  @Test
+  func theLegacyFlagFollowsTheSubcommand() {
+    #expect(
+      XCTestResultToolOperation.withLegacyFlag(["get", "--path", "P", "--format", "json"])
+        == ["get", "--legacy", "--path", "P", "--format", "json"])
+    #expect(
+      XCTestResultToolOperation.withLegacyFlag(["export", "--path", "P", "--type", "file"])
+        == ["export", "--legacy", "--path", "P", "--type", "file"])
+  }
+
+  @Test
+  func theInstalledToolDoesNotRejectGettingJSONAsDeprecated() async throws {
+    let logger = RecordingLogger()
+    _ = try? await XCTestResultToolOperation.json(from: absentResultBundlePath, forId: nil, logger: logger)
+    try expectTheToolRanWithoutADeprecationError(logger.messages)
+  }
+
+  @Test
+  func theInstalledToolDoesNotRejectExportingAFileAsDeprecated() async throws {
+    let logger = RecordingLogger()
+    try? await XCTestResultToolOperation.exportFile(
+      from: absentResultBundlePath,
+      to: temporaryDirectory.appendingPathComponent("out.bin").path,
+      forId: "0~abcdef",
+      logger: logger)
+    try expectTheToolRanWithoutADeprecationError(logger.messages)
+  }
+
+  @Test
+  func theInstalledToolDoesNotRejectExportingADirectoryAsDeprecated() async throws {
+    let logger = RecordingLogger()
+    try? await XCTestResultToolOperation.exportDirectory(
+      from: absentResultBundlePath,
+      to: temporaryDirectory.appendingPathComponent("out").path,
+      forId: "0~abcdef",
+      logger: logger)
+    try expectTheToolRanWithoutADeprecationError(logger.messages)
+  }
+
+  /// The tool must have launched and rejected the absent bundle by name, so a launch failure, lost
+  /// stderr or a rejected argument (a deprecation, or an unknown `--legacy`) cannot pass.
+  private func expectTheToolRanWithoutADeprecationError(_ messages: [String]) throws {
+    try #require(messages.contains { $0.contains("Launched with pid") }, "\(messages)")
+    // Stderr arrives in arbitrary chunks trimmed of newlines, so the bundle name is searched in the
+    // chunks rejoined without separators.
+    let output = messages.joined()
+    try #require(
+      output.contains((absentResultBundlePath as NSString).lastPathComponent),
+      "xcresulttool did not report the absent bundle: \(messages)")
+    #expect(!output.contains("deprecated"), "\(messages)")
+  }
+
   // MARK: - Logging
 
   @Test
@@ -111,7 +165,7 @@ final class XCTestResultToolOperationTests {
     // it directly. Asserting against this rather than a hardcoded message keeps the
     // case pinned to stderr forwarding itself, whatever the current toolchain emits.
     let capturedStdErr = try await standardError(
-      ofDirectlyRunning: ["xcresulttool", "get", "--path", absentResultBundlePath, "--format", "json"])
+      ofDirectlyRunning: ["xcresulttool"] + XCTestResultToolOperation.withLegacyFlag(["get", "--path", absentResultBundlePath, "--format", "json"]))
     guard !capturedStdErr.isEmpty else {
       Issue.record("xcresulttool wrote nothing to stderr for a failing get; this case needs a stderr-producing invocation to pin forwarding")
       return
