@@ -35,12 +35,13 @@ extension Idb_Payload.Compression {
 
 extension Idb_CompanionInfo {
   /// Every stream is decompressed in-process, so every compression is supported wherever the companion runs. A URL
-  /// install can connect to an override.
+  /// install can connect to an override. The hid stream types text on the simulator's keyboard layout.
   mutating func setStreamCapabilities() {
     supportedCompressions = [.gzip, .zstd]
     zstdZipStreams = true
     zipStreamDestinations = [.app, .xctest, .dsym, .framework]
     installConnectTo = true
     supportsNotificationServiceExtension = true
+    hidText = true
   }
 }

@@ -232,10 +232,19 @@ class TextCommand(ClientCommand):
 
     def add_parser_arguments(self, parser: ArgumentParser) -> None:
         parser.add_argument("text", help="Text to input", type=str)
+        parser.add_argument(
+            "--layout",
+            help=(
+                "Hardware keyboard layout to type on, e.g. US or French. "
+                "Defaults to the simulator's own"
+            ),
+            type=str,
+            default=None,
+        )
         super().add_parser_arguments(parser)
 
     async def run_with_client(self, args: Namespace, client: Client) -> None:
-        await client.text(text=args.text)
+        await client.text(text=args.text, layout=args.layout)
 
 
 class SwipeCommand(ClientCommand):

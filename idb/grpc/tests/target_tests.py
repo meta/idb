@@ -297,6 +297,20 @@ class CompanionToPyTests(unittest.TestCase):
             ).supports_notification_service_extension
         )
 
+    def test_maps_hid_text(self) -> None:
+        address = TCPAddress(host="localhost", port=1)
+        self.assertTrue(
+            companion_to_py(
+                companion=GrpcCompanionInfo(udid="a", hid_text=True),
+                address=address,
+            ).hid_text
+        )
+        self.assertFalse(
+            companion_to_py(
+                companion=GrpcCompanionInfo(udid="a"), address=address
+            ).hid_text
+        )
+
     def test_omits_unknown_compressions(self) -> None:
         companion = companion_to_py(
             companion=GrpcCompanionInfo(udid="a", supported_compressions=[99]),
@@ -451,6 +465,7 @@ class DescribeTests(TestCase):
                     address=TCPAddress(host="localhost", port=1),
                     install_connect_to=advertised,
                     supports_notification_service_extension=advertised,
+                    hid_text=advertised,
                 )
 
                 description = await client.describe()
@@ -458,6 +473,7 @@ class DescribeTests(TestCase):
                 companion_info = description.companion_info
                 assert companion_info is not None
                 self.assertEqual(companion_info.install_connect_to, advertised)
+                self.assertEqual(companion_info.hid_text, advertised)
                 self.assertEqual(
                     companion_info.supports_notification_service_extension, advertised
                 )

@@ -203,6 +203,9 @@ message CompanionInfo {
   // it. Absent on older peers; clients must not infer app identity from an
   // absent response.
   bool screenshot_app_context = 12;
+  // Whether the hid stream accepts HIDEvent.text. Companions without it must
+  // be sent key presses.
+  bool hid_text = 13;
 }
 
 enum Setting {
@@ -892,6 +895,15 @@ message HIDEvent {
     uint64 keycode = 1;
   }
 
+  message HIDText {
+    // Typed as a hardware keyboard would, each character becoming the key
+    // presses that produce it on the keyboard layout.
+    string text = 1;
+    // A hardware keyboard layout name, such as "US" or "French". Empty means
+    // the simulator's active hardware keyboard layout.
+    string layout = 2;
+  }
+
   message HIDPressAction {
     oneof action {
       HIDTouch touch = 1;
@@ -952,6 +964,7 @@ message HIDEvent {
     HIDOrientation orientation = 5;
     HIDShake shake = 6;
     HIDHinge hinge = 8;
+    HIDText text = 9;
   }
 }
 

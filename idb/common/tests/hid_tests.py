@@ -12,6 +12,7 @@ from idb.common.hid import (
     key_press_to_events,
     multi_tap_to_events,
     tap_to_events,
+    text_to_events,
 )
 from idb.common.types import (
     HIDButton,
@@ -77,3 +78,21 @@ class HidTests(unittest.TestCase):
 
     def test_zero_taps_has_no_events(self) -> None:
         self.assertEqual(multi_tap_to_events(10, 20, count=0), [])
+
+    def test_text_is_us_key_presses(self) -> None:
+        shift, a = HIDKey(keycode=225), HIDKey(keycode=4)
+        self.assertEqual(
+            text_to_events("aA"),
+            [
+                HIDPress(action=a, direction=HIDDirection.DOWN),
+                HIDPress(action=a, direction=HIDDirection.UP),
+                HIDPress(action=shift, direction=HIDDirection.DOWN),
+                HIDPress(action=a, direction=HIDDirection.DOWN),
+                HIDPress(action=a, direction=HIDDirection.UP),
+                HIDPress(action=shift, direction=HIDDirection.UP),
+            ],
+        )
+
+    def test_text_off_the_us_keyboard_has_no_key_presses(self) -> None:
+        with self.assertRaisesRegex(Exception, "No keycode found for é"):
+            text_to_events("é")
