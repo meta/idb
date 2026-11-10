@@ -50,7 +50,17 @@ class AXPMacPlatformElementDouble: NSObject {
   private let _children: [AXPMacPlatformElementDouble]
   private var _translation: AXPTranslationObjectDouble
   private(set) var performedCustomActions: [String] = []
-  @objc private(set) var accessedProperties = NSMutableSet()
+  // Raw reads call the tracked getters from concurrent threads.
+  private let accessLog = OSAllocatedUnfairLock(initialState: Set<String>())
+
+  /// The tracked properties read so far.
+  var accessedProperties: Set<String> {
+    accessLog.withLock { $0 }
+  }
+
+  private func recordAccess(_ property: String) {
+    accessLog.withLock { _ = $0.insert(property) }
+  }
 
   init(
     label: String?,
@@ -80,32 +90,32 @@ class AXPMacPlatformElementDouble: NSObject {
   // MARK: - Tracked Accessibility Properties
 
   @objc var accessibilityLabel: String? {
-    accessedProperties.add("accessibilityLabel")
+    recordAccess("accessibilityLabel")
     return _label
   }
 
   @objc var accessibilityIdentifier: String? {
-    accessedProperties.add("accessibilityIdentifier")
+    recordAccess("accessibilityIdentifier")
     return _identifier
   }
 
   @objc var accessibilityValue: Any? {
-    accessedProperties.add("accessibilityValue")
+    recordAccess("accessibilityValue")
     return nil
   }
 
   @objc var accessibilityTitle: String? {
-    accessedProperties.add("accessibilityTitle")
+    recordAccess("accessibilityTitle")
     return nil
   }
 
   @objc var accessibilityHelp: String? {
-    accessedProperties.add("accessibilityHelp")
+    recordAccess("accessibilityHelp")
     return nil
   }
 
   @objc var accessibilityRole: NSAccessibility.Role? {
-    accessedProperties.add("accessibilityRole")
+    recordAccess("accessibilityRole")
     if let role = _role {
       return NSAccessibility.Role(rawValue: role)
     }
@@ -113,32 +123,32 @@ class AXPMacPlatformElementDouble: NSObject {
   }
 
   @objc var accessibilityRoleDescription: String? {
-    accessedProperties.add("accessibilityRoleDescription")
+    recordAccess("accessibilityRoleDescription")
     return nil
   }
 
   @objc var accessibilitySubrole: NSAccessibility.Subrole? {
-    accessedProperties.add("accessibilitySubrole")
+    recordAccess("accessibilitySubrole")
     return nil
   }
 
   @objc var accessibilityFrame: NSRect {
-    accessedProperties.add("accessibilityFrame")
+    recordAccess("accessibilityFrame")
     return _frame
   }
 
   @objc var isAccessibilityEnabled: Bool {
-    accessedProperties.add("accessibilityEnabled")
+    recordAccess("accessibilityEnabled")
     return _enabled
   }
 
   @objc var isAccessibilityRequired: Bool {
-    accessedProperties.add("accessibilityRequired")
+    recordAccess("accessibilityRequired")
     return _required
   }
 
   @objc var accessibilityCustomActions: [Any]? {
-    accessedProperties.add("accessibilityCustomActions")
+    recordAccess("accessibilityCustomActions")
     return _customActionNames.map { name in
       NSAccessibilityCustomAction(name: name) { [weak self] in
         guard let self else { return false }
@@ -149,18 +159,18 @@ class AXPMacPlatformElementDouble: NSObject {
   }
 
   @objc var accessibilityChildren: [Any]? {
-    accessedProperties.add("accessibilityChildren")
+    recordAccess("accessibilityChildren")
     return _children
   }
 
   @objc override func accessibilityActionNames() -> [NSAccessibility.Action] {
-    accessedProperties.add("accessibilityActionNames")
+    recordAccess("accessibilityActionNames")
     return _actionNames.map { NSAccessibility.Action(rawValue: $0) }
   }
 
   @objc var translation: AXPTranslationObjectDouble {
     get {
-      accessedProperties.add("translation")
+      recordAccess("translation")
       return _translation
     }
     set {
