@@ -56,6 +56,9 @@ public struct SimulatorLifecycleCommands: LifecycleCommands, Sendable {
     try await performBoot(with: configuration)
     if configuration.options.contains(.verifyUsable) {
       try await verifySimulatorIsBooted(simulator)
+    } else {
+      // CoreSimulator can run the boot's completion handler before the device reports `.booted`.
+      try await TargetResolveState(simulator, .booted)
     }
   }
 
