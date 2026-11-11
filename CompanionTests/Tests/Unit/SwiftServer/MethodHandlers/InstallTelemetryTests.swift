@@ -42,6 +42,25 @@ private struct Refused: Error {}
     #expect(columns(of: telemetry) == ["size=4096", "extract_ms=30000", "install_ms=40000", "payload_kind=url", "receive_ms=20000"])
   }
 
+  @Test(arguments: [(DownloadCacheOutcome.hit, "hit"), (.stored, "stored"), (.storeFailed, "store_failed"), (.skippedLowDisk, "skipped_low_disk"), (.notCacheable, "not_cacheable")])
+  func aCachedInstallReportsWhatTheCacheDid(outcome: DownloadCacheOutcome, column: String) {
+    let telemetry = InstallTelemetry(payloadKind: .url)
+    telemetry.observe(InstallEvent.cache(outcome))
+
+    let call = CallTelemetry()
+    telemetry.record(into: call)
+    #expect(call.normals == ["payload_kind": "url", "install_cache": column])
+  }
+
+  @Test func anInstallWithoutACacheReportsNoCacheColumn() {
+    let telemetry = InstallTelemetry(payloadKind: .url)
+    telemetry.observe(.extractCompleted(timing: timing(seconds: 1), destinationPath: "/tmp/x"))
+
+    let call = CallTelemetry()
+    telemetry.record(into: call)
+    #expect(call.normals["install_cache"] == nil)
+  }
+
   @Test func aStreamedPayloadReportsWhatWasReceived() async {
     let telemetry = InstallTelemetry(payloadKind: .data)
     await telemetry.receive { receive in

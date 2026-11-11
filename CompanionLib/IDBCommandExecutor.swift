@@ -99,6 +99,9 @@ public final class IDBCommandExecutor {
 
   // MARK: - Installation
 
+  /// The cache `IDB_INSTALL_CACHE_DIR` names, shared by every companion given it; `nil`, and nothing cached, without it.
+  private static let installCache = DownloadCache.fromEnvironment()
+
   public func listApps(_ fetchProcessState: Bool) async throws -> [InstalledApplication: Any] {
     let installedApps = try await target.application.installed()
     let runningApps: [String: pid_t]
@@ -127,7 +130,8 @@ public final class IDBCommandExecutor {
     observer: (any InstallEventObserving)? = nil
   ) async throws -> InstalledArtifact {
     return try await Staging.install(
-      source, as: destination.kind, options: options, temporaryDirectory: temporaryDirectory, logger: target.logger, onEvent: { observer?.observe($0) }
+      source, as: destination.kind, options: options, cache: Self.installCache, temporaryDirectory: temporaryDirectory,
+      logger: target.logger, onEvent: { observer?.observe($0) }
     ) { artifact, inPlace in
       try await install(artifact, as: destination, inPlace: inPlace)
     }
