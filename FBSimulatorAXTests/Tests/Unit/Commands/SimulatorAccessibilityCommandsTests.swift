@@ -494,6 +494,7 @@ final class SimulatorAccessibilityCommandsTests: XCTestCase {
     launchCtl: (any LaunchCtlCommands)? = nil,
     displays: any DisplayCommands = DisplayCommandsDouble([.success(.failed(.unsupported("displayinfo")))]),
     processesStarted: [pid_t: Date] = [:],
+    processesRunning: Set<pid_t> = [],
     stallWatchEnvironment: AXStallWatch.Environment = AXStallWatch.Environment(),
     holding: (types: Set<BridgeAXTranslatorRequestType>, hold: TransportHold)? = nil
   ) throws {
@@ -511,7 +512,8 @@ final class SimulatorAccessibilityCommandsTests: XCTestCase {
       simulator: sim, translationDispatcher: dispatcher,
       transport: holding.map { HoldingTransport(sending, holding: $0.types, hold: $0.hold) } ?? sending, launchCtl: launchCtl,
       displays: displays,
-      processStartDate: { processesStarted[$0] }, stallWatchEnvironment: stallWatchEnvironment)
+      processStartDate: { processesStarted[$0] }, processIsRunning: { processesRunning.contains($0) },
+      stallWatchEnvironment: stallWatchEnvironment)
     sim.commandCache.register(commands, as: SimulatorAccessibilityCommands.self)
 
     simulator = sim
@@ -1897,6 +1899,18 @@ final class SimulatorAccessibilityCommandsTests: XCTestCase {
 
     let response = try await element.serialize(with: AccessibilityRequestOptions())
     XCTAssertEqual(response.translatorMetrics?.elementCount, 1, "a live pid means the hierarchy is healthy")
+  }
+
+  func testAZeroFramedRootWhoseProcessTheHostSeesRunningIsReadWithoutLaunchCtl() async throws {
+    // launchctl lists nothing, which would report SpringBoard as not running, but the host sees 12345 running.
+    let zeroFrameRoot = AccessibilityTestElementBuilder.application(withLabel: "App", frame: .zero, children: [])
+    try setUp(withRootElement: zeroFrameRoot, launchCtl: LaunchCtlDouble.with(running: [:]), processesRunning: [12345])
+
+    let element = try await simulator.accessibility.resolveElement(for: .frontmost)
+    defer { element.close() }
+
+    let response = try await element.serialize(with: AccessibilityRequestOptions())
+    XCTAssertEqual(response.translatorMetrics?.elementCount, 1, "a running process means the hierarchy is healthy")
   }
 
   // MARK: - Frontmost nil-translation (describe-all SpringBoard-down classification)

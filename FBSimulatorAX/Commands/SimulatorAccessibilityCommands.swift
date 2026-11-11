@@ -58,6 +58,8 @@ final class SimulatorAccessibilityCommands {
   private let displays: (any DisplayCommands)?
   /// When a simulator process started, read from the host.
   private let processStartDate: (pid_t) -> Date?
+  /// Whether a simulator process is running, read from the host.
+  private let processIsRunning: (pid_t) -> Bool
   private let stallWatchEnvironment: AXStallWatch.Environment
   private let transportLock = NSLock()
   private var bridgeTransport: CoreSimulatorBridgeAXTranslationTransport?
@@ -69,6 +71,7 @@ final class SimulatorAccessibilityCommands {
     launchCtl: (any LaunchCtlCommands)? = nil,
     displays: (any DisplayCommands)? = nil,
     processStartDate: @escaping (pid_t) -> Date? = HostProcess.startDate(of:),
+    processIsRunning: @escaping (pid_t) -> Bool = HostProcess.isRunning(_:),
     stallWatchEnvironment: AXStallWatch.Environment = AXStallWatch.Environment()
   ) {
     self.simulator = simulator
@@ -77,6 +80,7 @@ final class SimulatorAccessibilityCommands {
     self.launchCtl = launchCtl
     self.displays = displays
     self.processStartDate = processStartDate
+    self.processIsRunning = processIsRunning
     self.stallWatchEnvironment = stallWatchEnvironment
   }
 
@@ -274,8 +278,12 @@ final class SimulatorAccessibilityCommands {
     if !root.frame.equalTo(.zero) {
       return
     }
-    // A zero-framed root is stale only if its process has exited. A launchctl failure is treated as live, so an
-    // unreadable diagnosis never fails a read that may be healthy.
+    // A zero-framed root is stale only if its process has exited. The host says so at once, where launchctl in a
+    // busy simulator takes seconds. A launchctl failure is treated as live, so an unreadable diagnosis never fails
+    // a read that may be healthy.
+    if processIsRunning(root.pid) {
+      return
+    }
     guard let services = try? await resolvedLaunchCtl(simulator).listServices(), !services.values.contains(root.pid) else {
       return
     }
