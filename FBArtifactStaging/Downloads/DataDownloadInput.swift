@@ -126,6 +126,7 @@ extension DataDownloadInput: URLSessionDataDelegate {
       completionHandler(.cancel)
       return
     }
+    report.freshness = HTTPFreshness { httpResponse.value(forHTTPHeaderField: $0) }
     onEvent?(.response(expectedContentLength: httpResponse.expectedContentLength))
     completionHandler(.allow)
   }

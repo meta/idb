@@ -45,6 +45,15 @@ struct HTTPResponseReaderTests {
   }
 
   @Test
+  func theFinalResponsesHeadersAreKeptByLowercasedNameWithRepeatsJoined() throws {
+    var reader = HTTPResponseReader()
+    _ = try reader.consume(
+      Data("HTTP/1.1 100 Continue\r\nX-Interim: yes\r\n\r\nHTTP/1.1 200 OK\r\nCache-Control: max-age=60\r\nAge: 5\r\nVia: a\r\nVia: b\r\nContent-Length: 0\r\n\r\n".utf8))
+
+    #expect(reader.headers == ["cache-control": "max-age=60", "age": "5", "via": "a, b", "content-length": "0"])
+  }
+
+  @Test
   func aHeadAndBodySplitAcrossReadsAreReassembled() throws {
     let events = try events("HTTP/1.1 200 OK\r\ncontent-length: 11\r\nX-Other: a:b\r\n\r\nhello world", step: 2)
 

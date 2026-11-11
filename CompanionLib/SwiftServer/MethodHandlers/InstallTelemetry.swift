@@ -101,6 +101,8 @@ final class InstallTelemetry: Sendable {
       state.withLock { $0.route = route }
     case .download(let report):
       state.withLock { $0.timeToFirstByte = report.timeToFirstByte }
+    case .cache:
+      break
     }
   }
 

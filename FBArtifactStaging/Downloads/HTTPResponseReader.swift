@@ -39,6 +39,8 @@ struct HTTPResponseReader: Sendable {
 
   private var phase = Phase.head
   private var buffered = Data()
+  /// The final response's headers, by lowercased name, repeated headers joined with commas; empty until its head is read.
+  private(set) var headers: [String: String] = [:]
 
   /// Whether the body is complete.
   var isComplete: Bool {
@@ -160,12 +162,14 @@ struct HTTPResponseReader: Sendable {
     }
     var contentLength: Int64?
     var chunked = false
+    headers = [:]
     for line in lines {
       guard let colon = line.firstIndex(of: ":") else {
         throw URLError(.cannotParseResponse)
       }
       let name = line[..<colon].trimmingCharacters(in: .whitespaces).lowercased()
       let value = line[line.index(after: colon)...].trimmingCharacters(in: .whitespaces)
+      headers[name] = headers[name].map { "\($0), \(value)" } ?? value
       switch name {
       case "content-length":
         guard let length = Int64(value), length >= 0, contentLength == nil || contentLength == length else {

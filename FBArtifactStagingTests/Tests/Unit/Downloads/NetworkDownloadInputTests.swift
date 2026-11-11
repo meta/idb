@@ -40,6 +40,17 @@ struct NetworkDownloadInputTests {
   }
 
   @Test
+  func theReportCarriesHowLongTheResponseMayBeReused() async throws {
+    let head = "HTTP/1.1 200 OK\r\nContent-Length: 5\r\nCache-Control: max-age=1209600, no-transform\r\nAge: 4323\r\nConnection: close\r\n\r\n"
+    let server = try await ScriptedHTTPServer.serving(ScriptedHTTPServer.Reply(parts: [Data(head.utf8), Data("hello".utf8)]))
+    defer { server.stop() }
+
+    let (_, report) = try await download("http://download.invalid/handle", over: server)
+
+    #expect(report.freshness == HTTPFreshness(lifetime: 1_205_277))
+  }
+
+  @Test
   func theBodyComesFromTheOverrideAskingForTheURLsHost() async throws {
     let server = try await ScriptedHTTPServer.serving(body: body)
     defer { server.stop() }

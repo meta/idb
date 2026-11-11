@@ -45,6 +45,8 @@ public struct DownloadReport: Sendable, Equatable {
   /// Nil when the download never got as far as a transaction.
   public var proxied: Bool?
   public var trust: Trust?
+  /// How long the response may be reused, from its caching headers. Nil when no response arrived.
+  public var freshness: HTTPFreshness?
 
   public init(
     receivedBytes: Int64 = 0, timeToFirstByte: TimeInterval? = nil, remoteAddress: String? = nil, proxied: Bool? = nil, trust: Trust? = nil

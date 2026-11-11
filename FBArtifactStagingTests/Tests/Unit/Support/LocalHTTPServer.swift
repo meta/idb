@@ -17,20 +17,23 @@ final class LocalHTTPServer: @unchecked Sendable {
 
   private let listener: NWListener
   private let file: URL
+  private let extraHeaders: [String]
   private let queue = DispatchQueue(label: "idb.tests.http")
   private(set) var url: URL
 
-  private init(listener: NWListener, file: URL) {
+  private init(listener: NWListener, file: URL, extraHeaders: [String]) {
     self.listener = listener
     self.file = file
+    self.extraHeaders = extraHeaders
     // swiftlint:disable:next force_unwrapping
     url = URL(string: "http://127.0.0.1/")!
   }
 
-  static func serving(_ file: URL) async throws -> LocalHTTPServer {
+  /// Serves `file` with `extraHeaders` (`Name: value` lines) added to every response.
+  static func serving(_ file: URL, extraHeaders: [String] = []) async throws -> LocalHTTPServer {
     let parameters = NWParameters.tcp
     parameters.requiredLocalEndpoint = .hostPort(host: "127.0.0.1", port: .any)
-    let server = LocalHTTPServer(listener: try NWListener(using: parameters), file: file)
+    let server = LocalHTTPServer(listener: try NWListener(using: parameters), file: file, extraHeaders: extraHeaders)
     try await server.start()
     return server
   }
@@ -98,7 +101,8 @@ final class LocalHTTPServer: @unchecked Sendable {
       connection.cancel()
       return
     }
-    let header = "HTTP/1.1 200 OK\r\nContent-Length: \(size)\r\nContent-Type: application/octet-stream\r\nConnection: close\r\n\r\n"
+    let extra = extraHeaders.map { "\($0)\r\n" }.joined()
+    let header = "HTTP/1.1 200 OK\r\nContent-Length: \(size)\r\nContent-Type: application/octet-stream\r\n\(extra)Connection: close\r\n\r\n"
     connection.send(content: Data(header.utf8), completion: .contentProcessed { [weak self] _ in self?.sendBody(connection, from: input) })
   }
 

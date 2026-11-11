@@ -222,7 +222,11 @@ final class NetworkDownloadInput: Sendable {
     switch event {
     case .head(let statusCode, let contentLength):
       let timeToFirstByte = Date().timeIntervalSince(requestStart)
-      state.withLock { $0.report.timeToFirstByte = timeToFirstByte }
+      state.withLock { state in
+        state.report.timeToFirstByte = timeToFirstByte
+        let headers = state.reader.headers
+        state.report.freshness = HTTPFreshness { headers[$0.lowercased()] }
+      }
       guard statusCode == 200 else {
         // Without this the body of an error page is piped onward as though it were the payload, and the caller is told
         // it has a malformed archive.

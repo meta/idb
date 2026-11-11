@@ -76,6 +76,8 @@ enum StagingReport: Equatable, Sendable {
   case route(ExtractionRoute)
   /// A download that completed. One that failed carries its report in its `InstallError.transferFailed`.
   case download(DownloadReport)
+  /// What the download cache did for an application from a URL, when there is a cache.
+  case cache(DownloadCacheOutcome)
 }
 
 /// Everything an install reports as it goes, in order.
@@ -87,6 +89,8 @@ public enum InstallEvent: Sendable {
   case route(ExtractionRoute)
   /// A download that completed. One that failed carries its report in its `InstallError.transferFailed`.
   case download(DownloadReport)
+  /// What the download cache did for an application from a URL, when there is a cache.
+  case cache(DownloadCacheOutcome)
 }
 
 /// What an installed artifact is known by on the target, for the install stage's completion.
@@ -112,6 +116,7 @@ public enum Staging {
     options: InstallOptions = InstallOptions(),
     totalStart: Date = Date(),
     downloadConfiguration: URLSessionConfiguration = .default,
+    cache: DownloadCache? = nil,
     temporaryDirectory: TemporaryDirectory,
     logger: any ControlCoreLogger,
     onProgress: @escaping @Sendable (InstallProgressEvent) -> Void = { _ in },
@@ -133,7 +138,7 @@ public enum Staging {
     return try await temporaryDirectory.withTemporaryDirectory { stagingDirectory in
       let tree = try await stage(
         source, as: kind, in: stagingDirectory, options: options, totalStart: totalStart,
-        downloadConfiguration: downloadConfiguration, temporaryDirectory: temporaryDirectory,
+        downloadConfiguration: downloadConfiguration, cache: cache, temporaryDirectory: temporaryDirectory,
         logger: logger, onProgress: onProgress, onReport: onReport)
       return try await body(tree)
     }
@@ -143,11 +148,14 @@ public enum Staging {
   /// how an archive was unpacked and how a download went through `onEvent`.
   ///
   /// `install` is told whether the artifact is in place; one that is not is deleted once `install` returns.
+  ///
+  /// With a `cache`, an application from a URL is cloned from it when it holds that URL, and kept in it otherwise.
   public static func install<Installed: InstalledName>(
     _ source: InstallSource,
     as kind: ArtifactKind,
     options: InstallOptions = InstallOptions(),
     downloadConfiguration: URLSessionConfiguration = .default,
+    cache: DownloadCache? = nil,
     temporaryDirectory: TemporaryDirectory,
     logger: any ControlCoreLogger,
     onEvent: @escaping @Sendable (InstallEvent) -> Void = { _ in },
@@ -157,13 +165,15 @@ public enum Staging {
     let onProgress: @Sendable (InstallProgressEvent) -> Void = { onEvent(.progress($0)) }
     return try await withMaterialized(
       source, as: kind, options: options, totalStart: totalStart, downloadConfiguration: downloadConfiguration,
-      temporaryDirectory: temporaryDirectory, logger: logger, onProgress: onProgress,
+      cache: cache, temporaryDirectory: temporaryDirectory, logger: logger, onProgress: onProgress,
       onReport: { report in
         switch report {
         case .route(let route):
           onEvent(.route(route))
         case .download(let download):
           onEvent(.download(download))
+        case .cache(let outcome):
+          onEvent(.cache(outcome))
         }
       }
     ) { tree in
@@ -256,6 +266,7 @@ public enum Staging {
     options: InstallOptions,
     totalStart: Date,
     downloadConfiguration: URLSessionConfiguration,
+    cache: DownloadCache?,
     temporaryDirectory: TemporaryDirectory,
     logger: any ControlCoreLogger,
     onProgress: @escaping @Sendable (InstallProgressEvent) -> Void,
@@ -287,11 +298,31 @@ public enum Staging {
         }
       }
     case .remoteURL(let url, let connectionOverride):
-      return try await temporaryDirectory.withTemporaryDirectory { spoolDirectory in
+      // Only applications are cached: they are what a client installs from the same URL over and over.
+      let cache: DownloadCache? = if case .application = kind { cache } else { nil }
+      let identity = DownloadCache.identity(of: url, options: options)
+      if let cache, try await offCooperativePool({ cache.contains(identity) }).get() {
+        let restored = stagingDirectory.appendingPathComponent("cached")
+        let hit = try await runExtractStage(to: restored.path, totalStart: totalStart, onProgress: onProgress) {
+          try await offCooperativePool { cache.restore(identity, to: restored, logger: logger) }.get()
+        }
+        if hit {
+          onReport(.cache(.hit))
+          return .extracted(restored)
+        }
+      }
+      let freshness = OSAllocatedUnfairLock<HTTPFreshness?>(initialState: nil)
+      let tree = try await temporaryDirectory.withTemporaryDirectory { spoolDirectory in
         let staged = OSAllocatedUnfairLock<StagedTree?>(initialState: nil)
         try await download(
           url, connectingTo: connectionOverride, extractingTo: extractPath, totalStart: totalStart,
-          configuration: downloadConfiguration, logger: logger, onProgress: onProgress, onReport: onReport
+          configuration: downloadConfiguration, logger: logger, onProgress: onProgress,
+          onReport: { report in
+            if case .download(let downloaded) = report {
+              freshness.withLock { $0 = downloaded.freshness }
+            }
+            onReport(report)
+          }
         ) { spool in
           let tree = try await spool.reading { source in
             try await stagePayload(
@@ -302,6 +333,12 @@ public enum Staging {
         }
         return staged.withLock { $0 } ?? .extracted(stagingDirectory)
       }
+      if let cache {
+        let lifetime = freshness.withLock { $0 }
+        let outcome = try await offCooperativePool { cache.store(tree.url, as: identity, freshness: lifetime, logger: logger) }.get()
+        onReport(.cache(outcome))
+      }
+      return tree
     }
   }
 
