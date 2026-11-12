@@ -5,10 +5,12 @@
 # LICENSE file in the root directory of this source tree.
 
 
+import dataclasses
 from collections.abc import AsyncIterator
 from unittest.mock import AsyncMock, call, MagicMock
 
-from idb.common.types import HIDEvent
+from idb.common.hid import text_to_events
+from idb.common.types import HIDEvent, IdbException
 from idb.grpc.client import Client
 from idb.grpc.hid import (
     event_to_grpc,
@@ -23,6 +25,7 @@ from idb.grpc.hid import (
     GrpcHIDPressAction,
     GrpcHIDShake,
     GrpcHIDSwipe,
+    GrpcHIDText,
     GrpcHIDTouch,
     GrpcPoint,
     HIDButton,
@@ -37,10 +40,12 @@ from idb.grpc.hid import (
     HIDPress,
     HIDShake,
     HIDSwipe,
+    HIDText,
     HIDTouch,
     Point,
 )
 from idb.grpc.idb_pb2 import HIDResponse
+from idb.grpc.tests.stream_test_support import make_client, ScriptedStream
 from idb.utils.testing import TestCase
 
 
@@ -118,6 +123,18 @@ class HidTests(TestCase):
             event_to_grpc(HIDDelay(duration=1)),
             GrpcHIDEvent(delay=GrpcHIDDelay(duration=1)),
         )
+
+    def test_text(self) -> None:
+        self.assertEqual(
+            event_to_grpc(HIDText(text="héllo", layout="French")),
+            GrpcHIDEvent(text=GrpcHIDText(text="héllo", layout="French")),
+        )
+
+    def test_text_without_a_layout_leaves_it_empty(self) -> None:
+        grpc = event_to_grpc(HIDText(text="héllo"))
+        self.assertEqual(grpc, GrpcHIDEvent(text=GrpcHIDText(text="héllo")))
+        self.assertEqual(grpc.WhichOneof("event"), "text")
+        self.assertEqual(grpc.text.layout, "")
 
     async def test_all_event_variants_stream_in_order_and_half_close(
         self,
@@ -208,6 +225,10 @@ class HidTests(TestCase):
                 ),
             ),
             (HIDShake(), GrpcHIDEvent(shake=GrpcHIDShake())),
+            (
+                HIDText(text="é", layout="French"),
+                GrpcHIDEvent(text=GrpcHIDText(text="é", layout="French")),
+            ),
         ]
 
         stream = AsyncMock()
@@ -246,3 +267,47 @@ class HidTests(TestCase):
         self.assertEqual(stream.send_message.await_count, len(expected_requests))
         stream.end.assert_awaited_once_with()
         self.assertEqual(stream.recv_message.await_count, 2)
+
+
+class TextTests(TestCase):
+    async def _sent(
+        self, text: str, hid_text: bool, layout: str | None = None
+    ) -> list[object]:
+        self.stream = ScriptedStream(HIDResponse())
+        client, _ = make_client("hid", self.stream, is_local=True)
+        client.companion = dataclasses.replace(client.companion, hid_text=hid_text)
+        await client.text(text, layout=layout)
+        return [message for message, _ in self.stream.sent]
+
+    async def test_a_companion_that_takes_text_is_sent_it_in_one_frame(self) -> None:
+        self.assertEqual(
+            await self._sent("azerty é", hid_text=True),
+            [GrpcHIDEvent(text=GrpcHIDText(text="azerty é"))],
+        )
+        self.assertEqual(self.stream.transcript[1], ("end", None))
+
+    async def test_a_companion_that_takes_text_is_sent_the_layout(self) -> None:
+        self.assertEqual(
+            await self._sent("azerty", hid_text=True, layout="French"),
+            [GrpcHIDEvent(text=GrpcHIDText(text="azerty", layout="French"))],
+        )
+
+    async def test_a_companion_that_does_not_take_text_is_sent_key_presses(
+        self,
+    ) -> None:
+        for layout in (None, "US"):
+            with self.subTest(layout=layout):
+                self.assertEqual(
+                    await self._sent("aA", hid_text=False, layout=layout),
+                    [event_to_grpc(event) for event in text_to_events("aA")],
+                )
+
+    async def test_a_companion_that_does_not_take_text_cannot_type_on_a_layout(
+        self,
+    ) -> None:
+        with self.assertRaisesRegex(
+            IdbException, "does not support typing on a keyboard layout"
+        ):
+            await self._sent("azerty", hid_text=False, layout="French")
+        self.assertFalse(self.stream.entered)
+        self.assertEqual(self.stream.sent, [])

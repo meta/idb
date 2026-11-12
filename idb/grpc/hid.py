@@ -22,6 +22,7 @@ from idb.common.types import (
     HIDPressAction,
     HIDShake,
     HIDSwipe,
+    HIDText,
     HIDTouch,
     Point,
 )
@@ -36,6 +37,7 @@ GrpcHIDPinch = GrpcHIDEvent.HIDPinch
 GrpcHIDPress = GrpcHIDEvent.HIDPress
 GrpcHIDPressAction = GrpcHIDEvent.HIDPressAction
 GrpcHIDSwipe = GrpcHIDEvent.HIDSwipe
+GrpcHIDText = GrpcHIDEvent.HIDText
 GrpcHIDTouch = GrpcHIDEvent.HIDTouch
 GrpcHIDButtonType = GrpcHIDEvent.HIDButtonType
 GrpcHIDDirection = GrpcHIDEvent.HIDDirection
@@ -158,6 +160,10 @@ def shake_to_grpc(shake: HIDShake) -> GrpcHIDShake:
     return GrpcHIDShake()
 
 
+def text_to_grpc(text: HIDText) -> GrpcHIDText:
+    return GrpcHIDText(text=text.text, layout=text.layout or "")
+
+
 def event_to_grpc(event: HIDEvent) -> GrpcHIDEvent:
     if isinstance(event, HIDPress):
         return GrpcHIDEvent(press=press_to_grpc(event))
@@ -173,5 +179,7 @@ def event_to_grpc(event: HIDEvent) -> GrpcHIDEvent:
         return GrpcHIDEvent(hinge=GrpcHIDHinge(angle=event.angle))
     elif isinstance(event, HIDShake):
         return GrpcHIDEvent(shake=shake_to_grpc(event))
+    elif isinstance(event, HIDText):
+        return GrpcHIDEvent(text=text_to_grpc(event))
     else:
         raise Exception(f"Invalid event {event}")

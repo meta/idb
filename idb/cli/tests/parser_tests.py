@@ -2627,7 +2627,12 @@ class TestParser(TestCase):
         self.client_mock.text = AsyncMock(return_value=[])
         text = "Some Text"
         await cli_main(cmd_input=["ui", "text", text])
-        self.client_mock.text.assert_called_once_with(text=text)
+        self.client_mock.text.assert_called_once_with(text=text, layout=None)
+
+    async def test_text_input_on_a_layout(self) -> None:
+        self.client_mock.text = AsyncMock(return_value=[])
+        await cli_main(cmd_input=["ui", "text", "azerty", "--layout", "French"])
+        self.client_mock.text.assert_called_once_with(text="azerty", layout="French")
 
     async def test_swipe_with_delta(self) -> None:
         self.client_mock.swipe = AsyncMock(return_value=[])

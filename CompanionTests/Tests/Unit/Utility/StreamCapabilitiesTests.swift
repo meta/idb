@@ -36,4 +36,12 @@ struct StreamCapabilitiesTests {
 
     #expect(info.installConnectTo)
   }
+
+  @Test
+  func theHidStreamTypesText() {
+    var info = Idb_CompanionInfo()
+    info.setStreamCapabilities()
+
+    #expect(info.hidText)
+  }
 }

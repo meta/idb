@@ -338,6 +338,12 @@ public final class IDBCommandExecutor {
     try await connectToHID().send(event: event, logger: logger, drain: .onClose)
   }
 
+  /// Types `text` as key presses on the simulator's hardware keyboard layout. Throws, sending
+  /// nothing, if the layout cannot type the text.
+  public func hid(text: String) async throws {
+    try await hid(target.simulator().keyboard.typingEvent(for: text))
+  }
+
   public func hid<S: AsyncSequence>(events: S) async throws where S.Element == SimulatorHIDEvent {
     let hid = try await connectToHID()
     try await hid.send(events: events, logger: logger)

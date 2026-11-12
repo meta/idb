@@ -18,6 +18,8 @@ struct HidMethodHandler {
     case orientation(SimulatorHIDDeviceOrientation)
     case shake
     case hinge(SimulatorHingeAngle)
+    /// Text to type on a hardware keyboard layout, or on the simulator's own if none is named.
+    case text(String, layout: SimulatorKeyboardLayout?)
   }
 
   let target: CompanionTarget
@@ -28,23 +30,88 @@ struct HidMethodHandler {
     let simulator = Result { try target.simulator() }
     let commandExecutor = commandExecutor
     try await withRPCCancellation(context.cancellation) {
-      try await commandExecutor.hid(
-        events: requestStream.compactMap { message -> SimulatorHIDEvent? in
-          switch try Self.request(from: message) {
-          case let .input(event):
-            return event
-          case let .orientation(orientation):
-            // Interface numbering is what `idb`'s HID stream has always carried.
-            try await simulator.get().orientation.set(orientation, convention: .interface)
-          case .shake:
-            try await simulator.get().hardware.shake()
-          case let .hinge(angle):
-            try await simulator.get().hinge.set(angle)
-          }
-          return nil
-        })
+      // The first event is resolved before the HID is taken, so that text, which is sent first and has the
+      // simulator's keyboard layout read, keeps no other stream to the simulator waiting meanwhile.
+      let events = try await Events.resolvingFirst(of: requestStream.makeAsyncIterator()) {
+        try await Self.event(for: $0, simulator: simulator)
+      }
+      try await commandExecutor.hid(events: events)
     }
     return .init()
+  }
+
+  /// The HID events that a stream of messages resolves to, the first of them resolved already.
+  struct Events<Messages: AsyncIteratorProtocol>: AsyncSequence, AsyncIteratorProtocol where Messages.Element == Idb_HIDEvent {
+    private var first: SimulatorHIDEvent?
+    private var messages: Messages
+    private let event: (Idb_HIDEvent) async throws -> SimulatorHIDEvent?
+
+    init(first: SimulatorHIDEvent?, messages: Messages, event: @escaping (Idb_HIDEvent) async throws -> SimulatorHIDEvent?) {
+      self.first = first
+      self.messages = messages
+      self.event = event
+    }
+
+    /// Reads the first message of `messages` and resolves it with `event`, which also resolves the rest as
+    /// they are asked for. A message resolves to `nil` where it is no input for the HID.
+    static func resolvingFirst(
+      of messages: Messages, event: @escaping (Idb_HIDEvent) async throws -> SimulatorHIDEvent?
+    ) async throws -> Self {
+      var messages = messages
+      guard let message = try await messages.next() else {
+        return Self(first: nil, messages: messages, event: event)
+      }
+      return Self(first: try await event(message), messages: messages, event: event)
+    }
+
+    func makeAsyncIterator() -> Self {
+      self
+    }
+
+    mutating func next() async throws -> SimulatorHIDEvent? {
+      if let first {
+        self.first = nil
+        return first
+      }
+      while let message = try await messages.next() {
+        if let event = try await event(message) {
+          return event
+        }
+      }
+      return nil
+    }
+  }
+
+  /// The input a message asks for, or `nil` once the device action it asks for is done.
+  private static func event(for message: Idb_HIDEvent, simulator: Result<Simulator, any Error>) async throws -> SimulatorHIDEvent? {
+    switch try request(from: message) {
+    case let .input(event):
+      return event
+    case let .orientation(orientation):
+      // Interface numbering is what `idb`'s HID stream has always carried.
+      try await simulator.get().orientation.set(orientation, convention: .interface)
+    case .shake:
+      try await simulator.get().hardware.shake()
+    case let .hinge(angle):
+      try await simulator.get().hinge.set(angle)
+    case let .text(text, layout):
+      do {
+        return try await simulator.get().keyboard.typingEvent(for: text, layout: layout)
+      } catch {
+        throw typingFailure(error)
+      }
+    }
+    return nil
+  }
+
+  /// Text that cannot be typed as asked is the request's fault.
+  static func typingFailure(_ error: any Error) -> any Error {
+    switch error {
+    case SimulatorHIDError.characterNotOnKeyboardLayout, SimulatorHIDError.unknownKeyboardLayout:
+      return RPCError(code: .invalidArgument, message: error.localizedDescription)
+    default:
+      return error
+    }
   }
 
   static func request(from request: Idb_HIDEvent) throws -> Request {
@@ -85,6 +152,9 @@ struct HidMethodHandler {
       } catch {
         throw RPCError(code: .invalidArgument, message: error.localizedDescription)
       }
+
+    case let .text(text):
+      return .text(text.text, layout: text.layout.isEmpty ? nil : SimulatorKeyboardLayout(name: text.layout))
 
     case .none:
       throw RPCError(code: .invalidArgument, message: "Unrecognized request.event")

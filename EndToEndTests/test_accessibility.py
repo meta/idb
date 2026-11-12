@@ -18,8 +18,9 @@ from __future__ import annotations
 
 import asyncio
 import json
+import plistlib
 import unittest
-from typing import Any
+from typing import Any, Callable
 
 from .harness import (
     _center,
@@ -53,6 +54,23 @@ SEARCH_FIELD_ID = "com.facebook.idb.replhost.search"
 SEARCH_FIELD = Query(SEARCH_FIELD_ID)
 # Views that carry the rows' identifier prefix without being rows.
 ROW_CONTAINER_TYPES = frozenset({"CollectionView", "Table", "ScrollView", "List"})
+FRENCH_KEYBOARD = "fr_FR@sw=AZERTY-French;hw=French"
+# The letters AZERTY moves, the digits it shifts, punctuation it keeps on other
+# keys than a US keyboard does, and characters behind option and a dead key.
+# Nothing in it is a quote or a doubled hyphen or space, which smart
+# punctuation would rewrite.
+AZERTY_TEXT = "azerty AZERTY qwm 0123456789 .,;:!?@-_ €ê ñ^"
+# The simulator's keyboards, which it goes by only once they are marked
+# expanded, and the one it last used: the domain each is a default of, and the
+# `defaults write` arguments that set it.
+KEYBOARD_SETTINGS: dict[str, tuple[str, Callable[[Any], list[str]]]] = {
+    "AppleKeyboards": ("-g", lambda keyboards: ["-array", *keyboards]),
+    "AppleKeyboardsExpanded": ("-g", lambda expanded: ["-int", str(int(expanded))]),
+    "KeyboardLastUsed": (
+        "com.apple.keyboard.preferences",
+        lambda keyboard: ["-string", keyboard],
+    ),
+}
 # A tap idb refused does nothing at all, so a wait long enough to catch a
 # screen that did change is short.
 NOTHING_OPENS_TIMEOUT_SECONDS = 2.0
@@ -255,6 +273,7 @@ INTERACTION_TESTS = frozenset(
     {
         "test_ui_scroll_moves_rows_down_and_up",
         "test_ui_set_value_updates_the_search_field",
+        "test_ui_text_types_on_the_simulators_keyboard_layout",
         "test_ui_tap_by_identifier_opens_general",
         "test_ui_tap_by_point_opens_general",
         "test_ui_tap_refuses_a_mismatched_expected_value",
@@ -635,6 +654,91 @@ class AccessibilityTests(AccessibilityFixtureTestCase):
         x, y = _center(field)
         await self.idb("ui", "set-value", str(x), str(y), "--value", "idb-second")
         await self.wait_for_search_value("idb-second")
+
+    async def defaults(self, *arguments: str) -> bytes:
+        completed = await self.simctl.run("spawn", self.udid, "defaults", *arguments)
+        self.assertEqual(
+            completed.returncode,
+            0,
+            f"defaults {' '.join(arguments)} failed: {completed.error_text}",
+        )
+        return completed.stdout
+
+    async def keyboards(self) -> dict[str, Any]:
+        """The simulator's keyboard settings, as far as it has any."""
+        settings = {}
+        for domain in {domain for domain, _ in KEYBOARD_SETTINGS.values()}:
+            exported = plistlib.loads(await self.defaults("export", domain, "-"))
+            settings.update(
+                (key, exported[key])
+                for key, (owner, _) in KEYBOARD_SETTINGS.items()
+                if owner == domain and key in exported
+            )
+        return settings
+
+    async def write_keyboards(self, settings: dict[str, Any]) -> None:
+        for key, (domain, arguments) in KEYBOARD_SETTINGS.items():
+            if key in settings:
+                await self.defaults("write", domain, key, *arguments(settings[key]))
+            else:
+                await self.simctl.run(
+                    "spawn", self.udid, "defaults", "delete", domain, key
+                )
+
+    async def set_keyboards(self, settings: dict[str, Any]) -> None:
+        """Give the simulator the keyboard `settings` and relaunch the fixture.
+
+        An app types on the hardware layout it was launched with, whatever the
+        keyboards become afterwards.
+        """
+
+        async def write() -> None:
+            await self.write_keyboards(settings)
+            # A simulator on its first boot writes keyboards of its own, which
+            # can land on top of these.
+            current = await self.keyboards()
+            if current != settings:
+                raise NotReady(f"The simulator's keyboards are {current}")
+
+        await wait_until(
+            f"The simulator's keyboards being {settings}",
+            UI_UPDATE_TIMEOUT_SECONDS,
+            write,
+        )
+        await self.setup_terminate_quietly(FIXTURE_APP_BUNDLE_ID)
+        await self.setup_idb("launch", FIXTURE_APP_BUNDLE_ID, FIXTURE_LAUNCH_ARGUMENT)
+        self.control = await self.wait_for_control()
+
+    async def test_ui_text_types_on_the_simulators_keyboard_layout(self) -> None:
+        # Written back as they were and no more: the next test launches the
+        # fixture afresh, and the simulator may be writing keyboards of its own.
+        self.addAsyncCleanup(self.write_keyboards, await self.keyboards())
+        await self.set_keyboards(
+            {
+                "AppleKeyboards": [FRENCH_KEYBOARD],
+                "AppleKeyboardsExpanded": True,
+                "KeyboardLastUsed": FRENCH_KEYBOARD,
+            }
+        )
+        await self.tap_when_settled(SEARCH_FIELD)
+
+        completed = await self.idb("ui", "text", AZERTY_TEXT)
+
+        self.assertEqual(completed.stdout, b"")
+        await self.wait_for_search_value(AZERTY_TEXT)
+        await self.idb_expect_failure(
+            "ui",
+            "text",
+            "ab日",
+            expected_error=(
+                "Cannot type the character at offset 2 "
+                "on the French hardware keyboard layout"
+            ),
+        )
+        # These are the keys that type "qwerty" on a US keyboard, and they
+        # follow straight on from the text: the refused text typed nothing.
+        await self.idb("ui", "text", "qwerty", "--layout", "US")
+        await self.wait_for_search_value(AZERTY_TEXT + "azerty")
 
     async def test_ui_tap_refuses_a_mismatched_expected_value(self) -> None:
         title = _label(self.control)
