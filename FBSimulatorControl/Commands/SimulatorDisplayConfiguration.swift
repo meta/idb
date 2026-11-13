@@ -202,7 +202,8 @@ package final class DisplayConfigurationTracker: @unchecked Sendable {
     case let .target(.selected(display)), let .target(.sole(.identified(display))): .identified(display)
     case let .target(.sole(.legacy(geometry))): .unidentified(geometry)
     case .fallback(.noActiveIntegratedDisplay), .fallback(.ambiguousActiveDisplays), .transitioning: .unresolved
-    case .fallback(.legacyIntegratedDisplays), .fallback(.unknownActivity), .fallback(.unreadable): .unknown
+    case .fallback(.legacyIntegratedDisplays), .fallback(.unknownActivity), .fallback(.unreadable), .fallback(.noIntegratedDisplay):
+      .unknown
     }
   }
 }

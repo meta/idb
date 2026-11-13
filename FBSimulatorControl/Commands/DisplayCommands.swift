@@ -75,6 +75,12 @@ package enum SimulatorDisplayResolution: Equatable, Sendable {
       self = .target(.sole(.legacy(geometry)))
     case let .displays(displays):
       let integrated = displays.filter(\.isIntegrated)
+      // An Apple TV renders only on its TV output: with no integrated display to become active, there is no
+      // transition to wait out.
+      if integrated.isEmpty, !displays.isEmpty {
+        self = .fallback(.noIntegratedDisplay)
+        return
+      }
       if integrated.contains(where: { $0.activity == .unknown }) {
         self = .fallback(.unknownActivity)
         return
@@ -110,6 +116,8 @@ package enum SimulatorDisplayFallback: Equatable, Sendable {
   case legacyIntegratedDisplays(count: Int)
   /// The runtime reports an integrated display's backlight as `unknown`.
   case unknownActivity
+  /// The runtime reports displays, none of them integrated (an Apple TV's TV output).
+  case noIntegratedDisplay
   case noActiveIntegratedDisplay
   case ambiguousActiveDisplays([String])
 }
@@ -175,7 +183,8 @@ extension DisplayCommands {
       let resolution = configurationTracker.resolution(of: try await read())
       let expired = ContinuousClock.now >= deadline
       switch resolution {
-      case .target, .fallback(.unreadable), .fallback(.legacyIntegratedDisplays), .fallback(.unknownActivity):
+      case .target, .fallback(.unreadable), .fallback(.legacyIntegratedDisplays), .fallback(.unknownActivity),
+        .fallback(.noIntegratedDisplay):
         return resolution
       case .transitioning where expired:
         return resolution
