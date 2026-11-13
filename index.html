@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="generator" content="Docusaurus v3.10.2">
 <title data-rh="true">Overview | idb</title><meta data-rh="true" name="viewport" content="width=device-width,initial-scale=1"><meta data-rh="true" name="twitter:card" content="summary_large_image"><meta data-rh="true" property="og:url" content="https://fbidb.io/"><meta data-rh="true" property="og:locale" content="en"><meta data-rh="true" name="docusaurus_locale" content="en"><meta data-rh="true" name="docsearch:language" content="en"><meta data-rh="true" name="docusaurus_version" content="current"><meta data-rh="true" name="docusaurus_tag" content="docs-default-current"><meta data-rh="true" name="docsearch:version" content="current"><meta data-rh="true" name="docsearch:docusaurus_tag" content="docs-default-current"><meta data-rh="true" property="og:title" content="Overview | idb"><meta data-rh="true" name="description" content="{/*"><meta data-rh="true" property="og:description" content="{/*"><link data-rh="true" rel="icon" href="/img/favicon.png"><link data-rh="true" rel="canonical" href="https://fbidb.io/"><link data-rh="true" rel="alternate" href="https://fbidb.io/" hreflang="en"><link data-rh="true" rel="alternate" href="https://fbidb.io/" hreflang="x-default"><script data-rh="true">function insertBanner(){var n=document.createElement("div");n.id="__docusaurus-base-url-issue-banner-container";n.innerHTML='\n<div id="__docusaurus-base-url-issue-banner" style="border: thick solid red; background-color: rgb(255, 230, 179); margin: 20px; padding: 20px; font-size: 20px;">\n   <p style="font-weight: bold; font-size: 30px;">Your Docusaurus site did not load properly.</p>\n   <p>A very common reason is a wrong site <a href="https://docusaurus.io/docs/docusaurus.config.js/#baseUrl" style="font-weight: bold;">baseUrl configuration</a>.</p>\n   <p>Current configured baseUrl = <span style="font-weight: bold; color: red;">/</span>  (default value)</p>\n   <p>We suggest trying baseUrl = <span id="__docusaurus-base-url-issue-banner-suggestion-container" style="font-weight: bold; color: green;"></span></p>\n</div>\n',document.body.prepend(n);var e=document.getElementById("__docusaurus-base-url-issue-banner-suggestion-container"),s=window.location.pathname,o="/"===s.substr(-1)?s:s+"/";e.textContent=o}document.addEventListener("DOMContentLoaded",(function(){void 0===window.docusaurus&&insertBanner()}))</script><script data-rh="true" type="application/ld+json">{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Overview","item":"https://fbidb.io/"}]}</script><link rel="stylesheet" href="/assets/css/styles.4b4505f8.css">
-<script src="/assets/js/runtime~main.174bd878.js" defer="defer"></script>
+<script src="/assets/js/runtime~main.5fdf8a28.js" defer="defer"></script>
 <script src="/assets/js/main.24c1ecdc.js" defer="defer"></script>
 </head>
 <body>
@@ -22,8 +22,8 @@
 <p>The <a class="" href="/idb/architecture">Architecture page</a> describes how these fit together. <code>idb</code> is nearly a pure Swift codebase: the companion and the frameworks are Swift, apart from the XCTest <code>DTX</code> layer — the same page describes <a class="" href="/idb/architecture#the-transition-to-pure-swift">where that migration stands</a>.</p>
 <p>To get going, <a class="" href="/idb/installation">install idb</a> and take the <a class="" href="/idb/guided-tour">guided tour</a>; the <a class="" href="/idb/commands">Commands page</a> lists the full command surface.</p>
 <!-- -->
-<h2 id="demos">See it drive a simulator</h2><p>Each of these is an end-to-end test, published from a run against a real simulator. <a href="/idb/demos">The demos page</a> has every one.</p><section class="demo_dj8D" aria-labelledby="drive-an-app-from-injected-swift-title"><h2 id="drive-an-app-from-injected-swift-title"><a href="https://github.com/facebook/idb/blob/9b0cfbca13908725ca7a990e93f60e07e023145d/EndToEndTests/test_demos.py#L884" title="Performed by EndToEndTests/test_demos.py:884">Add a control to a running app with injected Swift, then drive it</a></h2><p>Compile a few lines of Swift on the host and run them inside a running app, adding a button the app was never built with. idb finds the new button in the accessibility tree like any other control and taps it. Its label counts the taps, and asking the same live process how many it counted gives the same answer.</p><div class="stage__i3N"><div class="screen_TGW4"><figure class="figure_KgYY"><video class="video_FGCP" controls="" playsinline="" preload="metadata" poster="/demos/media/drive-an-app-from-injected-swift.png" width="604" height="1456"><source src="/demos/media/drive-an-app-from-injected-swift.mp4" type="video/mp4"></video></figure></div><div class="session_DCBj"><div class="terminal_ACBh"><div></div></div><div class="narration_WWLi"><ol class="steps_Timh"><li class="step_OqVk" data-showing="true" aria-current="step"><div class="stepHeader_c4Xv"><span class="count_cRUE">1<!-- --> of <!-- -->7</span><h3 class="stepName_oISX">Add a button to a running app with injected Swift</h3></div><div class="notes_Aipk"><p class="note_RbCd">idb-repl launched the host app with the REPL injected, compiled the Swift on the host and ran it inside the app. The button is plain UIKit, added while the app runs.</p></div><div><pre class="output_Gzin"><code>Added a button to <mark class="highlight_QBEX">com.facebook.idb.replhost</mark>
-</code></pre><details class="more_Vzwx"><summary>Exited 0 after 13.45s<!-- -->; show the command<!-- --> and all 5 lines it printed</summary><pre class="command_UKf1"><code><span class="prompt_qWKD">$ </span>idb-repl app --new-session &#x27;import UIKit
+<h2 id="demos">See it drive a simulator</h2><p>Each of these is an end-to-end test, published from a run against a real simulator. <a href="/idb/demos">The demos page</a> has every one.</p><section class="demo_dj8D" aria-labelledby="drive-an-app-from-injected-swift-title"><h2 id="drive-an-app-from-injected-swift-title"><a href="https://github.com/facebook/idb/blob/0a68192e1f6bd95d909378343bd78efc8234cae8/EndToEndTests/test_demos.py#L884" title="Performed by EndToEndTests/test_demos.py:884">Add a control to a running app with injected Swift, then drive it</a></h2><p>Compile a few lines of Swift on the host and run them inside a running app, adding a button the app was never built with. idb finds the new button in the accessibility tree like any other control and taps it. Its label counts the taps, and asking the same live process how many it counted gives the same answer.</p><div class="stage__i3N"><div class="screen_TGW4"><figure class="figure_KgYY"><video class="video_FGCP" controls="" playsinline="" preload="metadata" poster="/demos/media/drive-an-app-from-injected-swift.png" width="604" height="1456"><source src="/demos/media/drive-an-app-from-injected-swift.mp4" type="video/mp4"></video></figure></div><div class="session_DCBj"><div class="terminal_ACBh"><div></div></div><div class="narration_WWLi"><ol class="steps_Timh"><li class="step_OqVk" data-showing="true" aria-current="step"><div class="stepHeader_c4Xv"><span class="count_cRUE">1<!-- --> of <!-- -->7</span><h3 class="stepName_oISX">Add a button to a running app with injected Swift</h3></div><div class="notes_Aipk"><p class="note_RbCd">idb-repl launched the host app with the REPL injected, compiled the Swift on the host and ran it inside the app. The button is plain UIKit, added while the app runs.</p></div><div><pre class="output_Gzin"><code>Added a button to <mark class="highlight_QBEX">com.facebook.idb.replhost</mark>
+</code></pre><details class="more_Vzwx"><summary>Exited 0 after 13.88s<!-- -->; show the command<!-- --> and all 5 lines it printed</summary><pre class="command_UKf1"><code><span class="prompt_qWKD">$ </span>idb-repl app --new-session &#x27;import UIKit
 return await MainActor.run { () -&gt; String in
   let window = UIApplication.shared.connectedScenes
     .compactMap { ($0 as? UIWindowScene)?.keyWindow }.first
@@ -52,7 +52,7 @@ return await MainActor.run { () -&gt; String in
 </code></pre></details></div></li><li class="step_OqVk" data-showing="true" aria-current="step"><div class="stepHeader_c4Xv"><span class="count_cRUE">2<!-- --> of <!-- -->7</span><h3 class="stepName_oISX">Find the new button by its accessibility identifier</h3></div><div class="notes_Aipk"><p class="note_RbCd">The button is a Button labelled &#x27;Taps: 0&#x27;, 79×34 points at (161, 758). idb reads it like any control the app shipped with.</p></div><div><pre class="output_Gzin"><code>      &quot;identifier&quot;: &quot;<mark class="highlight_QBEX">injected-counter</mark>&quot;,<!-- -->
 <!-- -->      &quot;label&quot;: &quot;<mark class="highlight_QBEX">Taps: 0</mark>&quot;,<!-- -->
 <!-- -->    &quot;value&quot;: &quot;<mark class="highlight_QBEX">injected-counter</mark>&quot;,<!-- -->
-</code></pre><details class="more_Vzwx"><summary>Exited 0 after 0.31s<!-- -->; show the command<!-- --> and all 54 lines it printed</summary><pre class="command_UKf1"><code><span class="prompt_qWKD">$ </span>idb ui describe injected-counter --match-key AXUniqueId --api axbridge --format complete --json</code></pre><pre class="output_Gzin"><code>{<!-- -->
+</code></pre><details class="more_Vzwx"><summary>Exited 0 after 0.21s<!-- -->; show the command<!-- --> and all 54 lines it printed</summary><pre class="command_UKf1"><code><span class="prompt_qWKD">$ </span>idb ui describe injected-counter --match-key AXUniqueId --api axbridge --format complete --json</code></pre><pre class="output_Gzin"><code>{<!-- -->
 <!-- -->  &quot;automation&quot;: null,<!-- -->
 <!-- -->  &quot;backend&quot;: &quot;axbridge-exclusive&quot;,<!-- -->
 <!-- -->  &quot;coverage&quot;: null,<!-- -->
@@ -71,7 +71,7 @@ return await MainActor.run { () -&gt; String in
 <!-- -->      &quot;help&quot;: null,<!-- -->
 <!-- -->      &quot;identifier&quot;: &quot;<mark class="highlight_QBEX">injected-counter</mark>&quot;,<!-- -->
 <!-- -->      &quot;label&quot;: &quot;<mark class="highlight_QBEX">Taps: 0</mark>&quot;,<!-- -->
-<!-- -->      &quot;pid&quot;: 13618,<!-- -->
+<!-- -->      &quot;pid&quot;: 5734,<!-- -->
 <!-- -->      &quot;role_description&quot;: null,<!-- -->
 <!-- -->      &quot;subrole&quot;: null,<!-- -->
 <!-- -->      &quot;title&quot;: null,<!-- -->
@@ -106,8 +106,8 @@ return await MainActor.run { () -&gt; String in
 <!-- -->  },<!-- -->
 <!-- -->  &quot;truncated&quot;: false<!-- -->
 <!-- -->}<!-- -->
-</code></pre></details></div></li><li class="step_OqVk" data-showing="true" aria-current="step"><div class="stepHeader_c4Xv"><span class="count_cRUE">3<!-- --> of <!-- -->7</span><h3 class="stepName_oISX">Tap the new button (1 of 3)</h3></div><div><details class="more_Vzwx"><summary>Exited 0 after 0.37s<!-- -->, printing nothing<!-- -->; show the command</summary><pre class="command_UKf1"><code><span class="prompt_qWKD">$ </span>idb ui tap injected-counter --match-key AXUniqueId</code></pre></details></div></li><li class="step_OqVk" data-showing="true" aria-current="step"><div class="stepHeader_c4Xv"><span class="count_cRUE">4<!-- --> of <!-- -->7</span><h3 class="stepName_oISX">Tap the new button (2 of 3)</h3></div><div><details class="more_Vzwx"><summary>Exited 0 after 0.39s<!-- -->, printing nothing<!-- -->; show the command</summary><pre class="command_UKf1"><code><span class="prompt_qWKD">$ </span>idb ui tap injected-counter --match-key AXUniqueId</code></pre></details></div></li><li class="step_OqVk" data-showing="true" aria-current="step"><div class="stepHeader_c4Xv"><span class="count_cRUE">5<!-- --> of <!-- -->7</span><h3 class="stepName_oISX">Tap the new button (3 of 3)</h3></div><div><details class="more_Vzwx"><summary>Exited 0 after 0.40s<!-- -->, printing nothing<!-- -->; show the command</summary><pre class="command_UKf1"><code><span class="prompt_qWKD">$ </span>idb ui tap injected-counter --match-key AXUniqueId</code></pre></details></div></li><li class="step_OqVk" data-showing="true" aria-current="step"><div class="stepHeader_c4Xv"><span class="count_cRUE">6<!-- --> of <!-- -->7</span><h3 class="stepName_oISX">Read the button&#x27;s label after 3 taps</h3></div><div class="notes_Aipk"><p class="note_RbCd">The label reads &#x27;Taps: 3&#x27;: each tap ran the action the injected Swift attached.</p></div><div><pre class="output_Gzin"><code>      &quot;label&quot;: &quot;<mark class="highlight_QBEX">Taps: 3</mark>&quot;,<!-- -->
-</code></pre><details class="more_Vzwx"><summary>Exited 0 after 0.27s<!-- -->; show the command<!-- --> and all 54 lines it printed</summary><pre class="command_UKf1"><code><span class="prompt_qWKD">$ </span>idb ui describe injected-counter --match-key AXUniqueId --api axbridge --format complete --json</code></pre><pre class="output_Gzin"><code>{<!-- -->
+</code></pre></details></div></li><li class="step_OqVk" data-showing="true" aria-current="step"><div class="stepHeader_c4Xv"><span class="count_cRUE">3<!-- --> of <!-- -->7</span><h3 class="stepName_oISX">Tap the new button (1 of 3)</h3></div><div><details class="more_Vzwx"><summary>Exited 0 after 0.29s<!-- -->, printing nothing<!-- -->; show the command</summary><pre class="command_UKf1"><code><span class="prompt_qWKD">$ </span>idb ui tap injected-counter --match-key AXUniqueId</code></pre></details></div></li><li class="step_OqVk" data-showing="true" aria-current="step"><div class="stepHeader_c4Xv"><span class="count_cRUE">4<!-- --> of <!-- -->7</span><h3 class="stepName_oISX">Tap the new button (2 of 3)</h3></div><div><details class="more_Vzwx"><summary>Exited 0 after 0.33s<!-- -->, printing nothing<!-- -->; show the command</summary><pre class="command_UKf1"><code><span class="prompt_qWKD">$ </span>idb ui tap injected-counter --match-key AXUniqueId</code></pre></details></div></li><li class="step_OqVk" data-showing="true" aria-current="step"><div class="stepHeader_c4Xv"><span class="count_cRUE">5<!-- --> of <!-- -->7</span><h3 class="stepName_oISX">Tap the new button (3 of 3)</h3></div><div><details class="more_Vzwx"><summary>Exited 0 after 0.26s<!-- -->, printing nothing<!-- -->; show the command</summary><pre class="command_UKf1"><code><span class="prompt_qWKD">$ </span>idb ui tap injected-counter --match-key AXUniqueId</code></pre></details></div></li><li class="step_OqVk" data-showing="true" aria-current="step"><div class="stepHeader_c4Xv"><span class="count_cRUE">6<!-- --> of <!-- -->7</span><h3 class="stepName_oISX">Read the button&#x27;s label after 3 taps</h3></div><div class="notes_Aipk"><p class="note_RbCd">The label reads &#x27;Taps: 3&#x27;: each tap ran the action the injected Swift attached.</p></div><div><pre class="output_Gzin"><code>      &quot;label&quot;: &quot;<mark class="highlight_QBEX">Taps: 3</mark>&quot;,<!-- -->
+</code></pre><details class="more_Vzwx"><summary>Exited 0 after 0.20s<!-- -->; show the command<!-- --> and all 54 lines it printed</summary><pre class="command_UKf1"><code><span class="prompt_qWKD">$ </span>idb ui describe injected-counter --match-key AXUniqueId --api axbridge --format complete --json</code></pre><pre class="output_Gzin"><code>{<!-- -->
 <!-- -->  &quot;automation&quot;: null,<!-- -->
 <!-- -->  &quot;backend&quot;: &quot;axbridge-exclusive&quot;,<!-- -->
 <!-- -->  &quot;coverage&quot;: null,<!-- -->
@@ -126,7 +126,7 @@ return await MainActor.run { () -&gt; String in
 <!-- -->      &quot;help&quot;: null,<!-- -->
 <!-- -->      &quot;identifier&quot;: &quot;injected-counter&quot;,<!-- -->
 <!-- -->      &quot;label&quot;: &quot;<mark class="highlight_QBEX">Taps: 3</mark>&quot;,<!-- -->
-<!-- -->      &quot;pid&quot;: 13618,<!-- -->
+<!-- -->      &quot;pid&quot;: 5734,<!-- -->
 <!-- -->      &quot;role_description&quot;: null,<!-- -->
 <!-- -->      &quot;subrole&quot;: null,<!-- -->
 <!-- -->      &quot;title&quot;: null,<!-- -->
@@ -162,7 +162,7 @@ return await MainActor.run { () -&gt; String in
 <!-- -->  &quot;truncated&quot;: false<!-- -->
 <!-- -->}<!-- -->
 </code></pre></details></div></li><li class="step_OqVk" data-showing="true" aria-current="step"><div class="stepHeader_c4Xv"><span class="count_cRUE">7<!-- --> of <!-- -->7</span><h3 class="stepName_oISX">Ask the running app how many taps it counted</h3></div><div class="notes_Aipk"><p class="note_RbCd">idb-repl attached to the same process rather than relaunching it, so the button and its count of 3 were still there.</p></div><div><pre class="output_Gzin"><code>The button counted <mark class="highlight_QBEX">3 taps</mark>
-</code></pre><details class="more_Vzwx"><summary>Exited 0 after 2.77s<!-- -->; show the command<!-- --> and all 5 lines it printed</summary><pre class="command_UKf1"><code><span class="prompt_qWKD">$ </span>idb-repl app &#x27;import UIKit
+</code></pre><details class="more_Vzwx"><summary>Exited 0 after 1.06s<!-- -->; show the command<!-- --> and all 5 lines it printed</summary><pre class="command_UKf1"><code><span class="prompt_qWKD">$ </span>idb-repl app &#x27;import UIKit
 return await MainActor.run { () -&gt; String in
   func counter(in view: UIView) -&gt; UIButton? {
     if view.accessibilityIdentifier == &quot;injected-counter&quot; { return view as? UIButton }
@@ -178,16 +178,16 @@ return await MainActor.run { () -&gt; String in
 </code></pre><p class="label_PmaK">Errors</p><pre class="output_Gzin"><code>idb-repl: received generated interface(s):<!-- -->
 <!-- -->  IDBAPI<!-- -->
 <!-- -->idb-repl: compiling injected code for arm64-apple-ios26.5-simulator<!-- -->
-</code></pre></details></div></li></ol></div></div></div></section><section class="demo_dj8D" aria-labelledby="spin-safaris-address-bar-title"><h2 id="spin-safaris-address-bar-title"><a href="https://github.com/facebook/idb/blob/9b0cfbca13908725ca7a990e93f60e07e023145d/EndToEndTests/test_demos.py#L980" title="Performed by EndToEndTests/test_demos.py:980">Spin Safari&#x27;s address bar, and tap it anyway</a></h2><p>Inject Swift into Safari, one of Apple&#x27;s own apps, and set its address bar spinning with Core Animation. The spin only changes what is drawn, so the accessibility tree still reports the bar exactly where it was, and idb taps it mid-spin. Then stop it.</p><div class="stage__i3N"><div class="screen_TGW4"><figure class="figure_KgYY"><video class="video_FGCP" controls="" playsinline="" preload="metadata" poster="/demos/media/spin-safaris-address-bar.png" width="604" height="1456"><source src="/demos/media/spin-safaris-address-bar.mp4" type="video/mp4"></video></figure></div><div class="session_DCBj"><div class="terminal_ACBh"><div></div></div><div class="narration_WWLi"><ol class="steps_Timh"><li class="step_OqVk" data-showing="true" aria-current="step"><div class="stepHeader_c4Xv"><span class="count_cRUE">1<!-- --> of <!-- -->7</span><h3 class="stepName_oISX">Launch Safari with Swift injected, and ask who it is</h3></div><div class="notes_Aipk"><p class="note_RbCd">The Swift ran inside Safari, which answers com.apple.mobilesafari. Nothing about Safari was rebuilt or re-signed.</p></div><div><pre class="output_Gzin"><code><mark class="highlight_QBEX">com.apple.mobilesafari</mark>
-</code></pre><details class="more_Vzwx"><summary>Exited 0 after 3.95s<!-- -->; show the command<!-- --> and all 5 lines it printed</summary><pre class="command_UKf1"><code><span class="prompt_qWKD">$ </span>idb-repl app --bundle-id com.apple.mobilesafari --new-session &#x27;return Bundle.main.bundleIdentifier ?? &quot;no bundle&quot;&#x27;</code></pre><pre class="output_Gzin"><code>Result:<!-- -->
+</code></pre></details></div></li></ol></div></div></div></section><section class="demo_dj8D" aria-labelledby="spin-safaris-address-bar-title"><h2 id="spin-safaris-address-bar-title"><a href="https://github.com/facebook/idb/blob/0a68192e1f6bd95d909378343bd78efc8234cae8/EndToEndTests/test_demos.py#L980" title="Performed by EndToEndTests/test_demos.py:980">Spin Safari&#x27;s address bar, and tap it anyway</a></h2><p>Inject Swift into Safari, one of Apple&#x27;s own apps, and set its address bar spinning with Core Animation. The spin only changes what is drawn, so the accessibility tree still reports the bar exactly where it was, and idb taps it mid-spin. Then stop it.</p><div class="stage__i3N"><div class="screen_TGW4"><figure class="figure_KgYY"><video class="video_FGCP" controls="" playsinline="" preload="metadata" poster="/demos/media/spin-safaris-address-bar.png" width="604" height="1456"><source src="/demos/media/spin-safaris-address-bar.mp4" type="video/mp4"></video></figure></div><div class="session_DCBj"><div class="terminal_ACBh"><div></div></div><div class="narration_WWLi"><ol class="steps_Timh"><li class="step_OqVk" data-showing="true" aria-current="step"><div class="stepHeader_c4Xv"><span class="count_cRUE">1<!-- --> of <!-- -->7</span><h3 class="stepName_oISX">Launch Safari with Swift injected, and ask who it is</h3></div><div class="notes_Aipk"><p class="note_RbCd">The Swift ran inside Safari, which answers com.apple.mobilesafari. Nothing about Safari was rebuilt or re-signed.</p></div><div><pre class="output_Gzin"><code><mark class="highlight_QBEX">com.apple.mobilesafari</mark>
+</code></pre><details class="more_Vzwx"><summary>Exited 0 after 6.52s<!-- -->; show the command<!-- --> and all 5 lines it printed</summary><pre class="command_UKf1"><code><span class="prompt_qWKD">$ </span>idb-repl app --bundle-id com.apple.mobilesafari --new-session &#x27;return Bundle.main.bundleIdentifier ?? &quot;no bundle&quot;&#x27;</code></pre><pre class="output_Gzin"><code>Result:<!-- -->
 <mark class="highlight_QBEX">com.apple.mobilesafari</mark>
 </code></pre><p class="label_PmaK">Errors</p><pre class="output_Gzin"><code>idb-repl: received generated interface(s):<!-- -->
 <!-- -->  IDBAPI<!-- -->
 <!-- -->idb-repl: compiling injected code for arm64-apple-ios26.5-simulator<!-- -->
-</code></pre></details></div></li><li class="step_OqVk" data-showing="true" aria-current="step"><div class="stepHeader_c4Xv"><span class="count_cRUE">2<!-- --> of <!-- -->7</span><h3 class="stepName_oISX">Open a page in the same Safari</h3></div><div><details class="more_Vzwx"><summary>Exited 0 after 0.33s<!-- -->, printing nothing<!-- -->; show the command</summary><pre class="command_UKf1"><code><span class="prompt_qWKD">$ </span>idb open http://127.0.0.1:PORT/docs/idb/fbsimulatorcontrol</code></pre></details></div></li><li class="step_OqVk" data-showing="true" aria-current="step"><div class="stepHeader_c4Xv"><span class="count_cRUE">3<!-- --> of <!-- -->7</span><h3 class="stepName_oISX">Find the address bar</h3></div><div class="notes_Aipk"><p class="note_RbCd">The address bar has accessibility identifier TabBarItemTitle and is 66×20 points at (168, 806).</p></div><div><pre class="output_Gzin"><code>      &quot;identifier&quot;: &quot;<mark class="highlight_QBEX">TabBarItemTitle</mark>&quot;,<!-- -->
+</code></pre></details></div></li><li class="step_OqVk" data-showing="true" aria-current="step"><div class="stepHeader_c4Xv"><span class="count_cRUE">2<!-- --> of <!-- -->7</span><h3 class="stepName_oISX">Open a page in the same Safari</h3></div><div><details class="more_Vzwx"><summary>Exited 0 after 1.27s<!-- -->, printing nothing<!-- -->; show the command</summary><pre class="command_UKf1"><code><span class="prompt_qWKD">$ </span>idb open http://127.0.0.1:PORT/docs/idb/fbsimulatorcontrol</code></pre></details></div></li><li class="step_OqVk" data-showing="true" aria-current="step"><div class="stepHeader_c4Xv"><span class="count_cRUE">3<!-- --> of <!-- -->7</span><h3 class="stepName_oISX">Find the address bar</h3></div><div class="notes_Aipk"><p class="note_RbCd">The address bar has accessibility identifier TabBarItemTitle and is 66×20 points at (168, 806).</p></div><div><pre class="output_Gzin"><code>      &quot;identifier&quot;: &quot;<mark class="highlight_QBEX">TabBarItemTitle</mark>&quot;,<!-- -->
 <!-- -->      &quot;type&quot;: &quot;SFUnified<mark class="highlight_QBEX">TabBarItemTitle</mark>ContainerView&quot;,<!-- -->
 <!-- -->    &quot;value&quot;: &quot;<mark class="highlight_QBEX">TabBarItemTitle</mark>&quot;,<!-- -->
-</code></pre><details class="more_Vzwx"><summary>Exited 0 after 0.23s<!-- -->; show the command<!-- --> and all 55 lines it printed</summary><pre class="command_UKf1"><code><span class="prompt_qWKD">$ </span>idb ui describe TabBarItemTitle --match-key AXUniqueId --api axbridge --format complete --json</code></pre><pre class="output_Gzin"><code>{<!-- -->
+</code></pre><details class="more_Vzwx"><summary>Exited 0 after 0.24s<!-- -->; show the command<!-- --> and all 55 lines it printed</summary><pre class="command_UKf1"><code><span class="prompt_qWKD">$ </span>idb ui describe TabBarItemTitle --match-key AXUniqueId --api axbridge --format complete --json</code></pre><pre class="output_Gzin"><code>{<!-- -->
 <!-- -->  &quot;automation&quot;: null,<!-- -->
 <!-- -->  &quot;backend&quot;: &quot;axbridge-exclusive&quot;,<!-- -->
 <!-- -->  &quot;coverage&quot;: null,<!-- -->
@@ -206,7 +206,7 @@ return await MainActor.run { () -&gt; String in
 <!-- -->      &quot;help&quot;: null,<!-- -->
 <!-- -->      &quot;identifier&quot;: &quot;<mark class="highlight_QBEX">TabBarItemTitle</mark>&quot;,<!-- -->
 <!-- -->      &quot;label&quot;: &quot;Address&quot;,<!-- -->
-<!-- -->      &quot;pid&quot;: 16343,<!-- -->
+<!-- -->      &quot;pid&quot;: 8897,<!-- -->
 <!-- -->      &quot;role_description&quot;: null,<!-- -->
 <!-- -->      &quot;subrole&quot;: null,<!-- -->
 <!-- -->      &quot;title&quot;: null,<!-- -->
@@ -243,7 +243,7 @@ return await MainActor.run { () -&gt; String in
 <!-- -->  &quot;truncated&quot;: false<!-- -->
 <!-- -->}<!-- -->
 </code></pre></details></div></li><li class="step_OqVk" data-showing="true" aria-current="step"><div class="stepHeader_c4Xv"><span class="count_cRUE">4<!-- --> of <!-- -->7</span><h3 class="stepName_oISX">Set the address bar spinning</h3></div><div class="notes_Aipk"><p class="note_RbCd">The Swift climbed from the address text to the bar around it and added a rotation that repeats forever.</p></div><div><pre class="output_Gzin"><code><mark class="highlight_QBEX">Spinning a SFCapsuleView, 222×48 points at (90, 792)</mark>
-</code></pre><details class="more_Vzwx"><summary>Exited 0 after 0.86s<!-- -->; show the command<!-- --> and all 5 lines it printed</summary><pre class="command_UKf1"><code><span class="prompt_qWKD">$ </span>idb-repl app --bundle-id com.apple.mobilesafari &#x27;import UIKit
+</code></pre><details class="more_Vzwx"><summary>Exited 0 after 0.85s<!-- -->; show the command<!-- --> and all 5 lines it printed</summary><pre class="command_UKf1"><code><span class="prompt_qWKD">$ </span>idb-repl app --bundle-id com.apple.mobilesafari &#x27;import UIKit
 return await MainActor.run { () -&gt; String in
   func addressTexts(in view: UIView) -&gt; [UIView] {
     if view.accessibilityIdentifier == &quot;TabBarItemTitle&quot; { return [view] }
@@ -289,7 +289,7 @@ return await MainActor.run { () -&gt; String in
 </code></pre></details></div></li><li class="step_OqVk" data-showing="true" aria-current="step"><div class="stepHeader_c4Xv"><span class="count_cRUE">5<!-- --> of <!-- -->7</span><h3 class="stepName_oISX">Find the address bar while it spins</h3></div><div class="notes_Aipk"><p class="note_RbCd">It is still 66×20 points at (168, 806). Core Animation spins what is drawn, not where UIKit lays the view out, and the accessibility tree reports the layout.</p></div><div><pre class="output_Gzin"><code>      &quot;identifier&quot;: &quot;<mark class="highlight_QBEX">TabBarItemTitle</mark>&quot;,<!-- -->
 <!-- -->      &quot;type&quot;: &quot;SFUnified<mark class="highlight_QBEX">TabBarItemTitle</mark>ContainerView&quot;,<!-- -->
 <!-- -->    &quot;value&quot;: &quot;<mark class="highlight_QBEX">TabBarItemTitle</mark>&quot;,<!-- -->
-</code></pre><details class="more_Vzwx"><summary>Exited 0 after 0.28s<!-- -->; show the command<!-- --> and all 55 lines it printed</summary><pre class="command_UKf1"><code><span class="prompt_qWKD">$ </span>idb ui describe TabBarItemTitle --match-key AXUniqueId --api axbridge --format complete --json</code></pre><pre class="output_Gzin"><code>{<!-- -->
+</code></pre><details class="more_Vzwx"><summary>Exited 0 after 0.38s<!-- -->; show the command<!-- --> and all 55 lines it printed</summary><pre class="command_UKf1"><code><span class="prompt_qWKD">$ </span>idb ui describe TabBarItemTitle --match-key AXUniqueId --api axbridge --format complete --json</code></pre><pre class="output_Gzin"><code>{<!-- -->
 <!-- -->  &quot;automation&quot;: null,<!-- -->
 <!-- -->  &quot;backend&quot;: &quot;axbridge-exclusive&quot;,<!-- -->
 <!-- -->  &quot;coverage&quot;: null,<!-- -->
@@ -308,7 +308,7 @@ return await MainActor.run { () -&gt; String in
 <!-- -->      &quot;help&quot;: null,<!-- -->
 <!-- -->      &quot;identifier&quot;: &quot;<mark class="highlight_QBEX">TabBarItemTitle</mark>&quot;,<!-- -->
 <!-- -->      &quot;label&quot;: &quot;Address&quot;,<!-- -->
-<!-- -->      &quot;pid&quot;: 16343,<!-- -->
+<!-- -->      &quot;pid&quot;: 8897,<!-- -->
 <!-- -->      &quot;role_description&quot;: null,<!-- -->
 <!-- -->      &quot;subrole&quot;: null,<!-- -->
 <!-- -->      &quot;title&quot;: null,<!-- -->
@@ -344,8 +344,8 @@ return await MainActor.run { () -&gt; String in
 <!-- -->  },<!-- -->
 <!-- -->  &quot;truncated&quot;: false<!-- -->
 <!-- -->}<!-- -->
-</code></pre></details></div></li><li class="step_OqVk" data-showing="true" aria-current="step"><div class="stepHeader_c4Xv"><span class="count_cRUE">6<!-- --> of <!-- -->7</span><h3 class="stepName_oISX">Tap the spinning address bar</h3></div><div class="notes_Aipk"><p class="note_RbCd">The tap landed where the bar is laid out, and Safari gave the address field the cursor.</p></div><div><details class="more_Vzwx"><summary>Exited 0 after 0.96s<!-- -->, printing nothing<!-- -->; show the command</summary><pre class="command_UKf1"><code><span class="prompt_qWKD">$ </span>idb ui tap TabBarItemTitle --match-key AXUniqueId</code></pre></details></div></li><li class="step_OqVk" data-showing="true" aria-current="step"><div class="stepHeader_c4Xv"><span class="count_cRUE">7<!-- --> of <!-- -->7</span><h3 class="stepName_oISX">Stop the spin</h3></div><div class="notes_Aipk"><p class="note_RbCd">idb-repl attached to the same live Safari, so this Swift found the view the first injection left in the main thread&#x27;s dictionary and removed its animation.</p></div><div><pre class="output_Gzin"><code><mark class="highlight_QBEX">Stopped the SFCapsuleView</mark>
-</code></pre><details class="more_Vzwx"><summary>Exited 0 after 0.63s<!-- -->; show the command<!-- --> and all 5 lines it printed</summary><pre class="command_UKf1"><code><span class="prompt_qWKD">$ </span>idb-repl app --bundle-id com.apple.mobilesafari &#x27;import UIKit
+</code></pre></details></div></li><li class="step_OqVk" data-showing="true" aria-current="step"><div class="stepHeader_c4Xv"><span class="count_cRUE">6<!-- --> of <!-- -->7</span><h3 class="stepName_oISX">Tap the spinning address bar</h3></div><div class="notes_Aipk"><p class="note_RbCd">The tap landed where the bar is laid out, and Safari gave the address field the cursor.</p></div><div><details class="more_Vzwx"><summary>Exited 0 after 0.88s<!-- -->, printing nothing<!-- -->; show the command</summary><pre class="command_UKf1"><code><span class="prompt_qWKD">$ </span>idb ui tap TabBarItemTitle --match-key AXUniqueId</code></pre></details></div></li><li class="step_OqVk" data-showing="true" aria-current="step"><div class="stepHeader_c4Xv"><span class="count_cRUE">7<!-- --> of <!-- -->7</span><h3 class="stepName_oISX">Stop the spin</h3></div><div class="notes_Aipk"><p class="note_RbCd">idb-repl attached to the same live Safari, so this Swift found the view the first injection left in the main thread&#x27;s dictionary and removed its animation.</p></div><div><pre class="output_Gzin"><code><mark class="highlight_QBEX">Stopped the SFCapsuleView</mark>
+</code></pre><details class="more_Vzwx"><summary>Exited 0 after 0.79s<!-- -->; show the command<!-- --> and all 5 lines it printed</summary><pre class="command_UKf1"><code><span class="prompt_qWKD">$ </span>idb-repl app --bundle-id com.apple.mobilesafari &#x27;import UIKit
 return await MainActor.run { () -&gt; String in
   guard let bar = Thread.main.threadDictionary[&quot;idb-spin&quot;] as? UIView
   else { return &quot;Nothing is spinning&quot; }
@@ -357,11 +357,11 @@ return await MainActor.run { () -&gt; String in
 </code></pre><p class="label_PmaK">Errors</p><pre class="output_Gzin"><code>idb-repl: received generated interface(s):<!-- -->
 <!-- -->  IDBAPI<!-- -->
 <!-- -->idb-repl: compiling injected code for arm64-apple-ios26.5-simulator<!-- -->
-</code></pre></details></div></li></ol></div></div></div></section><section class="demo_dj8D" aria-labelledby="read-web-content-in-safari-title"><h2 id="read-web-content-in-safari-title"><a href="https://github.com/facebook/idb/blob/9b0cfbca13908725ca7a990e93f60e07e023145d/EndToEndTests/test_demos.py#L571" title="Performed by EndToEndTests/test_demos.py:571">Read and navigate web content in Safari, including off-screen elements</a></h2><p>Read a web page&#x27;s own elements, not just Safari&#x27;s toolbar, and find a heading several screens below the visible area without scrolling to it. Then type a new address into Safari&#x27;s address bar, submit it with a key press, and find a label drawn inside one of the new page&#x27;s diagrams.</p><div class="stage__i3N"><div class="screen_TGW4"><figure class="figure_KgYY"><video class="video_FGCP" controls="" playsinline="" preload="metadata" poster="/demos/media/read-web-content-in-safari.png" width="604" height="1456"><source src="/demos/media/read-web-content-in-safari.mp4" type="video/mp4"></video></figure></div><div class="session_DCBj"><div class="terminal_ACBh"><div></div></div><div class="narration_WWLi"><ol class="steps_Timh"><li class="step_OqVk" data-showing="true" aria-current="step"><div class="stepHeader_c4Xv"><span class="count_cRUE">1<!-- --> of <!-- -->7</span><h3 class="stepName_oISX">Open idb&#x27;s documentation in Safari</h3></div><div><details class="more_Vzwx"><summary>Exited 0 after 0.56s<!-- -->, printing nothing<!-- -->; show the command</summary><pre class="command_UKf1"><code><span class="prompt_qWKD">$ </span>idb open https://fbidb.io/docs/idb/fbsimulatorcontrol</code></pre></details></div></li><li class="step_OqVk" data-showing="true" aria-current="step"><div class="stepHeader_c4Xv"><span class="count_cRUE">2<!-- --> of <!-- -->7</span><h3 class="stepName_oISX">Find a single heading in the page&#x27;s accessibility tree</h3></div><div class="notes_Aipk"><p class="note_RbCd">idb searched 1413 elements of the page and found the heading at y=7832, about 9 screens down the page. Nothing was scrolled.</p></div><div><pre class="output_Gzin"><code>          &quot;label&quot;: &quot;<mark class="highlight_QBEX">Functionality beyond Apple&#x27;s tools</mark>&quot;<!-- -->
+</code></pre></details></div></li></ol></div></div></div></section><section class="demo_dj8D" aria-labelledby="read-web-content-in-safari-title"><h2 id="read-web-content-in-safari-title"><a href="https://github.com/facebook/idb/blob/0a68192e1f6bd95d909378343bd78efc8234cae8/EndToEndTests/test_demos.py#L571" title="Performed by EndToEndTests/test_demos.py:571">Read and navigate web content in Safari, including off-screen elements</a></h2><p>Read a web page&#x27;s own elements, not just Safari&#x27;s toolbar, and find a heading several screens below the visible area without scrolling to it. Then type a new address into Safari&#x27;s address bar, submit it with a key press, and find a label drawn inside one of the new page&#x27;s diagrams.</p><div class="stage__i3N"><div class="screen_TGW4"><figure class="figure_KgYY"><video class="video_FGCP" controls="" playsinline="" preload="metadata" poster="/demos/media/read-web-content-in-safari.png" width="604" height="1456"><source src="/demos/media/read-web-content-in-safari.mp4" type="video/mp4"></video></figure></div><div class="session_DCBj"><div class="terminal_ACBh"><div></div></div><div class="narration_WWLi"><ol class="steps_Timh"><li class="step_OqVk" data-showing="true" aria-current="step"><div class="stepHeader_c4Xv"><span class="count_cRUE">1<!-- --> of <!-- -->7</span><h3 class="stepName_oISX">Open idb&#x27;s documentation in Safari</h3></div><div><details class="more_Vzwx"><summary>Exited 0 after 0.44s<!-- -->, printing nothing<!-- -->; show the command</summary><pre class="command_UKf1"><code><span class="prompt_qWKD">$ </span>idb open https://fbidb.io/docs/idb/fbsimulatorcontrol</code></pre></details></div></li><li class="step_OqVk" data-showing="true" aria-current="step"><div class="stepHeader_c4Xv"><span class="count_cRUE">2<!-- --> of <!-- -->7</span><h3 class="stepName_oISX">Find a single heading in the page&#x27;s accessibility tree</h3></div><div class="notes_Aipk"><p class="note_RbCd">idb searched 1413 elements of the page and found the heading at y=7832, about 9 screens down the page. Nothing was scrolled.</p></div><div><pre class="output_Gzin"><code>          &quot;label&quot;: &quot;<mark class="highlight_QBEX">Functionality beyond Apple&#x27;s tools</mark>&quot;<!-- -->
 <!-- -->          &quot;label&quot;: &quot;Direct link to <mark class="highlight_QBEX">Functionality beyond Apple&#x27;s tools</mark>&quot;<!-- -->
 <!-- -->      &quot;label&quot;: &quot;<mark class="highlight_QBEX">Functionality beyond Apple&#x27;s tools</mark> Direct link to <mark class="highlight_QBEX">Functionality beyond Apple&#x27;s tools</mark>&quot;<!-- -->
 <!-- -->    &quot;walked&quot;: <mark class="highlight_QBEX">1413</mark>
-</code></pre><details class="more_Vzwx"><summary>Exited 0 after 1.16s<!-- -->; show the command<!-- --> and all 71 lines it printed</summary><pre class="command_UKf1"><code><span class="prompt_qWKD">$ </span>idb ui describe-all --api axbridge --format complete --match &#x27;Functionality beyond Apple&#x27; --key AXLabel --key AXFrame --json</code></pre><pre class="output_Gzin"><code>{<!-- -->
+</code></pre><details class="more_Vzwx"><summary>Exited 0 after 1.42s<!-- -->; show the command<!-- --> and all 71 lines it printed</summary><pre class="command_UKf1"><code><span class="prompt_qWKD">$ </span>idb ui describe-all --api axbridge --format complete --match &#x27;Functionality beyond Apple&#x27; --key AXLabel --key AXFrame --json</code></pre><pre class="output_Gzin"><code>{<!-- -->
 <!-- -->  &quot;automation&quot;: {<!-- -->
 <!-- -->    &quot;asserted&quot;: false,<!-- -->
 <!-- -->    &quot;enabled&quot;: true<!-- -->
@@ -432,8 +432,8 @@ return await MainActor.run { () -&gt; String in
 <!-- -->  },<!-- -->
 <!-- -->  &quot;truncated&quot;: false<!-- -->
 <!-- -->}<!-- -->
-</code></pre></details></div></li><li class="step_OqVk" data-showing="true" aria-current="step"><div class="stepHeader_c4Xv"><span class="count_cRUE">3<!-- --> of <!-- -->7</span><h3 class="stepName_oISX">Tap the address bar by accessibility identifier</h3></div><div class="notes_Aipk"><p class="note_RbCd">Safari&#x27;s address bar has accessibility identifier TabBarItemTitle, so idb taps it like any native control.</p></div><div><details class="more_Vzwx"><summary>Exited 0 after 2.74s<!-- -->, printing nothing<!-- -->; show the command</summary><pre class="command_UKf1"><code><span class="prompt_qWKD">$ </span>idb ui tap TabBarItemTitle --match-key AXUniqueId</code></pre></details></div></li><li class="step_OqVk" data-showing="true" aria-current="step"><div class="stepHeader_c4Xv"><span class="count_cRUE">4<!-- --> of <!-- -->7</span><h3 class="stepName_oISX">Type the address of a second page</h3></div><div><details class="more_Vzwx"><summary>Exited 0 after 0.82s<!-- -->, printing nothing<!-- -->; show the command</summary><pre class="command_UKf1"><code><span class="prompt_qWKD">$ </span>idb ui text https://fbidb.io/docs/idb/accessibility</code></pre></details></div></li><li class="step_OqVk" data-showing="true" aria-current="step"><div class="stepHeader_c4Xv"><span class="count_cRUE">5<!-- --> of <!-- -->7</span><h3 class="stepName_oISX">Read the address bar&#x27;s value back</h3></div><div class="notes_Aipk"><p class="note_RbCd">The address bar reads &#x27;https://fbidb.io/docs/idb/accessibility&#x27;, exactly what was typed.</p></div><div><pre class="output_Gzin"><code>      &quot;value&quot;: &quot;<mark class="highlight_QBEX">https://fbidb.io/docs/idb/accessibility</mark>&quot;<!-- -->
-</code></pre><details class="more_Vzwx"><summary>Exited 0 after 0.33s<!-- -->; show the command<!-- --> and all 57 lines it printed</summary><pre class="command_UKf1"><code><span class="prompt_qWKD">$ </span>idb ui describe URL --match-key AXUniqueId --api axbridge --format complete --json</code></pre><pre class="output_Gzin"><code>{<!-- -->
+</code></pre></details></div></li><li class="step_OqVk" data-showing="true" aria-current="step"><div class="stepHeader_c4Xv"><span class="count_cRUE">3<!-- --> of <!-- -->7</span><h3 class="stepName_oISX">Tap the address bar by accessibility identifier</h3></div><div class="notes_Aipk"><p class="note_RbCd">Safari&#x27;s address bar has accessibility identifier TabBarItemTitle, so idb taps it like any native control.</p></div><div><details class="more_Vzwx"><summary>Exited 0 after 1.20s<!-- -->, printing nothing<!-- -->; show the command</summary><pre class="command_UKf1"><code><span class="prompt_qWKD">$ </span>idb ui tap TabBarItemTitle --match-key AXUniqueId</code></pre></details></div></li><li class="step_OqVk" data-showing="true" aria-current="step"><div class="stepHeader_c4Xv"><span class="count_cRUE">4<!-- --> of <!-- -->7</span><h3 class="stepName_oISX">Type the address of a second page</h3></div><div><details class="more_Vzwx"><summary>Exited 0 after 1.58s<!-- -->, printing nothing<!-- -->; show the command</summary><pre class="command_UKf1"><code><span class="prompt_qWKD">$ </span>idb ui text https://fbidb.io/docs/idb/accessibility</code></pre></details></div></li><li class="step_OqVk" data-showing="true" aria-current="step"><div class="stepHeader_c4Xv"><span class="count_cRUE">5<!-- --> of <!-- -->7</span><h3 class="stepName_oISX">Read the address bar&#x27;s value back</h3></div><div class="notes_Aipk"><p class="note_RbCd">The address bar reads &#x27;https://fbidb.io/docs/idb/accessibility&#x27;, exactly what was typed.</p></div><div><pre class="output_Gzin"><code>      &quot;value&quot;: &quot;<mark class="highlight_QBEX">https://fbidb.io/docs/idb/accessibility</mark>&quot;<!-- -->
+</code></pre><details class="more_Vzwx"><summary>Exited 0 after 0.27s<!-- -->; show the command<!-- --> and all 57 lines it printed</summary><pre class="command_UKf1"><code><span class="prompt_qWKD">$ </span>idb ui describe URL --match-key AXUniqueId --api axbridge --format complete --json</code></pre><pre class="output_Gzin"><code>{<!-- -->
 <!-- -->  &quot;automation&quot;: null,<!-- -->
 <!-- -->  &quot;backend&quot;: &quot;axbridge-exclusive&quot;,<!-- -->
 <!-- -->  &quot;coverage&quot;: null,<!-- -->
@@ -452,7 +452,7 @@ return await MainActor.run { () -&gt; String in
 <!-- -->      &quot;help&quot;: null,<!-- -->
 <!-- -->      &quot;identifier&quot;: &quot;URL&quot;,<!-- -->
 <!-- -->      &quot;label&quot;: &quot;Address&quot;,<!-- -->
-<!-- -->      &quot;pid&quot;: 12514,<!-- -->
+<!-- -->      &quot;pid&quot;: 5026,<!-- -->
 <!-- -->      &quot;role_description&quot;: null,<!-- -->
 <!-- -->      &quot;subrole&quot;: null,<!-- -->
 <!-- -->      &quot;title&quot;: null,<!-- -->
@@ -490,15 +490,14 @@ return await MainActor.run { () -&gt; String in
 <!-- -->  },<!-- -->
 <!-- -->  &quot;truncated&quot;: false<!-- -->
 <!-- -->}<!-- -->
-</code></pre></details></div></li><li class="step_OqVk" data-showing="true" aria-current="step"><div class="stepHeader_c4Xv"><span class="count_cRUE">6<!-- --> of <!-- -->7</span><h3 class="stepName_oISX">Submit the address with a key press</h3></div><div><details class="more_Vzwx"><summary>Exited 0 after 0.39s<!-- -->, printing nothing<!-- -->; show the command</summary><pre class="command_UKf1"><code><span class="prompt_qWKD">$ </span>idb ui key 40</code></pre></details></div></li><li class="step_OqVk" data-showing="true" aria-current="step"><div class="stepHeader_c4Xv"><span class="count_cRUE">7<!-- --> of <!-- -->7</span><h3 class="stepName_oISX">Find SimulatorFrameworkBridge on the page that loaded</h3></div><div class="notes_Aipk"><p class="note_RbCd">The page mentions SimulatorFrameworkBridge in 9 places. The smallest is 78×9 points at (279, 2442) on a 402×874 screen: text inside a diagram, readable like any other element.</p></div><div><pre class="output_Gzin"><code>      &quot;label&quot;: &quot;<mark class="highlight_QBEX">SimulatorFrameworkBridge</mark>&quot;<!-- -->
+</code></pre></details></div></li><li class="step_OqVk" data-showing="true" aria-current="step"><div class="stepHeader_c4Xv"><span class="count_cRUE">6<!-- --> of <!-- -->7</span><h3 class="stepName_oISX">Submit the address with a key press</h3></div><div><details class="more_Vzwx"><summary>Exited 0 after 0.40s<!-- -->, printing nothing<!-- -->; show the command</summary><pre class="command_UKf1"><code><span class="prompt_qWKD">$ </span>idb ui key 40</code></pre></details></div></li><li class="step_OqVk" data-showing="true" aria-current="step"><div class="stepHeader_c4Xv"><span class="count_cRUE">7<!-- --> of <!-- -->7</span><h3 class="stepName_oISX">Find SimulatorFrameworkBridge on the page that loaded</h3></div><div class="notes_Aipk"><p class="note_RbCd">The page mentions SimulatorFrameworkBridge in 6 places. The smallest is 209×19 points at (155, 3850) on a 402×874 screen: text inside a diagram, readable like any other element.</p></div><div><pre class="output_Gzin"><code>      &quot;label&quot;: &quot;<mark class="highlight_QBEX">SimulatorFrameworkBridge</mark>&quot;<!-- -->
 <!-- -->      &quot;label&quot;: &quot;<mark class="highlight_QBEX">SimulatorFrameworkBridge</mark>&quot;<!-- -->
-<!-- -->      &quot;label&quot;: &quot;<mark class="highlight_QBEX">SimulatorFrameworkBridge</mark>&quot;<!-- -->
-<!-- -->      &quot;label&quot;: &quot;<mark class="highlight_QBEX">SimulatorFrameworkBridge</mark> (guest)&quot;<!-- -->
-<!-- -->      &quot;label&quot;: &quot;<mark class="highlight_QBEX">SimulatorFrameworkBridge</mark> (guest)&quot;<!-- -->
 <!-- -->      &quot;label&quot;: &quot;<mark class="highlight_QBEX">SimulatorFrameworkBridge</mark>&quot;<!-- -->
 <!-- -->      &quot;label&quot;: &quot;The <mark class="highlight_QBEX">SimulatorFrameworkBridge</mark> guest binary was not found in the companion Resources directory&quot;<!-- -->
 <!-- -->          &quot;label&quot;: &quot;<mark class="highlight_QBEX">SimulatorFrameworkBridge</mark>&quot;<!-- -->
-</code></pre><details class="more_Vzwx"><summary>Exited 0 after 1.33s<!-- -->; show the command<!-- --> and all 131 lines it printed</summary><pre class="command_UKf1"><code><span class="prompt_qWKD">$ </span>idb ui describe-all --api axbridge --format complete --match SimulatorFrameworkBridge --key AXLabel --key AXFrame --json</code></pre><pre class="output_Gzin"><code>{<!-- -->
+<!-- -->      &quot;label&quot;: &quot;.axBridge is --api axbridge: the in-guest reader, through the<mark class="highlight_QBEX">SimulatorFrameworkBridge</mark> helper thatFBSimulatorServices runs inside the booted Simulator. Its persistence chooses which guest serves the read:&quot;<!-- -->
+<!-- -->    &quot;match&quot;: &quot;<mark class="highlight_QBEX">SimulatorFrameworkBridge</mark>&quot;,<!-- -->
+</code></pre><details class="more_Vzwx"><summary>Exited 0 after 1.46s<!-- -->; show the command<!-- --> and all 101 lines it printed</summary><pre class="command_UKf1"><code><span class="prompt_qWKD">$ </span>idb ui describe-all --api axbridge --format complete --match SimulatorFrameworkBridge --key AXLabel --key AXFrame --json</code></pre><pre class="output_Gzin"><code>{<!-- -->
 <!-- -->  &quot;automation&quot;: {<!-- -->
 <!-- -->    &quot;asserted&quot;: false,<!-- -->
 <!-- -->    &quot;enabled&quot;: true<!-- -->
@@ -509,20 +508,10 @@ return await MainActor.run { () -&gt; String in
 <!-- -->    {<!-- -->
 <!-- -->      &quot;children&quot;: [],<!-- -->
 <!-- -->      &quot;frame&quot;: {<!-- -->
-<!-- -->        &quot;height&quot;: 9,<!-- -->
-<!-- -->        &quot;width&quot;: 78,<!-- -->
-<!-- -->        &quot;x&quot;: 279,<!-- -->
-<!-- -->        &quot;y&quot;: 2442<!-- -->
-<!-- -->      },<!-- -->
-<!-- -->      &quot;label&quot;: &quot;<mark class="highlight_QBEX">SimulatorFrameworkBridge</mark>&quot;<!-- -->
-<!-- -->    },<!-- -->
-<!-- -->    {<!-- -->
-<!-- -->      &quot;children&quot;: [],<!-- -->
-<!-- -->      &quot;frame&quot;: {<!-- -->
 <!-- -->        &quot;height&quot;: 19,<!-- -->
 <!-- -->        &quot;width&quot;: 209,<!-- -->
 <!-- -->        &quot;x&quot;: 155,<!-- -->
-<!-- -->        &quot;y&quot;: 4336<!-- -->
+<!-- -->        &quot;y&quot;: 3850<!-- -->
 <!-- -->      },<!-- -->
 <!-- -->      &quot;label&quot;: &quot;<mark class="highlight_QBEX">SimulatorFrameworkBridge</mark>&quot;<!-- -->
 <!-- -->    },<!-- -->
@@ -532,29 +521,9 @@ return await MainActor.run { () -&gt; String in
 <!-- -->        &quot;height&quot;: 19,<!-- -->
 <!-- -->        &quot;width&quot;: 209,<!-- -->
 <!-- -->        &quot;x&quot;: 31,<!-- -->
-<!-- -->        &quot;y&quot;: 5777<!-- -->
+<!-- -->        &quot;y&quot;: 5291<!-- -->
 <!-- -->      },<!-- -->
 <!-- -->      &quot;label&quot;: &quot;<mark class="highlight_QBEX">SimulatorFrameworkBridge</mark>&quot;<!-- -->
-<!-- -->    },<!-- -->
-<!-- -->    {<!-- -->
-<!-- -->      &quot;children&quot;: [],<!-- -->
-<!-- -->      &quot;frame&quot;: {<!-- -->
-<!-- -->        &quot;height&quot;: 9,<!-- -->
-<!-- -->        &quot;width&quot;: 100,<!-- -->
-<!-- -->        &quot;x&quot;: 164,<!-- -->
-<!-- -->        &quot;y&quot;: 6704<!-- -->
-<!-- -->      },<!-- -->
-<!-- -->      &quot;label&quot;: &quot;<mark class="highlight_QBEX">SimulatorFrameworkBridge</mark> (guest)&quot;<!-- -->
-<!-- -->    },<!-- -->
-<!-- -->    {<!-- -->
-<!-- -->      &quot;children&quot;: [],<!-- -->
-<!-- -->      &quot;frame&quot;: {<!-- -->
-<!-- -->        &quot;height&quot;: 8,<!-- -->
-<!-- -->        &quot;width&quot;: 100,<!-- -->
-<!-- -->        &quot;x&quot;: 164,<!-- -->
-<!-- -->        &quot;y&quot;: 6534<!-- -->
-<!-- -->      },<!-- -->
-<!-- -->      &quot;label&quot;: &quot;<mark class="highlight_QBEX">SimulatorFrameworkBridge</mark> (guest)&quot;<!-- -->
 <!-- -->    },<!-- -->
 <!-- -->    {<!-- -->
 <!-- -->      &quot;children&quot;: [],<!-- -->
@@ -562,7 +531,7 @@ return await MainActor.run { () -&gt; String in
 <!-- -->        &quot;height&quot;: 19,<!-- -->
 <!-- -->        &quot;width&quot;: 210,<!-- -->
 <!-- -->        &quot;x&quot;: 94,<!-- -->
-<!-- -->        &quot;y&quot;: 8805<!-- -->
+<!-- -->        &quot;y&quot;: 8107<!-- -->
 <!-- -->      },<!-- -->
 <!-- -->      &quot;label&quot;: &quot;<mark class="highlight_QBEX">SimulatorFrameworkBridge</mark>&quot;<!-- -->
 <!-- -->    },<!-- -->
@@ -572,7 +541,7 @@ return await MainActor.run { () -&gt; String in
 <!-- -->        &quot;height&quot;: 19,<!-- -->
 <!-- -->        &quot;width&quot;: 798,<!-- -->
 <!-- -->        &quot;x&quot;: 32,<!-- -->
-<!-- -->        &quot;y&quot;: 9019<!-- -->
+<!-- -->        &quot;y&quot;: 8321<!-- -->
 <!-- -->      },<!-- -->
 <!-- -->      &quot;label&quot;: &quot;The <mark class="highlight_QBEX">SimulatorFrameworkBridge</mark> guest binary was not found in the companion Resources directory&quot;<!-- -->
 <!-- -->    },<!-- -->
@@ -584,7 +553,7 @@ return await MainActor.run { () -&gt; String in
 <!-- -->            &quot;height&quot;: 19,<!-- -->
 <!-- -->            &quot;width&quot;: 209,<!-- -->
 <!-- -->            &quot;x&quot;: 50,<!-- -->
-<!-- -->            &quot;y&quot;: 29911<!-- -->
+<!-- -->            &quot;y&quot;: 29213<!-- -->
 <!-- -->          },<!-- -->
 <!-- -->          &quot;label&quot;: &quot;<mark class="highlight_QBEX">SimulatorFrameworkBridge</mark>&quot;<!-- -->
 <!-- -->        }<!-- -->
@@ -593,14 +562,14 @@ return await MainActor.run { () -&gt; String in
 <!-- -->        &quot;height&quot;: 557,<!-- -->
 <!-- -->        &quot;width&quot;: 338,<!-- -->
 <!-- -->        &quot;x&quot;: 48,<!-- -->
-<!-- -->        &quot;y&quot;: 29853<!-- -->
+<!-- -->        &quot;y&quot;: 29155<!-- -->
 <!-- -->      },<!-- -->
 <!-- -->      &quot;label&quot;: &quot;.axBridge is --api axbridge: the in-guest reader, through the<mark class="highlight_QBEX">SimulatorFrameworkBridge</mark> helper thatFBSimulatorServices runs inside the booted Simulator. Its persistence chooses which guest serves the read:&quot;<!-- -->
 <!-- -->    }<!-- -->
 <!-- -->  ],<!-- -->
 <!-- -->  &quot;frames&quot;: {<!-- -->
-<!-- -->    &quot;framed&quot;: 9,<!-- -->
-<!-- -->    &quot;total&quot;: 9,<!-- -->
+<!-- -->    &quot;framed&quot;: 6,<!-- -->
+<!-- -->    &quot;total&quot;: 6,<!-- -->
 <!-- -->    &quot;zero_frame&quot;: 0<!-- -->
 <!-- -->  },<!-- -->
 <!-- -->  &quot;interaction&quot;: null,<!-- -->
@@ -610,8 +579,8 @@ return await MainActor.run { () -&gt; String in
 <!-- -->    &quot;ignore_case&quot;: false,<!-- -->
 <!-- -->    &quot;match&quot;: &quot;<mark class="highlight_QBEX">SimulatorFrameworkBridge</mark>&quot;,<!-- -->
 <!-- -->    &quot;match_key&quot;: &quot;AXLabel&quot;,<!-- -->
-<!-- -->    &quot;matched&quot;: 9,<!-- -->
-<!-- -->    &quot;walked&quot;: 2149<!-- -->
+<!-- -->    &quot;matched&quot;: 6,<!-- -->
+<!-- -->    &quot;walked&quot;: 2054<!-- -->
 <!-- -->  },<!-- -->
 <!-- -->  &quot;profile&quot;: null,<!-- -->
 <!-- -->  &quot;screen&quot;: {<!-- -->
