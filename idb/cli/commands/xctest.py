@@ -231,7 +231,7 @@ class CommonRunXcTestCommand(ClientCommand):
         super().add_parser_arguments(parser)
 
     async def run_with_client(self, args: Namespace, client: Client) -> None:
-        # pyrefly: ignore [missing-attribute]
+        # pyrefly: ignore [abstract-method-call, missing-attribute]
         await super().run_with_client(args, client)
 
         is_ui = args.run == "ui"
