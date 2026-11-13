@@ -39,6 +39,12 @@ class BuildPyCommand(setuptools.command.build_py.build_py):
         grpclib_output = output_dir / "idb_grpc.py"
 
         output_dir.mkdir(parents=True, exist_ok=True)
+        # Keep the language-neutral REPL fixture in one canonical location,
+        # while making it available to the installed package's contract test.
+        self.copy_file(
+            str(root / "proto" / "fixtures" / "repl_transcript.v1.json"),
+            str(output_dir / "tests" / "repl_transcript.v1.json"),
+        )
         command = [
             "grpc_tools.protoc",
             "--proto_path={}".format(proto_file.parent),
