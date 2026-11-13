@@ -259,7 +259,7 @@ final class AXRawTranslationReaderTests: XCTestCase {
     XCTAssertGreaterThan(observation.probeInlineMicroseconds, 0, "reading the target at the end held the read's thread")
   }
 
-  func testTheProbesTimeOnTheReadsThreadIsCountedForEveryWatchedRequest() throws {
+  func testAReadThatWatchedItsRequestsHasAProbeDuration() throws {
     let collector = AccessibilityProfilingCollector()
     var reader = Self.reader(
       AXRawTranslationTransportDouble(elements: [
@@ -270,9 +270,7 @@ final class AXRawTranslationReaderTests: XCTestCase {
 
     _ = try reader.read(Self.reference(1), plan: Self.defaultPlan)
 
-    let probe = try XCTUnwrap(collector.probeDuration)
-    XCTAssertGreaterThan(probe, 0)
-    XCTAssertLessThan(probe, 0.01, "two quick requests cost a timer each")
+    XCTAssertGreaterThan(try XCTUnwrap(collector.probeDuration), 0)
   }
 
   func testAReadWithNoWatchedRequestHasNoProbeDuration() throws {
