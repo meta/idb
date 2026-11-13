@@ -10,13 +10,17 @@ It adds these commands to `Simulator`:
 | `photos` | Clears the photo library |
 | `health` | Grants, revokes, lists and clears an application's HealthKit authorizations |
 | `notification` | Sends a push notification, and lists and clears an application's delivered notifications |
-| `privacy` | Grants and revokes privacy permissions (TCC), including location |
+| `privacy` | Grants and revokes privacy permissions (TCC), including location, and approvals for URL schemes |
 | `network` | Sets, lists and clears the proxy and DNS configuration |
 | `preferences` | Applies settings (`SimulatorSetting`): appearance, Dynamic Type, accessibility, keyboard, and raw preferences |
 | `orientation` | Reads and sets the physical device orientation, confirming that a change took effect |
 | `lockScreen` | Reads SpringBoard's lock state, and locks and unlocks the device through SpringBoard rather than the lock button's toggle; an unlock presses the Home button, which SpringBoard honours on every runtime, before the helper confirms it |
 
 Each of these runs some or all of its work in the helper; the rest writes the Simulator's data directory or its defaults directly, and writing an orientation, and the Home button press of an unlock, go through the Simulator's HID services. The helper is staged and spawned on demand and talks to the host over a Unix domain socket. The connection is held per Simulator and reused, so a warm call does not pay to start the helper again. [`FBSimulatorAX`](../FBSimulatorAX/README.md) reads accessibility through the same helper, and [`FBSimulatorCodeInjection`](../FBSimulatorCodeInjection/README.md) starts the Simulator-wide REPL through it.
+
+### URL scheme approvals
+
+Approving a URL scheme for an app records it in the `com.apple.launchservices.schemeapproval` preferences domain, which `lsd` reads to decide whether to open a URL without asking "Open in “App”?" first. `lsd` keeps that domain cached in process and drops its copy only when the Simulator's preferences daemon reports a change, so on a booted Simulator approvals and revocations are written through the daemon with the runtime's `defaults` tool; a plist rewritten underneath it goes unseen. A shut-down Simulator has nothing cached, so its plist is written directly. Other states are refused. A revocation is confirmed by reading the key back. Approving a scheme does not choose which app opens it: when several installed apps claim the scheme, LaunchServices picks one, and if that is not the approved app it asks anyway.
 
 ### Notification service extensions
 

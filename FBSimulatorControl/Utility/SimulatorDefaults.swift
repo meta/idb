@@ -16,6 +16,7 @@ enum SimulatorDefaultsError: Error, CustomStringConvertible {
   case couldNotWritePlist(String)
   case invalidState(TargetState, action: String)
   case commandFailed(command: String, exitCode: Int32, stderr: String)
+  case keyNotRemoved(domain: String, key: String, value: String)
   case noDataDirectory
 
   var description: String {
@@ -28,6 +29,8 @@ enum SimulatorDefaultsError: Error, CustomStringConvertible {
       return "Cannot \(action) a plist when the Simulator state is \(state.stateString), should be \(TargetStateString.shutdown) or \(TargetStateString.booted)"
     case let .commandFailed(command, exitCode, stderr):
       return "defaults \(command) failed with exit code \(exitCode): \(stderr)"
+    case let .keyNotRemoved(domain, key, value):
+      return "\(key) in \(domain) still reads \(value) after defaults deleted it"
     case .noDataDirectory:
       return "The Simulator has no data directory, so its plists cannot be located"
     }
@@ -59,6 +62,15 @@ package struct SimulatorDefaults {
   package func currentPreference(_ name: String, domain: String?) async throws -> String {
     let effectiveDomain = domain ?? SimulatorDefaults.appleGlobalDomain
     return try await defaultValue(inDomain: effectiveDomain, key: name)
+  }
+
+  package func removePreference(_ name: String, domain: String) async throws {
+    _ = try await run(.delete(domainOrPath: domain, key: name))
+    // `defaults delete` exits 1 both for a key that is already absent and for a failed delete.
+    let remaining = try await defaultValue(inDomain: domain, key: name)
+    if !remaining.isEmpty {
+      throw SimulatorDefaultsError.keyNotRemoved(domain: domain, key: name, value: remaining)
+    }
   }
 
   // MARK: - Location Services
@@ -104,7 +116,7 @@ package struct SimulatorDefaults {
     // Delete sequentially: every delete is a read-modify-write of the same clients.plist, so running
     // them concurrently races and can drop entries when revoking several bundle IDs at once.
     for bundleID in bundleIDs {
-      _ = try await run(.delete(path: path, key: bundleID))
+      _ = try await run(.delete(domainOrPath: path, key: bundleID))
     }
 
     if state == .booted {
@@ -144,7 +156,7 @@ package struct SimulatorDefaults {
     case read(domain: String, key: String)
     case write(domain: String, key: String, type: String, value: String)
     case importPlist(domainOrPath: String?, file: String)
-    case delete(path: String, key: String)
+    case delete(domainOrPath: String, key: String)
 
     var arguments: [String] {
       switch self {
@@ -159,8 +171,8 @@ package struct SimulatorDefaults {
         }
         args.append(file)
         return args
-      case let .delete(path, key):
-        return ["delete", path, key]
+      case let .delete(domainOrPath, key):
+        return ["delete", domainOrPath, key]
       }
     }
 

@@ -23,6 +23,7 @@ public enum SimulatorPrivacyError: Error {
   case schemeApprovalPlistUnreadable(path: String)
   case schemeApprovalDirectoryCreationFailed(underlying: Error)
   case schemeApprovalPlistWriteFailed
+  case schemeApprovalUnavailable(state: TargetState)
 }
 
 extension SimulatorPrivacyError: LocalizedError {
@@ -52,6 +53,8 @@ extension SimulatorPrivacyError: LocalizedError {
       return "Failed to create folders for scheme approval plist"
     case .schemeApprovalPlistWriteFailed:
       return "Failed to write scheme approval plist"
+    case let .schemeApprovalUnavailable(state):
+      return "Cannot change URL scheme approvals while the Simulator is \(state.stateString.rawValue); it must be \(TargetStateString.booted.rawValue) or \(TargetStateString.shutdown.rawValue)"
     }
   }
 }
@@ -173,8 +176,61 @@ public struct SimulatorPrivacyCommands {
       throw SimulatorPrivacyError.emptyBundleIDs(operation: "url approve")
     }
 
+    let urlKey = Self.magicDeeplinkKey(forScheme: scheme)
+    switch try schemeApprovalStore() {
+    case .preferencesDaemon:
+      let defaults = SimulatorDefaults(simulator: simulator)
+      for bundleID in bundleIDs {
+        try await defaults.setPreference(urlKey, value: bundleID, type: "string", domain: Self.schemeApprovalDomain)
+      }
+    case .plist:
+      try grantInSchemeApprovalPlist(bundleIDs, urlKey: urlKey)
+    }
+  }
+
+  public func revokeAccess(_ bundleIDs: Set<String>, toDeeplink scheme: String) async throws {
+    if scheme.isEmpty {
+      throw SimulatorPrivacyError.emptyScheme(operation: "url revoke")
+    }
+    if bundleIDs.isEmpty {
+      throw SimulatorPrivacyError.emptyBundleIDs(operation: "url revoke")
+    }
+
+    let urlKey = Self.magicDeeplinkKey(forScheme: scheme)
+    switch try schemeApprovalStore() {
+    case .preferencesDaemon:
+      try await SimulatorDefaults(simulator: simulator).removePreference(urlKey, domain: Self.schemeApprovalDomain)
+    case .plist:
+      try revokeInSchemeApprovalPlist(urlKey: urlKey)
+    }
+  }
+
+  // MARK: - Private
+
+  /// Where a URL scheme approval has to be written for LaunchServices to read it.
+  private enum SchemeApprovalStore {
+    /// The booted Simulator's preferences daemon. `lsd` keeps the approval domain cached in process and drops
+    /// that cache only when the daemon reports a change, so a plist rewritten underneath it goes unseen.
+    case preferencesDaemon
+    /// The plist itself, which nothing holds a copy of while the Simulator is shut down.
+    case plist
+  }
+
+  private func schemeApprovalStore() throws -> SchemeApprovalStore {
+    let state = simulator.state
+    switch state {
+    case .booted:
+      return .preferencesDaemon
+    case .shutdown:
+      return .plist
+    case .creating, .booting, .shuttingDown, .DFU, .recovery, .restoreOS, .unknown:
+      throw SimulatorPrivacyError.schemeApprovalUnavailable(state: state)
+    }
+  }
+
+  private func grantInSchemeApprovalPlist(_ bundleIDs: Set<String>, urlKey: String) throws {
     let preferencesDirectory = (try requireDataDirectory() as NSString).appendingPathComponent("Library/Preferences")
-    let schemeApprovalPlistPath = (preferencesDirectory as NSString).appendingPathComponent("com.apple.launchservices.schemeapproval.plist")
+    let schemeApprovalPlistPath = (preferencesDirectory as NSString).appendingPathComponent("\(Self.schemeApprovalDomain).plist")
 
     var schemeApprovalProperties: NSMutableDictionary = NSMutableDictionary()
     if FileManager.default.fileExists(atPath: schemeApprovalPlistPath) {
@@ -184,7 +240,6 @@ public struct SimulatorPrivacyCommands {
       schemeApprovalProperties = dict
     }
 
-    let urlKey = Self.magicDeeplinkKey(forScheme: scheme)
     for bundleID in bundleIDs {
       schemeApprovalProperties[urlKey] = bundleID
     }
@@ -199,16 +254,9 @@ public struct SimulatorPrivacyCommands {
     }
   }
 
-  public func revokeAccess(_ bundleIDs: Set<String>, toDeeplink scheme: String) async throws {
-    if scheme.isEmpty {
-      throw SimulatorPrivacyError.emptyScheme(operation: "url revoke")
-    }
-    if bundleIDs.isEmpty {
-      throw SimulatorPrivacyError.emptyBundleIDs(operation: "url revoke")
-    }
-
+  private func revokeInSchemeApprovalPlist(urlKey: String) throws {
     let preferencesDirectory = (try requireDataDirectory() as NSString).appendingPathComponent("Library/Preferences")
-    let schemeApprovalPlistPath = (preferencesDirectory as NSString).appendingPathComponent("com.apple.launchservices.schemeapproval.plist")
+    let schemeApprovalPlistPath = (preferencesDirectory as NSString).appendingPathComponent("\(Self.schemeApprovalDomain).plist")
 
     guard FileManager.default.fileExists(atPath: schemeApprovalPlistPath) else {
       return
@@ -217,15 +265,12 @@ public struct SimulatorPrivacyCommands {
       throw SimulatorPrivacyError.schemeApprovalPlistUnreadable(path: schemeApprovalPlistPath)
     }
 
-    let urlKey = Self.magicDeeplinkKey(forScheme: scheme)
     schemeApprovalProperties.removeObject(forKey: urlKey)
 
     if !schemeApprovalProperties.write(toFile: schemeApprovalPlistPath, atomically: true) {
       throw SimulatorPrivacyError.schemeApprovalPlistWriteFailed
     }
   }
-
-  // MARK: - Private
 
   private func requireDataDirectory() throws -> String {
     guard let dataDirectory = simulator.dataDirectory else {
@@ -326,6 +371,8 @@ public struct SimulatorPrivacyCommands {
   private static let coreSimulatorSettingMapping: [TargetSettingsService: String] = [
     .location: "__CoreLocationAlways"
   ]
+
+  private static let schemeApprovalDomain = "com.apple.launchservices.schemeapproval"
 
   internal static func magicDeeplinkKey(forScheme scheme: String) -> String {
     "com.apple.CoreSimulator.CoreSimulatorBridge-->\(scheme)"

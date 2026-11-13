@@ -31,7 +31,7 @@ struct SimulatorDefaultsTests {
   @Test
   func deleteToleratesMissingKeyNonZeroExit() throws {
     let output = InSimulatorToolOutput(stdout: Data(), stderr: Data("does not exist\n".utf8), exitCode: 1)
-    let result = try SimulatorDefaults.stdout(orThrowFrom: output, command: .delete(path: "p", key: "k"), logger: nil)
+    let result = try SimulatorDefaults.stdout(orThrowFrom: output, command: .delete(domainOrPath: "p", key: "k"), logger: nil)
     #expect(result == "")
   }
 
