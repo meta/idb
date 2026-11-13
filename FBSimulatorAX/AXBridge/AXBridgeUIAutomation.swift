@@ -327,9 +327,7 @@ final class AXBridgeUIAutomation: AXBridgeTreeReader, @unchecked Sendable {
           fromTree: read.tree, keys: AXKeys.defaultSet.union([key.serializationKey]), nestedFormat: false, pid: read.pid
         )
         var result = AXTreeWalk.search(inElements: elements, markerValue: markerValue, key: key)
-        if read.truncated {
-          result.diagnostics?.truncated = true
-        }
+        result.diagnostics?.readTruncated = read.truncated
         return result.map { _ in true }
       } catch let error as UIAutomationError {
         switch error {

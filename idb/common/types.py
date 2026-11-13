@@ -24,7 +24,6 @@ from enum import Enum
 from io import StringIO
 from typing import IO, Optional, Union
 
-
 LoggingMetadata = dict[str, Optional[Union[str, list[str], int, float]]]
 
 
@@ -40,8 +39,13 @@ class AccessibilitySearchDiagnostics:
     """Nonmatching values of the searched key from the final poll only."""
 
     unmatched_values: list[str] = field(default_factory=list)
+    # Legacy aggregate: the sample or the tree read was truncated.
     truncated: bool = False
     read_error: str | None = None
+    # None means the companion or backend cannot report tree completeness.
+    read_truncated: bool | None = None
+    # None means an older companion did not report sample truncation separately.
+    sample_truncated: bool | None = None
 
 
 @dataclass
@@ -1474,7 +1478,8 @@ class Client(ABC):
     ) -> AsyncGenerator[QuiescenceEvent, None]:
         """Stream quiescence events for an application, or the frontmost one when
         neither pid nor bundle_id is given. A None tunable takes the companion's default.
-        With the shimulator backend and no target, the one armed application connected."""
+        With the shimulator backend and no target, the one armed application connected.
+        """
         # pyrefly: ignore [invalid-yield]
         yield
 

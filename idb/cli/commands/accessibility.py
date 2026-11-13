@@ -523,11 +523,21 @@ class AccessibilityWaitCommand(ClientCommand):
                     f"\nLast poll could not read the tree: {diagnostics.read_error}"
                 )
             else:
-                suffix = " (truncated)" if diagnostics.truncated else ""
+                sample_truncated = (
+                    diagnostics.sample_truncated
+                    if diagnostics.sample_truncated is not None
+                    else diagnostics.truncated
+                )
+                suffix = " (truncated)" if sample_truncated else ""
                 message += f"\nLast poll's nonmatching {args.match_key} values{suffix}:"
                 message += "\n" + (
                     "\n".join(f"  {value!r}" for value in diagnostics.unmatched_values)
                     or "  (none)"
+                )
+            if diagnostics.read_truncated:
+                message += (
+                    "\nLast poll's tree read was truncated; "
+                    "the marker may be outside it."
                 )
         raise IdbException(message)
 
