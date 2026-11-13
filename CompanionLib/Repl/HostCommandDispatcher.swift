@@ -158,17 +158,13 @@ struct HostCommandDispatcher: Sendable {
       return nil
 
     case .text(let text):
-      var events: [SimulatorHIDEvent] = []
-      for character in text {
-        guard let key = Self.hidKeyCode(for: character) else {
-          throw HostCommandError.message("text: unsupported character '\(character)'")
-        }
-        if key.shift { events.append(.keyboard(direction: .down, keyCode: Self.leftShiftKeyCode)) }
-        events.append(.keyboard(direction: .down, keyCode: key.code))
-        events.append(.keyboard(direction: .up, keyCode: key.code))
-        if key.shift { events.append(.keyboard(direction: .up, keyCode: Self.leftShiftKeyCode)) }
+      do {
+        try await commandExecutor.hid(text: text)
+      } catch SimulatorHIDError.characterNotOnKeyboardLayout(let offset, let layout) {
+        // The error leaves the character out, as it can reach logs. This message goes to the REPL's own user.
+        let character = text.precomposedStringWithCanonicalMapping.dropFirst(offset).first.map { "'\($0)'" } ?? "at offset \(offset)"
+        throw HostCommandError.message("text: unsupported character \(character) on the \(layout) keyboard layout")
       }
-      try await commandExecutor.hid(.composite(events))
       return nil
 
     // touch-move uses the same `.down` primitive as touch-down at a new point;
@@ -284,61 +280,5 @@ struct HostCommandDispatcher: Sendable {
       return (value as? Bool ?? false) ? "true" : "false"
     }
     return String(describing: value)
-  }
-
-  /// USB HID left-shift usage code, held to produce shifted characters.
-  private static let leftShiftKeyCode: UInt32 = 0xE1
-
-  /// Maps an ASCII character to its USB HID keyboard usage code (page 0x07) and
-  /// whether shift must be held. Returns nil for characters with no single-key
-  /// mapping.
-  private static func hidKeyCode(for character: Character) -> (code: UInt32, shift: Bool)? {
-    if let ascii = character.asciiValue {
-      switch ascii {
-      case 0x61...0x7A: return (UInt32(ascii - 0x61) + 0x04, false) // a-z
-      case 0x41...0x5A: return (UInt32(ascii - 0x41) + 0x04, true) // A-Z
-      case 0x31...0x39: return (UInt32(ascii - 0x31) + 0x1E, false) // 1-9
-      default: break
-      }
-    }
-    switch character {
-    case "0": return (0x27, false)
-    case " ": return (0x2C, false)
-    case "\n": return (0x28, false)
-    case "\t": return (0x2B, false)
-    case "-": return (0x2D, false)
-    case "=": return (0x2E, false)
-    case "[": return (0x2F, false)
-    case "]": return (0x30, false)
-    case "\\": return (0x31, false)
-    case ";": return (0x33, false)
-    case "'": return (0x34, false)
-    case "`": return (0x35, false)
-    case ",": return (0x36, false)
-    case ".": return (0x37, false)
-    case "/": return (0x38, false)
-    case "!": return (0x1E, true)
-    case "@": return (0x1F, true)
-    case "#": return (0x20, true)
-    case "$": return (0x21, true)
-    case "%": return (0x22, true)
-    case "^": return (0x23, true)
-    case "&": return (0x24, true)
-    case "*": return (0x25, true)
-    case "(": return (0x26, true)
-    case ")": return (0x27, true)
-    case "_": return (0x2D, true)
-    case "+": return (0x2E, true)
-    case "{": return (0x2F, true)
-    case "}": return (0x30, true)
-    case "|": return (0x31, true)
-    case ":": return (0x33, true)
-    case "\"": return (0x34, true)
-    case "~": return (0x35, true)
-    case "<": return (0x36, true)
-    case ">": return (0x37, true)
-    case "?": return (0x38, true)
-    default: return nil
-    }
   }
 }
