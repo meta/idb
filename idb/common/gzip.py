@@ -6,6 +6,7 @@
 
 
 import asyncio
+import shlex
 import sys
 from collections.abc import AsyncGenerator, AsyncIterator
 
@@ -21,7 +22,7 @@ async def _create_gzip_decompress_command(
     extract_path: str,
 ) -> AsyncGenerator[asyncio.subprocess.Process, None]:
     process = await asyncio.create_subprocess_shell(
-        f"gunzip -v > '{extract_path}'",
+        f"gunzip -v > {shlex.quote(extract_path)}",
         stdin=asyncio.subprocess.PIPE,
         stderr=sys.stderr,
         stdout=sys.stdout,
@@ -34,7 +35,7 @@ async def _create_gzip_compress_command(
     path: str,
 ) -> AsyncGenerator[asyncio.subprocess.Process, None]:
     process = await asyncio.create_subprocess_shell(
-        f"gzip -v '{path}' --to-stdout",
+        f"gzip -v {shlex.quote(path)} --to-stdout",
         stdin=asyncio.subprocess.PIPE,
         stderr=sys.stderr,
         stdout=asyncio.subprocess.PIPE,
