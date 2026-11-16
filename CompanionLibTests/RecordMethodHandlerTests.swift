@@ -26,27 +26,67 @@ private final class StubRecording: VideoRecording, @unchecked Sendable {
   }
 }
 
-private final class RecordingLogger: ControlCoreLogger, @unchecked Sendable {
+/// A recording that counts the times it is stopped.
+private final class CountingRecording: VideoRecording, @unchecked Sendable {
   private let lock = NSLock()
-  private var logged: [String] = []
+  private var count = 0
 
-  var messages: [String] {
+  var stops: Int {
     lock.lock()
     defer { lock.unlock() }
-    return logged
+    return count
+  }
+
+  func stop() async throws -> URL {
+    lock.lock()
+    count += 1
+    lock.unlock()
+    return URL(fileURLWithPath: "/dev/null")
+  }
+}
+
+/// A logger that keeps what it is sent, and which of it was sent at error level.
+private final class RecordingLogger: ControlCoreLogger, @unchecked Sendable {
+  private final class Store: @unchecked Sendable {
+    let lock = NSLock()
+    var logged: [(message: String, isError: Bool)] = []
+  }
+
+  private let store: Store
+  private let isError: Bool
+
+  convenience init() {
+    self.init(store: Store(), isError: false)
+  }
+
+  private init(store: Store, isError: Bool) {
+    self.store = store
+    self.isError = isError
+  }
+
+  var messages: [String] {
+    store.lock.lock()
+    defer { store.lock.unlock() }
+    return store.logged.map(\.message)
+  }
+
+  var errors: [String] {
+    store.lock.lock()
+    defer { store.lock.unlock() }
+    return store.logged.filter(\.isError).map(\.message)
   }
 
   @discardableResult
   func log(_ message: String) -> any ControlCoreLogger {
-    lock.lock()
-    logged.append(message)
-    lock.unlock()
+    store.lock.lock()
+    store.logged.append((message, isError))
+    store.lock.unlock()
     return self
   }
 
-  func info() -> any ControlCoreLogger { self }
-  func debug() -> any ControlCoreLogger { self }
-  func error() -> any ControlCoreLogger { self }
+  func info() -> any ControlCoreLogger { RecordingLogger(store: store, isError: false) }
+  func debug() -> any ControlCoreLogger { RecordingLogger(store: store, isError: false) }
+  func error() -> any ControlCoreLogger { RecordingLogger(store: store, isError: true) }
   func withName(_ name: String) -> any ControlCoreLogger { self }
   func withDateFormatEnabled(_ enabled: Bool) -> any ControlCoreLogger { self }
   var name: String? { nil }
@@ -137,6 +177,66 @@ struct RecordMethodHandlerTests {
       logger: logger)
 
     #expect(logger.messages.contains { $0.contains("sentinel finalize failure") })
+  }
+
+  /// A client that goes away before its stop leaves a recording nothing else would stop.
+  @Test
+  func aRecordingIsStoppedWhenItsCallEndsBeforeItsStop() async {
+    let recording = CountingRecording()
+    let failure = StubError(description: "the request stream ended")
+
+    let error = await #expect(throws: StubError.self) {
+      try await RecordMethodHandler.stoppingOnFailure(recording, logger: RecordingLogger()) {
+        throw failure
+      }
+    }
+
+    #expect(error?.description == failure.description)
+    #expect(recording.stops == 1)
+  }
+
+  @Test
+  func aCancelledCallStillStopsItsRecording() async {
+    let recording = CountingRecording()
+    let call = Task {
+      try await RecordMethodHandler.stoppingOnFailure(recording, logger: RecordingLogger()) {
+        try await Task.sleep(for: .seconds(3600))
+      }
+    }
+    call.cancel()
+
+    await #expect(throws: CancellationError.self) {
+      try await call.value
+    }
+    #expect(recording.stops == 1)
+  }
+
+  /// Once the call has failed nothing reaches the client, so a recording that will not stop is
+  /// reported where it can still be seen.
+  @Test
+  func aRecordingThatWillNotStopAfterItsCallEndsIsLoggedAsAnError() async {
+    let recording = StubRecording(.failure(StubError(description: "sentinel stop failure")))
+    let logger = RecordingLogger()
+    let failure = StubError(description: "the request stream ended")
+
+    let error = await #expect(throws: StubError.self) {
+      try await RecordMethodHandler.stoppingOnFailure(recording, logger: logger) {
+        throw failure
+      }
+    }
+
+    #expect(error?.description == failure.description)
+    #expect(logger.errors.contains { $0.contains("sentinel stop failure") })
+  }
+
+  /// A call that reaches its stop leaves the recording to the code that stops and delivers it.
+  @Test
+  func aCallThatReachesItsStopDoesNotStopTheRecordingItself() async throws {
+    let recording = CountingRecording()
+
+    try await RecordMethodHandler.stoppingOnFailure(recording, logger: RecordingLogger()) {}
+
+    #expect(recording.stops == 0)
   }
 
   /// The claim the fix exists to make: a recording that failed to finalize is still delivered, and

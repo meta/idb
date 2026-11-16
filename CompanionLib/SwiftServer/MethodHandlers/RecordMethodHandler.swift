@@ -39,6 +39,27 @@ struct RecordMethodHandler {
     }
   }
 
+  /// Runs `body`, the part of a call between starting `recording` and its stop, and stops the
+  /// recording if `body` fails instead: the client went away, the connection dropped or the call was
+  /// cancelled. Nothing else stops it, and a recording left running keeps its encoder, its
+  /// framebuffer consumer and its file for the life of the companion. `body`'s error is rethrown.
+  static func stoppingOnFailure(
+    _ recording: any VideoRecording,
+    logger: any ControlCoreLogger,
+    _ body: () async throws -> Void
+  ) async throws {
+    do {
+      try await body()
+    } catch {
+      do {
+        _ = try await recording.stop()
+      } catch let stopError {
+        logger.error().log("Recording whose call ended before its stop did not stop cleanly: \(stopError)")
+      }
+      throw error
+    }
+  }
+
   func handle(requestStream: RequestStreamReader<Idb_RecordRequest>, responseStream: RPCWriter<Idb_RecordResponse>, context: ServerContext) async throws {
 
     let request = try await requestStream.requiredNext()
@@ -65,21 +86,14 @@ struct RecordMethodHandler {
     } else {
       recording = try await videoRecording.start(toFile: filePath)
     }
-    if encodeOptions != nil || start.audio {
-      do {
+    try await Self.stoppingOnFailure(recording, logger: targetLogger) {
+      if encodeOptions != nil || start.audio {
         // Ahead of any payload, so a client reading the stream in order learns what it is about to
         // receive before it receives any of it.
         try await responseStream.send(RecordRequestTranslation.appliedResponse(encodeOptions, audio: start.audio))
-      } catch {
-        // The recording is already running and this is the last thing that will reach the client, so
-        // stop it rather than leaving the encoder and its file handle held for the life of the
-        // companion. The original failure is what the caller needs to see.
-        _ = try? await recording.stop()
-        throw error
       }
+      _ = try await requestStream.requiredNext()
     }
-
-    _ = try await requestStream.requiredNext()
 
     let (outputURL, finalizeError) = await Self.finalizeForDelivery(
       recording,
