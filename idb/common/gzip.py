@@ -9,6 +9,7 @@ import asyncio
 import sys
 from collections.abc import AsyncGenerator, AsyncIterator
 
+from idb.common.types import IdbException
 from idb.utils.contextlib import asynccontextmanager
 from idb.utils.typing import none_throws
 
@@ -45,16 +46,24 @@ async def _create_gzip_compress_command(
 async def drain_gzip_decompress(stream: AsyncIterator[bytes], output_path: str) -> None:
     async with _create_gzip_decompress_command(extract_path=output_path) as process:
         writer = none_throws(process.stdin)
-        async for data in stream:
-            writer.write(data)
+        stopped_reading = False
+        try:
+            async for data in stream:
+                writer.write(data)
+                await writer.drain()
+            writer.write_eof()
             await writer.drain()
-        writer.write_eof()
-        await writer.drain()
+        except (BrokenPipeError, ConnectionResetError):
+            # gunzip exits on input it cannot decompress without reading the rest.
+            stopped_reading = True
         # gunzip is still writing output_path after its stdin closes, and the last bytes it was
         # sent only reach it if the event loop outlives the pipe transport's buffer.
         returncode = await process.wait()
-    if returncode != 0:
-        raise OSError(f"gunzip exited with {returncode} decompressing to {output_path}")
+    # Not an OSError: the client reads one of those as a companion it can no longer reach.
+    if returncode != 0 or stopped_reading:
+        raise IdbException(
+            f"gunzip exited with {returncode} decompressing to {output_path}"
+        )
 
 
 async def generate_gzip(path: str) -> AsyncIterator[bytes]:

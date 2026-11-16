@@ -10,6 +10,7 @@ import tempfile
 from collections.abc import AsyncIterator
 
 from idb.common.gzip import drain_gzip_decompress
+from idb.common.types import IdbException
 from idb.utils.testing import TestCase
 
 
@@ -34,9 +35,18 @@ class GzipTests(TestCase):
 
     async def test_truncated_stream_raises(self) -> None:
         compressed = gzip.compress(os.urandom(1024 * 1024))
-        with tempfile.TemporaryDirectory() as tmp:
-            with self.assertRaises(OSError):
-                await drain_gzip_decompress(
-                    _chunks(compressed[: len(compressed) // 2], 64 * 1024),
-                    output_path=os.path.join(tmp, "out.bin"),
-                )
+        # Empty is what a companion that refused to record sends. No failure is an OSError, which
+        # the client reads as a companion it can no longer reach and prunes.
+        for name, data in (
+            ("truncated", compressed[: len(compressed) // 2]),
+            ("empty", b""),
+            # gunzip exits at once, so writing the rest fails with a broken pipe.
+            ("not_gzip", os.urandom(8 * 1024 * 1024)),
+        ):
+            with self.subTest(name=name), tempfile.TemporaryDirectory() as tmp:
+                with self.assertRaises(IdbException) as raised:
+                    await drain_gzip_decompress(
+                        _chunks(data, 64 * 1024),
+                        output_path=os.path.join(tmp, "out.bin"),
+                    )
+                self.assertNotIsInstance(raised.exception, OSError)
