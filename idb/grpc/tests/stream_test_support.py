@@ -24,9 +24,13 @@ class ScriptedStream(Generic[_Response], AsyncIterator[_Response]):
         self,
         *responses: _Response,
         block_after_responses: bool = False,
+        trailing_error: Exception | None = None,
+        recv_error: Exception | None = None,
     ) -> None:
         self._responses = deque(responses)
         self._block_after_responses = block_after_responses
+        self._trailing_error = trailing_error
+        self._recv_error = recv_error
         self.sent: list[tuple[object, bool]] = []
         self.transcript: list[tuple[str, object | None]] = []
         self.read_cancellations = 0
@@ -58,6 +62,9 @@ class ScriptedStream(Generic[_Response], AsyncIterator[_Response]):
             response = self._responses.popleft()
             self.transcript.append(("recv", response))
             return response
+        if self._recv_error is not None:
+            self.transcript.append(("recv_error", None))
+            raise self._recv_error
         if not self._block_after_responses:
             self.transcript.append(("recv", None))
             return None
@@ -76,6 +83,11 @@ class ScriptedStream(Generic[_Response], AsyncIterator[_Response]):
 
     async def end(self) -> None:
         self.transcript.append(("end", None))
+
+    async def recv_trailing_metadata(self) -> None:
+        self.transcript.append(("trailers", None))
+        if self._trailing_error is not None:
+            raise self._trailing_error
 
 
 def make_client(

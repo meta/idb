@@ -211,7 +211,7 @@ from idb.grpc.stream import (
     stop_wrapper,
 )
 from idb.grpc.target import companion_to_py, target_to_py
-from idb.grpc.video import generate_video_bytes, recorded_audio_from_grpc
+from idb.grpc.video import generate_video_bytes, recorded_audio_from_grpc, wait_for_stop
 from idb.grpc.xctest import (
     make_request,
     make_results,
@@ -1671,30 +1671,40 @@ class Client(ClientBase):
                     )
                 )
             )
-            await stop.wait()
-            self.logger.info("Stopping video recording")
-            await stream.send_message(RecordRequest(stop=RecordRequest.Stop()))
-            await stream.end()
-            if self.is_local:
-                self.logger.info("Video saved at output path")
-                # The echo of the encode options and the description of the audio, when there are
-                # any, precede the file path.
-                while True:
-                    response = await stream.recv_message()
-                    output = response.WhichOneof("output") if response else None
-                    if output == "applied":
-                        applied.append(response.applied)
-                    elif output == "audio":
-                        recorded_audio.append(response.audio)
-                    else:
-                        break
-            else:
-                self.logger.info(f"Decompressing gzip to {output_file}")
-                await drain_gzip_decompress(
-                    generate_video_bytes(stream, applied, recorded_audio),
-                    output_path=output_file,
-                )
-                self.logger.info(f"Finished decompression to {output_file}")
+            responses = await wait_for_stop(stream, stop)
+            try:
+                self.logger.info("Stopping video recording")
+                await stream.send_message(RecordRequest(stop=RecordRequest.Stop()))
+                await stream.end()
+                if self.is_local:
+                    self.logger.info("Video saved at output path")
+                    # The echo of the encode options and the description of the audio, when there
+                    # are any, precede the file path.
+                    async for response in responses:
+                        output = response.WhichOneof("output")
+                        if output == "applied":
+                            applied.append(response.applied)
+                        elif output == "audio":
+                            recorded_audio.append(response.audio)
+                        else:
+                            break
+                else:
+                    self.logger.info(f"Decompressing gzip to {output_file}")
+                    try:
+                        await drain_gzip_decompress(
+                            generate_video_bytes(responses, applied, recorded_audio),
+                            output_path=output_file,
+                        )
+                    except IdbException:
+                        # A companion that could not finish the recording sends no file, so gunzip
+                        # fails on nothing, and the companion's error says why. Its trailers are
+                        # read only once every response was, as it sends them only then.
+                        if responses.exhausted:
+                            await stream.recv_trailing_metadata()
+                        raise
+                    self.logger.info(f"Finished decompression to {output_file}")
+            finally:
+                await responses.aclose()
         if requested_encode_options and not applied:
             self.logger.warning(
                 "The companion did not report which encode options it applied, so it predates them "

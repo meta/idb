@@ -9,6 +9,8 @@ import asyncio
 from collections.abc import AsyncIterator
 from unittest.mock import MagicMock, patch
 
+from grpclib.const import Status
+from grpclib.exceptions import GRPCError
 from idb.common.types import (
     CompanionInfo,
     DomainSocketAddress,
@@ -300,6 +302,93 @@ class RecordVideoTests(TestCase):
                 )
                 open_rpc.assert_called_once_with()
                 client.logger.warning.assert_not_called()
+
+        # A companion refuses a start it cannot serve, here a second audio capture of one
+        # simulator, by ending the call: after its headers, or in a trailers-only response. That is
+        # reported then, without waiting for a stop that never comes, rather than once stopped as a
+        # recording without a file.
+        refusal = "Another audio capture is already running on simulator udid"
+        for name, is_local, trailers_only in (
+            ("refused_local", True, False),
+            ("refused_remote", False, False),
+            ("refused_local_trailers_only", True, True),
+            ("refused_remote_trailers_only", False, True),
+        ):
+            with self.subTest(name=name):
+                error = GRPCError(Status.FAILED_PRECONDITION, refusal)
+                stream = ScriptedStream[RecordResponse](
+                    **(
+                        {"recv_error": error}
+                        if trailers_only
+                        else {"trailing_error": error}
+                    )
+                )
+                client, _ = make_client("record", stream, is_local=is_local)
+                publish = MagicMock()
+                with patch("idb.grpc.client.drain_gzip_decompress", new=publish):
+                    with self.assertRaisesRegex(IdbException, refusal):
+                        # Nothing stops this recording, so it can only end by reporting the refusal.
+                        await asyncio.wait_for(
+                            client.record_video(
+                                stop=asyncio.Event(), output_file="out.mp4"
+                            ),
+                            timeout=10,
+                        )
+                self.assertEqual(
+                    stream.transcript,
+                    [
+                        (
+                            "send",
+                            RecordRequest(
+                                start=RecordRequest.Start(
+                                    file_path="out.mp4" if is_local else ""
+                                )
+                            ),
+                        ),
+                        *(
+                            [("recv_error", None)]
+                            if trailers_only
+                            else [("recv", None), ("end", None), ("trailers", None)]
+                        ),
+                    ],
+                )
+                publish.assert_not_called()
+
+        # A companion that fails once stopped sends no file, and gunzip fails on nothing. The
+        # companion's error is the one reported.
+        failure = "The recording could not be finalized"
+        stream = ScriptedStream[RecordResponse](
+            trailing_error=GRPCError(Status.INTERNAL, failure)
+        )
+        client, _ = make_client("record", stream, is_local=False)
+
+        async def gunzip_nothing(
+            stream: AsyncIterator[bytes], output_path: str
+        ) -> None:
+            self.assertEqual([chunk async for chunk in stream], [])
+            raise IdbException(f"gunzip exited with 1 decompressing to {output_path}")
+
+        with patch("idb.grpc.client.drain_gzip_decompress", new=gunzip_nothing):
+            with self.assertRaisesRegex(IdbException, failure):
+                await client.record_video(stop=self.stop, output_file="out.mp4")
+        self.assertEqual(stream.transcript[-1], ("trailers", None))
+
+        # gunzip that stops reading partway leaves responses unread, and a companion sends its
+        # trailers only after them, so waiting for the trailers would never end. gunzip's error is
+        # the one reported.
+        stream = ScriptedStream[RecordResponse](_payload(b"first"), _payload(b"second"))
+        client, _ = make_client("record", stream, is_local=False)
+
+        async def gunzip_first_chunk(
+            stream: AsyncIterator[bytes], output_path: str
+        ) -> None:
+            await anext(aiter(stream))
+            raise IdbException(f"gunzip exited with 1 decompressing to {output_path}")
+
+        with patch("idb.grpc.client.drain_gzip_decompress", new=gunzip_first_chunk):
+            with self.assertRaisesRegex(IdbException, "gunzip exited with 1"):
+                await client.record_video(stop=self.stop, output_file="out.mp4")
+        self.assertNotIn(("trailers", None), stream.transcript)
 
 
 class VideoStreamTests(TestCase):
