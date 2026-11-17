@@ -44,8 +44,8 @@ private func displays(_ values: [xpc_object_t]) throws -> [SimulatorDisplay] {
   return displays
 }
 
-private func resolution(_ values: [xpc_object_t]) -> SimulatorDisplayResolution {
-  SimulatorDisplayResolution(report(values))
+private func resolution(_ values: [xpc_object_t], interactingWith kind: InteractionDisplayKind = .integrated) -> SimulatorDisplayResolution {
+  SimulatorDisplayResolution(report(values), interactingWith: kind)
 }
 
 private struct Untargeted: Error {
@@ -254,18 +254,25 @@ struct SimulatorDisplayReadTests {
   }
 
   /// The shape tvOS reports: its only display is an external TVOut with backlight state but no layout activity.
+  /// On an Apple TV interactions reach it as the sole display; elsewhere an external display is never targeted. A
+  /// report without backlight state is still legacy.
   @Test
-  func reportWithOnlyAnExternalDisplayHasNoActiveIntegratedDisplay() throws {
-    let fallbacks: [String: SimulatorDisplayFallback] = [
-      "off": .noActiveIntegratedDisplay, "unknown": .legacyIntegratedDisplays(count: 0),
-    ]
-    for (state, fallback) in fallbacks {
+  func reportWithOnlyAnExternalDisplayTargetsItOnlyOnAnAppleTV() throws {
+    func tvOut(backlightState: String) -> xpc_object_t {
       let tvOut = displayValue(id: "TVOut", active: false, primary: true)
       xpc_dictionary_set_value(tvOut, "active", nil)
-      xpc_dictionary_set_string(tvOut, "backlightState", state)
+      xpc_dictionary_set_string(tvOut, "backlightState", backlightState)
       xpc_dictionary_set_value(tvOut, "type", SimulatorCoreDevice.dictionary(["external": SimulatorCoreDevice.dictionary([:])]))
-      #expect(resolution([tvOut]) == .fallback(fallback), "\(state)")
+      return tvOut
     }
+    guard case let .target(.sole(.identified(display))) = resolution([tvOut(backlightState: "off")], interactingWith: .external) else {
+      Issue.record("an Apple TV's only display, an external one, is targeted")
+      return
+    }
+    #expect(display.uniqueID == "TVOut")
+    #expect(!display.isIntegrated)
+    #expect(resolution([tvOut(backlightState: "off")]) == .fallback(.noActiveIntegratedDisplay))
+    #expect(resolution([tvOut(backlightState: "unknown")], interactingWith: .external) == .fallback(.legacyIntegratedDisplays(count: 0)))
   }
 
   /// Reports that cannot select exactly one active integrated display, for any reason in their display records.

@@ -111,6 +111,63 @@ struct DisplayCommandsTests {
     }
   }
 
+  private func tvOutput(_ id: String = "TVOut", activity: SimulatorDisplayActivity = .active) -> SimulatorDisplay {
+    SimulatorDisplay(
+      uniqueID: id, name: id, activity: activity, isPrimary: true, isIntegrated: false,
+      bounds: CGRect(x: 0, y: 0, width: 3840, height: 2160), scale: 2, rotation: .upright)
+  }
+
+  @Test
+  func theOnlyTVOutputOfAnAppleTVIsTargeted() async throws {
+    for activity in [SimulatorDisplayActivity.active, .inactive] {
+      let displays = DisplayCommandsDouble([.success(.displays([tvOutput(activity: activity)]))], interactionDisplays: .external)
+      #expect(try await displays.resolveDisplay() == .target(.sole(.identified(tvOutput(activity: activity)))), "\(activity)")
+    }
+  }
+
+  @Test
+  func theActiveOneOfSeveralTVOutputsIsSelected() async throws {
+    let report = SimulatorDisplayReport.displays([tvOutput("first", activity: .inactive), tvOutput("second")])
+    let displays = DisplayCommandsDouble([.success(report)], interactionDisplays: .external)
+    #expect(try await displays.resolveDisplay() == .target(.selected(tvOutput("second"))))
+  }
+
+  @Test
+  func resolvingWhileNoTVOutputIsActiveWaitsThenFails() async throws {
+    let report = SimulatorDisplayReport.displays([tvOutput("first", activity: .inactive), tvOutput("second", activity: .inactive)])
+    let displays = DisplayCommandsDouble([.success(report)], interactionDisplays: .external)
+    let resolved = await outcome { try await displays.resolveDisplay() }
+    guard case .failure(SimulatorDisplayError.noActiveIntegratedDisplay) = resolved else {
+      Issue.record("\(resolved)")
+      return
+    }
+    #expect(displays.reads > 1)
+  }
+
+  @Test
+  func anExternalDisplayBesideAnIntegratedOneIsNotTargeted() async throws {
+    let resolved = try await DisplayCommandsDouble([.success(.displays([display("lcd"), tvOutput()]))]).resolveDisplay()
+    #expect(resolved == .target(.sole(.identified(display("lcd")))))
+  }
+
+  /// A report that briefly lists only an external display, as one might while an integrated display boots.
+  @Test
+  func anExternalDisplayAloneIsNotTargetedWhereTheRuntimeHasIntegratedDisplays() async throws {
+    let displays = DisplayCommandsDouble([
+      .success(.displays([tvOutput()])),
+      .success(.displays([display("lcd"), tvOutput()])),
+    ])
+    let resolved = await outcome { try await displays.resolveDisplay() }
+    #expect(try resolved.get() == .target(.sole(.identified(display("lcd")))))
+    #expect(displays.reads == 2)
+  }
+
+  @Test
+  func anIntegratedDisplayIsNotTargetedOnAnAppleTV() async throws {
+    let displays = DisplayCommandsDouble([.success(.displays([display("lcd"), tvOutput()]))], interactionDisplays: .external)
+    #expect(try await displays.resolveDisplay() == .target(.sole(.identified(tvOutput()))))
+  }
+
   @Test
   func resolvingWhileNoDisplayIsActiveWaitsForOne() async throws {
     let displays = DisplayCommandsDouble([

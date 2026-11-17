@@ -20,12 +20,12 @@ public struct SimulatorDisplayConfiguration: Equatable, Sendable {
     case transitioning(incoming: SimulatorDisplay?)
   }
 
-  /// The display interactions target: the sole integrated display, or the active one of several.
+  /// The display interactions target: the sole display of the kind the runtime draws on, or the active one of several.
   public enum ActiveDisplay: Equatable, Sendable {
     case identified(SimulatorDisplay)
     /// The sole integrated display of a runtime that does not identify its displays.
     case unidentified(SimulatorDisplayGeometry)
-    /// No integrated display is active, or several are. A later configuration may settle on one.
+    /// No display of that kind is active, or several are. A later configuration may settle on one.
     case unresolved
     /// The runtime cannot say which display interactions target: it reports an integrated display's activity
     /// as `unknown`, or several integrated displays without identifying them.
@@ -41,6 +41,8 @@ public struct SimulatorDisplayConfiguration: Equatable, Sendable {
   public let displays: [SimulatorDisplay]
   public let active: ActiveDisplay
   public let phase: Phase
+  /// The kind of display `active` is chosen from.
+  package private(set) var interactionDisplays: InteractionDisplayKind = .integrated
 
   /// The identified display interactions target, or why the configuration has none.
   public func activeDisplay() throws -> SimulatorDisplay {
@@ -78,7 +80,7 @@ public struct SimulatorDisplayConfiguration: Equatable, Sendable {
   }
 
   private var unresolved: SimulatorDisplayError {
-    let identities = displays.filter { $0.isIntegrated && $0.isActive }.map(\.uniqueID)
+    let identities = interactionDisplays.candidates(in: displays).filter(\.isActive).map(\.uniqueID)
     return identities.isEmpty ? .noActiveIntegratedDisplay : .ambiguousActiveDisplays(identities)
   }
 }
@@ -95,11 +97,17 @@ struct DisplayRead: Sendable {
 // SAFETY: Every access to the stored configuration and read sequence holds the lock.
 // patternlint-disable-next-line unchecked-sendable
 package final class DisplayConfigurationTracker: @unchecked Sendable {
+  private let interactionDisplays: @Sendable () -> InteractionDisplayKind
   private let lock = NSLock()
   private var current: (configuration: SimulatorDisplayConfiguration, basis: [SimulatorInteractionDisplay])?
   private var newest: (sequence: UInt64, configuration: SimulatorDisplayConfiguration, resolution: SimulatorDisplayResolution)?
   private var sequence: UInt64 = 0
   let follower = DisplayConfigurationFollower()
+
+  /// `interactionDisplays` is read for each report, not when the tracker is made.
+  package init(interactionDisplays: @escaping @Sendable () -> InteractionDisplayKind = { .integrated }) {
+    self.interactionDisplays = interactionDisplays
+  }
 
   /// The most recently observed configuration, if any read has succeeded.
   package var latest: SimulatorDisplayConfiguration? {
@@ -141,7 +149,8 @@ package final class DisplayConfigurationTracker: @unchecked Sendable {
   private func observation(
     of read: DisplayRead
   ) -> (configuration: Result<SimulatorDisplayConfiguration, SimulatorCoreDeviceError>, resolution: SimulatorDisplayResolution) {
-    let resolution = SimulatorDisplayResolution(read.report)
+    let kind = interactionDisplays()
+    let resolution = SimulatorDisplayResolution(read.report, interactingWith: kind)
     lock.lock()
     defer { lock.unlock() }
     if case let .failed(error) = read.report {
@@ -150,7 +159,7 @@ package final class DisplayConfigurationTracker: @unchecked Sendable {
     if let newest, newest.sequence > read.sequence {
       return (.success(newest.configuration), newest.resolution)
     }
-    let configuration = configuration(of: read.report, resolution: resolution)
+    let configuration = configuration(of: read.report, resolution: resolution, interactionDisplays: kind)
     // Offered under the lock so subscribers see configurations in the order they were numbered. The follower never
     // takes this lock, so the order is always this lock, then the follower's.
     if case let .success(observed) = configuration {
@@ -161,28 +170,36 @@ package final class DisplayConfigurationTracker: @unchecked Sendable {
   }
 
   private func configuration(
-    of report: SimulatorDisplayReport, resolution: SimulatorDisplayResolution
+    of report: SimulatorDisplayReport, resolution: SimulatorDisplayResolution, interactionDisplays: InteractionDisplayKind
   ) -> Result<SimulatorDisplayConfiguration, SimulatorCoreDeviceError> {
     switch report {
     case let .failed(error):
       return .failure(error)
     case let .transitioning(incoming):
       guard let current else {
-        return .success(SimulatorDisplayConfiguration(generation: 1, displays: [], active: .unresolved, phase: .transitioning(incoming: incoming)))
+        return .success(
+          SimulatorDisplayConfiguration(
+            generation: 1, displays: [], active: .unresolved, phase: .transitioning(incoming: incoming), interactionDisplays: interactionDisplays))
       }
       let previous = current.configuration
       return .success(
         SimulatorDisplayConfiguration(
-          generation: previous.generation, displays: previous.displays, active: previous.active, phase: .transitioning(incoming: incoming)))
+          generation: previous.generation, displays: previous.displays, active: previous.active, phase: .transitioning(incoming: incoming),
+          interactionDisplays: interactionDisplays))
     case let .displays(displays):
-      return .success(settle(displays: displays, basis: displays.map { .identified($0) }, active: Self.active(in: resolution)))
+      return .success(
+        settle(
+          displays: displays, basis: displays.map { .identified($0) }, active: Self.active(in: resolution),
+          interactionDisplays: interactionDisplays))
     case let .legacy(integrated):
-      return .success(settle(displays: [], basis: integrated.map { .legacy($0) }, active: Self.active(in: resolution)))
+      return .success(
+        settle(displays: [], basis: integrated.map { .legacy($0) }, active: Self.active(in: resolution), interactionDisplays: interactionDisplays))
     }
   }
 
   private func settle(
-    displays: [SimulatorDisplay], basis: [SimulatorInteractionDisplay], active: SimulatorDisplayConfiguration.ActiveDisplay
+    displays: [SimulatorDisplay], basis: [SimulatorInteractionDisplay], active: SimulatorDisplayConfiguration.ActiveDisplay,
+    interactionDisplays: InteractionDisplayKind
   ) -> SimulatorDisplayConfiguration {
     let generation: UInt64 =
       switch current {
@@ -191,7 +208,8 @@ package final class DisplayConfigurationTracker: @unchecked Sendable {
         previousBasis.count == basis.count && zip(previousBasis, basis).allSatisfy { $0.hasSameConfiguration(as: $1) }
           ? previous.generation : previous.generation + 1
       }
-    let configuration = SimulatorDisplayConfiguration(generation: generation, displays: displays, active: active, phase: .settled)
+    let configuration = SimulatorDisplayConfiguration(
+      generation: generation, displays: displays, active: active, phase: .settled, interactionDisplays: interactionDisplays)
     current = (configuration, basis)
     return configuration
   }

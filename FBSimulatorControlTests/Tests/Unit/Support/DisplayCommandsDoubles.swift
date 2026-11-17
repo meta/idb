@@ -15,7 +15,7 @@ import Foundation
 // patternlint-disable-next-line unchecked-sendable
 final class DisplayCommandsDouble: DisplayCommands, @unchecked Sendable {
   let identities = DisplayIdentityCache()
-  let configurationTracker = DisplayConfigurationTracker()
+  let configurationTracker: DisplayConfigurationTracker
   let transitionSettling = DisplayTransitionSettling(timeout: .milliseconds(50), interval: .milliseconds(5))
   private let lock = NSLock()
   private var results: [Result<SimulatorDisplayReport, any Error>]
@@ -26,9 +26,10 @@ final class DisplayCommandsDouble: DisplayCommands, @unchecked Sendable {
 
   init(
     _ results: [Result<SimulatorDisplayReport, any Error>], touchscreens: [SimulatorTouchscreen] = [],
-    pushes: AsyncThrowingStream<SimulatorDisplayReport, any Error>? = nil
+    pushes: AsyncThrowingStream<SimulatorDisplayReport, any Error>? = nil, interactionDisplays: InteractionDisplayKind = .integrated
   ) {
     precondition(!results.isEmpty)
+    self.configurationTracker = DisplayConfigurationTracker { interactionDisplays }
     self.results = results
     self.touchscreenResult = touchscreens
     self.pushes = pushes

@@ -216,6 +216,8 @@ A screenshot result names the identified display it captured through `displayID`
 
 Only `.active` falls back: every other selection fails rather than reaching a display other than the one selected.
 
+Interactions reach only the kind of display a runtime draws its interface on, chosen by product family rather than by any one report. On every runtime but Apple TV that is its integrated displays, so an external display beside them is never targeted, even in a report that lists no integrated display. An Apple TV has no integrated display: it draws on a TV output, an external display, and `.active` resolves among its external displays the same way, so its only TV output is the one interactions reach.
+
 #### Switching displays
 
 A hinge change moves the layout to the other display a few seconds before the outgoing display's backlight turns off. The configuration reports this as `.transitioning(incoming:)`, still describing the outgoing displays, and `incoming` names the display the layout moved to, which already draws. HID input, accessibility and screenshots wait for `.settled`, as they act on the display the guest treats as lit. A framebuffer following `.active` moves to `incoming` straight away, so video shows the incoming display rather than the outgoing one going dark, which on an iPhone Duo close lasts about 3 seconds.

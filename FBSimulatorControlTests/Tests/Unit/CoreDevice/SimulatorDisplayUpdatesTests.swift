@@ -35,7 +35,7 @@ private func push(channel: UUID, _ reports: [xpc_object_t]) -> xpc_object_t {
 }
 
 private func target(_ event: xpc_object_t, channel: UUID) throws -> SimulatorDisplayTarget? {
-  guard let report = try SimulatorDisplayUpdatesProtocol.report(event, channel: channel), case let .target(target) = SimulatorDisplayResolution(report) else {
+  guard let report = try SimulatorDisplayUpdatesProtocol.report(event, channel: channel), case let .target(target) = SimulatorDisplayResolution(report, interactingWith: .integrated) else {
     return nil
   }
   return target

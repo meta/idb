@@ -40,11 +40,27 @@ package struct DisplayTransitionSettling: Sendable {
   @usableFromInline static let standard = DisplayTransitionSettling(timeout: .seconds(5), interval: .milliseconds(100))
 }
 
+/// The kind of display a runtime draws its interface on, and so the only kind interactions target.
+package enum InteractionDisplayKind: Sendable {
+  /// Built-in screens, as every runtime but tvOS has. An external display beside them is never targeted.
+  case integrated
+  /// An Apple TV has no built-in screen: it draws on a TV output, an external display.
+  case external
+
+  init(_ family: ProductFamily) {
+    self = family == .appleTV ? .external : .integrated
+  }
+
+  func candidates(in displays: [SimulatorDisplay]) -> [SimulatorDisplay] {
+    displays.filter { $0.isIntegrated == (self == .integrated) }
+  }
+}
+
 /// The display an interaction targets, and whether routing has to name it.
 package enum SimulatorDisplayTarget: Equatable, Sendable {
-  /// The only integrated display. Accessibility and input reach it without naming it.
+  /// The only display of the kind the runtime draws on. Accessibility and input reach it without naming it.
   case sole(SimulatorInteractionDisplay)
-  /// The active one of several integrated displays. Accessibility and input have to name it.
+  /// The active one of several displays of that kind. Accessibility and input have to name it.
   case selected(SimulatorDisplay)
 
   var display: SimulatorInteractionDisplay {
@@ -64,8 +80,9 @@ package enum SimulatorDisplayResolution: Equatable, Sendable {
   /// Layout has moved to a display whose backlight has not caught up, as after a hinge change.
   case transitioning
 
-  /// The sole integrated display, active or not, or the active one of several.
-  init(_ report: SimulatorDisplayReport) {
+  /// The sole display of `kind`, active or not, or the active one of several. Displays of the other kind are never
+  /// targeted, whatever the report holds.
+  init(_ report: SimulatorDisplayReport, interactingWith kind: InteractionDisplayKind) {
     switch report {
     case let .legacy(integrated):
       guard integrated.count == 1, let geometry = integrated.first else {
@@ -74,16 +91,16 @@ package enum SimulatorDisplayResolution: Equatable, Sendable {
       }
       self = .target(.sole(.legacy(geometry)))
     case let .displays(displays):
-      let integrated = displays.filter(\.isIntegrated)
-      if integrated.contains(where: { $0.activity == .unknown }) {
+      let candidates = kind.candidates(in: displays)
+      if candidates.contains(where: { $0.activity == .unknown }) {
         self = .fallback(.unknownActivity)
         return
       }
-      if integrated.count == 1, let display = integrated.first {
+      if candidates.count == 1, let display = candidates.first {
         self = .target(.sole(.identified(display)))
         return
       }
-      let active = integrated.filter(\.isActive)
+      let active = candidates.filter(\.isActive)
       guard let display = active.first else {
         self = .fallback(.noActiveIntegratedDisplay)
         return
@@ -110,7 +127,9 @@ package enum SimulatorDisplayFallback: Equatable, Sendable {
   case legacyIntegratedDisplays(count: Int)
   /// The runtime reports an integrated display's backlight as `unknown`.
   case unknownActivity
+  /// No display of the kind interactions target is active.
   case noActiveIntegratedDisplay
+  /// Several displays of the kind interactions target are active.
   case ambiguousActiveDisplays([String])
 }
 

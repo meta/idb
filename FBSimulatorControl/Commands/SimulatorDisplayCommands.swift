@@ -196,9 +196,11 @@ public enum SimulatorDisplayError: Error, LocalizedError {
   case changed
   /// Layout has moved to another display whose backlight has not caught up, as after a hinge change.
   case transitioning
-  /// The current snapshot reports no active integrated display. A later snapshot may recover.
+  /// The current snapshot reports no active display that interactions can reach: no integrated display, or on an
+  /// Apple TV, no TV output. A later snapshot may recover.
   case noActiveIntegratedDisplay
-  /// The current snapshot reports more than one active integrated display. A later snapshot may settle.
+  /// The current snapshot reports more than one active display that interactions can reach. A later snapshot may
+  /// settle.
   case ambiguousActiveDisplays([String])
   case screensNotReported(within: TimeInterval)
 
@@ -207,9 +209,9 @@ public enum SimulatorDisplayError: Error, LocalizedError {
     case let .screensNotReported(seconds): "Simulator did not report its displays within \(seconds) seconds"
     case .changed: "Simulator display changed during the operation"
     case .transitioning: "Simulator display is still changing: layout has moved to a display that is not lit yet"
-    case .noActiveIntegratedDisplay: "Simulator currently reports no active integrated display"
+    case .noActiveIntegratedDisplay: "Simulator currently reports no active display that interactions can reach"
     case let .ambiguousActiveDisplays(identities):
-      "Simulator currently reports multiple active integrated displays: \(identities.joined(separator: ", "))"
+      "Simulator currently reports multiple active displays that interactions can reach: \(identities.joined(separator: ", "))"
     }
   }
 }
@@ -221,10 +223,13 @@ public enum SimulatorDisplayError: Error, LocalizedError {
 public final class SimulatorDisplayCommands: DisplayCommands, @unchecked Sendable {
   private weak var simulator: Simulator?
   package let identities = DisplayIdentityCache()
-  package let configurationTracker = DisplayConfigurationTracker()
+  package let configurationTracker: DisplayConfigurationTracker
 
   public init(simulator: Simulator) {
     self.simulator = simulator
+    configurationTracker = DisplayConfigurationTracker { [weak simulator] in
+      simulator.map { InteractionDisplayKind($0.productFamily) } ?? .integrated
+    }
   }
 
   /// Only cancellation and a released simulator throw; every CoreDevice failure is reported.

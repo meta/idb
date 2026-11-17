@@ -121,6 +121,21 @@ final class SimulatorDisplayConfigurationTests: XCTestCase {
     }
   }
 
+  func testSeveralActiveTVOutputsAreCurrentStateOnAnAppleTV() throws {
+    func tvOutput(_ id: String) -> SimulatorDisplay {
+      SimulatorDisplay(
+        uniqueID: id, name: id, activity: .active, isPrimary: false, isIntegrated: false,
+        bounds: CGRect(x: 0, y: 0, width: 3840, height: 2160), scale: 2, rotation: .upright)
+    }
+    let configuration = try DisplayConfigurationTracker { .external }.observe(
+      .displays([display("lcd"), tvOutput("first"), tvOutput("second")]))
+    XCTAssertEqual(configuration.active, .unresolved)
+    XCTAssertThrowsError(try configuration.activeDisplay()) { error in
+      guard case let SimulatorDisplayError.ambiguousActiveDisplays(identities) = error else { return XCTFail("unexpected error: \(error)") }
+      XCTAssertEqual(identities, ["first", "second"])
+    }
+  }
+
   func testTransitioningConfigurationHasNoActiveDisplayYet() throws {
     let tracker = DisplayConfigurationTracker()
     _ = try tracker.observe(cover)
