@@ -212,12 +212,13 @@ public struct DownloadCache: Sendable {
     let name = Self.name(of: identity)
     // The tree is removed once the install returns, so a kept clone ends up owning all of its blocks.
     let bytes = Self.allocatedBytes(of: tree)
-    guard let free = makeRoom(for: bytes, logger: logger) else {
+    guard let free = makeRoom(logger: logger) else {
       logger.info().log("Not keeping \(tree.path) in the install cache: the free space on its volume could not be read")
       return DownloadCacheReport(outcome: .skippedLowDisk)
     }
-    guard free - bytes >= minFreeBytes else {
-      logger.info().log("Not keeping \(tree.path) in the install cache: its volume has \(free) bytes free, and keeping \(bytes) more would leave less than \(minFreeBytes)")
+    // The tree already takes its blocks on this volume, and a clone shares them, so keeping it leaves `free` as it is.
+    guard free >= minFreeBytes else {
+      logger.info().log("Not keeping \(tree.path) in the install cache: its volume has \(free) bytes free, less than \(minFreeBytes)")
       return DownloadCacheReport(outcome: .skippedLowDisk, freeBytes: free)
     }
     let staging = directory.appendingPathComponent(".staging-\(UUID().uuidString)")
@@ -256,14 +257,13 @@ public struct DownloadCache: Sendable {
     return DownloadCacheReport(outcome: .stored, freeBytes: free)
   }
 
-  /// Evicts the least recently used entries until storing `bytes` more would leave `minFreeBytes` free on the cache's
-  /// volume, and returns what the volume then reports free, which may still fall short. `nil` if the free space can't
-  /// be read.
-  private func makeRoom(for bytes: Int64, logger: any ControlCoreLogger) -> Int64? {
+  /// Evicts the least recently used entries until the cache's volume has `minFreeBytes` free, and returns what the volume
+  /// then reports free, which may still fall short. `nil` if the free space can't be read.
+  private func makeRoom(logger: any ControlCoreLogger) -> Int64? {
     guard var free = freeBytes(directory) else {
       return nil
     }
-    for entry in entries() where free - bytes < minFreeBytes {
+    for entry in entries() where free < minFreeBytes {
       remove(entry, logger: logger)
       // Read again rather than credited: an entry that could not be deleted, or whose blocks another clone still shares,
       // frees less than its size.

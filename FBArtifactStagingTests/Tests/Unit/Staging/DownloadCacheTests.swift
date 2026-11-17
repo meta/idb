@@ -354,15 +354,30 @@ struct DownloadCacheTests {
     let server = try await serve(identifier: "com.example.full")
     defer { server.stop() }
     let freeSpace = FreeSpace()
-    freeSpace.capacity.withLock { $0 = 1 << 30 }
+    freeSpace.capacity.withLock { $0 = (1 << 30) - 1 }
     let cache = cache(minFreeBytes: 1 << 30, freeSpace: freeSpace)
 
     let result = try await install(server.url, cache: cache)
 
     #expect(result.outcomes == [.skippedLowDisk])
-    #expect(result.freeBytes == [1 << 30])
+    #expect(result.freeBytes == [(1 << 30) - 1])
     #expect(result.identifier == "com.example.full")
     #expect(!cache.contains(DownloadCache.identity(of: server.url, options: InstallOptions())))
+  }
+
+  @Test
+  func anApplicationIsKeptWhenTheVolumeHasTheMinimumFree() async throws {
+    let server = try await serve(identifier: "com.example.exact")
+    defer { server.stop() }
+    let freeSpace = FreeSpace()
+    freeSpace.capacity.withLock { $0 = 1 << 30 }
+    // The extracted tree is already on the volume, so keeping it does not take its bytes again.
+    let cache = cache(minFreeBytes: 1 << 30, freeSpace: freeSpace)
+
+    let result = try await install(server.url, cache: cache)
+
+    #expect(result.outcomes == [.stored])
+    #expect(result.freeBytes == [1 << 30])
   }
 
   @Test
@@ -378,9 +393,8 @@ struct DownloadCacheTests {
     let cache = cache(minFreeBytes: minFree, freeSpace: freeSpace)
     _ = try await install(first.url, cache: cache)
     let firstIdentity = DownloadCache.identity(of: first.url, options: InstallOptions())
-    let entryBytes = DownloadCache.allocatedBytes(of: cacheDirectory.appendingPathComponent(DownloadCache.name(of: firstIdentity)))
-    // One byte short of room for another entry of the same size, until the older one goes.
-    let capacity = minFree + entryBytes - 1 + DownloadCache.allocatedBytes(of: cacheDirectory)
+    // One byte short of the minimum, until the older entry goes.
+    let capacity = minFree - 1 + DownloadCache.allocatedBytes(of: cacheDirectory)
     freeSpace.capacity.withLock { $0 = capacity }
 
     let result = try await install(second.url, cache: cache)
@@ -409,8 +423,8 @@ struct DownloadCacheTests {
     // Nothing can be deleted from a directory without write permission.
     try setDirectoryPermissions(0o555, under: stuck)
     defer { try? setDirectoryPermissions(0o755, under: stuck) }
-    // Room for another entry of about the same size only if the stuck one's bytes were counted as freed.
-    freeSpace.capacity.withLock { $0 = minFree + entryBytes / 2 + DownloadCache.allocatedBytes(of: cacheDirectory) }
+    // Short of the minimum by half the stuck entry, so there is room only if its bytes were counted as freed.
+    freeSpace.capacity.withLock { $0 = minFree - entryBytes / 2 + DownloadCache.allocatedBytes(of: cacheDirectory) }
 
     let result = try await install(second.url, cache: cache)
 
