@@ -11,6 +11,7 @@ import FBSimulatorControl
 import Foundation
 import GRPCCore
 import IDBGRPCSwift
+import IDBTelemetry
 import Synchronization
 
 /// Seam over the two `CompanionAccessibility` reads this handler drives, so the request-to-options wiring
@@ -124,20 +125,8 @@ final class SlowestStall: Sendable {
 /// The element count, durations and backend use the column names the CLI already logs from complete
 /// documents, so one query reads both. Translator-backed reads are the only ones that report metrics.
 enum AccessibilityReadTelemetry {
-  /// The host's own name (`kern.hostname`), so a read can be matched with the host's other metrics.
-  /// `ProcessInfo.hostName` resolves through the network, and on virtual machines is often empty or a
-  /// name every clone of the image shares.
-  static let hostName: String? = {
-    var buffer = [CChar](repeating: 0, count: Int(MAXHOSTNAMELEN) + 1)
-    guard gethostname(&buffer, buffer.count - 1) == 0 else {
-      return nil
-    }
-    let name = String(decoding: buffer.prefix { $0 != 0 }.map { UInt8(bitPattern: $0) }, as: UTF8.self)
-    return name.isEmpty ? nil : name
-  }()
-
   static func recordHost(into call: CallTelemetry?) {
-    guard let call, let hostName else { return }
+    guard let call, let hostName = HostName.kernel else { return }
     call.setNormal(hostName, forKey: "ax_host")
   }
 

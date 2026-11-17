@@ -12,6 +12,7 @@ import FBSimulatorControl
 import Foundation
 import GRPCCore
 import IDBGRPCSwift
+import IDBTelemetry
 import Testing
 
 /// Records the options the handler hands the command executor, so a test can read them without a
@@ -195,14 +196,14 @@ struct AccessibilityInfoMethodHandlerTests {
       "ax_backend": "ax", "ax_transport": "bridge", "ax_read_outcome": "complete",
       "ax_slowest_request_type": "frontmost",
     ]
-    normals["ax_host"] = AccessibilityReadTelemetry.hostName
+    normals["ax_host"] = HostName.kernel
     #expect(call.normals == normals)
     #expect(!response.json.contains("profile"), "the caller did not ask for a profile, so none is reported")
   }
 
   @Test
   func everyReadRecordsItsHostEvenWhenItFails() async throws {
-    let hostName = try #require(AccessibilityReadTelemetry.hostName)
+    let hostName = try #require(HostName.kernel)
     var request = Idb_AccessibilityInfoRequest()
     request.marker = "OK"
     request.match = "OK"
