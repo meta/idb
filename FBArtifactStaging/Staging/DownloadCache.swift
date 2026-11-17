@@ -17,10 +17,24 @@ public enum DownloadCacheOutcome: String, Equatable, Sendable {
   /// The application was downloaded, and keeping a copy failed; the install went ahead without it.
   case storeFailed = "store_failed"
   /// The application was downloaded and not kept: even with every other entry evicted, keeping it would have left less
-  /// free space on the cache's volume than the cache must leave.
+  /// free space on the cache's volume than the cache must leave, or that free space could not be read.
   case skippedLowDisk = "skipped_low_disk"
   /// The application was downloaded and not kept: the response gave no explicit freshness lifetime, or forbade reuse.
   case notCacheable = "not_cacheable"
+}
+
+/// What a download cache did for one install from a URL, and the free space it decided on.
+public struct DownloadCacheReport: Equatable, Sendable {
+  public let outcome: DownloadCacheOutcome
+  /// The free bytes on the cache's volume that the decision to keep the application was made against: what the volume
+  /// reported once the evictions making room for it were done. `nil` when it was not read: a hit, a response that could
+  /// not be cached, or a volume whose free space could not be read.
+  public let freeBytes: Int64?
+
+  init(outcome: DownloadCacheOutcome, freeBytes: Int64? = nil) {
+    self.outcome = outcome
+    self.freeBytes = freeBytes
+  }
 }
 
 /// Applications downloaded for an install, kept extracted and keyed by the URL they came from, so a later install of
@@ -148,16 +162,21 @@ public struct DownloadCache: Sendable {
 
   /// Clones `tree` into the cache as the entry for `identity`, fresh for `freshness`, then evicts the least recently used
   /// entries until the cache fits in `maxBytes`. An entry another process stored first is left as it is.
-  func store(_ tree: URL, as identity: String, freshness: HTTPFreshness?, logger: any ControlCoreLogger) -> DownloadCacheOutcome {
+  func store(_ tree: URL, as identity: String, freshness: HTTPFreshness?, logger: any ControlCoreLogger) -> DownloadCacheReport {
     guard let lifetime = freshness?.lifetime else {
-      return .notCacheable
+      return DownloadCacheReport(outcome: .notCacheable)
     }
     let fileManager = FileManager.default
     let name = Self.name(of: identity)
     // The tree is removed once the install returns, so a kept clone ends up owning all of its blocks.
-    guard makeRoom(for: Self.allocatedBytes(of: tree), logger: logger) else {
-      logger.info().log("Not keeping \(tree.path) in the install cache: its volume would have less than \(minFreeBytes) bytes free")
-      return .skippedLowDisk
+    let bytes = Self.allocatedBytes(of: tree)
+    guard let free = makeRoom(for: bytes, logger: logger) else {
+      logger.info().log("Not keeping \(tree.path) in the install cache: the free space on its volume could not be read")
+      return DownloadCacheReport(outcome: .skippedLowDisk)
+    }
+    guard free - bytes >= minFreeBytes else {
+      logger.info().log("Not keeping \(tree.path) in the install cache: its volume has \(free) bytes free, and keeping \(bytes) more would leave less than \(minFreeBytes)")
+      return DownloadCacheReport(outcome: .skippedLowDisk, freeBytes: free)
     }
     let staging = directory.appendingPathComponent(".staging-\(UUID().uuidString)")
     do {
@@ -179,31 +198,36 @@ public struct DownloadCache: Sendable {
         }
         // The tree another process placed is fresh for as long as its own response said, which it records itself.
         evict(keeping: name, logger: logger)
-        return .stored
+        return DownloadCacheReport(outcome: .stored, freeBytes: free)
       }
       // The expiry goes last: an entry is fresh only once its tree is in place.
       try String(Date().addingTimeInterval(lifetime).timeIntervalSince1970).write(to: expiryURL(name), atomically: true, encoding: .utf8)
     } catch {
       try? fileManager.removeItem(at: staging)
       logger.info().log("Could not keep \(tree.path) in the install cache: \(error)")
-      return .storeFailed
+      return DownloadCacheReport(outcome: .storeFailed, freeBytes: free)
     }
     evict(keeping: name, logger: logger)
-    return .stored
+    return DownloadCacheReport(outcome: .stored, freeBytes: free)
   }
 
   /// Evicts the least recently used entries until storing `bytes` more would leave `minFreeBytes` free on the cache's
-  /// volume. `false` if it still would not, or the free space can't be read.
-  private func makeRoom(for bytes: Int64, logger: any ControlCoreLogger) -> Bool {
+  /// volume, and returns what the volume then reports free, which may still fall short. `nil` if the free space can't
+  /// be read.
+  private func makeRoom(for bytes: Int64, logger: any ControlCoreLogger) -> Int64? {
     guard var free = freeBytes(directory) else {
-      return false
+      return nil
     }
     for entry in entries() where free - bytes < minFreeBytes {
       remove(entry, logger: logger)
-      // Only what the removal actually freed: whatever it could not delete still takes space.
-      free += entry.bytes - Self.allocatedBytes(of: treeURL(entry.name))
+      // Read again rather than credited: an entry that could not be deleted, or whose blocks another clone still shares,
+      // frees less than its size.
+      guard let measured = freeBytes(directory) else {
+        return nil
+      }
+      free = measured
     }
-    return free - bytes >= minFreeBytes
+    return free
   }
 
   /// Removes every expired entry, then the least recently used ones, never `keeping`, until the cache fits in `maxBytes`.

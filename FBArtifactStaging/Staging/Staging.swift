@@ -77,7 +77,7 @@ enum StagingReport: Equatable, Sendable {
   /// A download that completed. One that failed carries its report in its `InstallError.transferFailed`.
   case download(DownloadReport)
   /// What the download cache did for an application from a URL, when there is a cache.
-  case cache(DownloadCacheOutcome)
+  case cache(DownloadCacheReport)
 }
 
 /// Everything an install reports as it goes, in order.
@@ -90,7 +90,7 @@ public enum InstallEvent: Sendable {
   /// A download that completed. One that failed carries its report in its `InstallError.transferFailed`.
   case download(DownloadReport)
   /// What the download cache did for an application from a URL, when there is a cache.
-  case cache(DownloadCacheOutcome)
+  case cache(DownloadCacheReport)
 }
 
 /// What an installed artifact is known by on the target, for the install stage's completion.
@@ -172,8 +172,8 @@ public enum Staging {
           onEvent(.route(route))
         case .download(let download):
           onEvent(.download(download))
-        case .cache(let outcome):
-          onEvent(.cache(outcome))
+        case .cache(let report):
+          onEvent(.cache(report))
         }
       }
     ) { tree in
@@ -307,7 +307,7 @@ public enum Staging {
           try await offCooperativePool { cache.restore(identity, to: restored, logger: logger) }.get()
         }
         if hit {
-          onReport(.cache(.hit))
+          onReport(.cache(DownloadCacheReport(outcome: .hit)))
           return .extracted(restored)
         }
       }
@@ -335,8 +335,8 @@ public enum Staging {
       }
       if let cache {
         let lifetime = freshness.withLock { $0 }
-        let outcome = try await offCooperativePool { cache.store(tree.url, as: identity, freshness: lifetime, logger: logger) }.get()
-        onReport(.cache(outcome))
+        let report = try await offCooperativePool { cache.store(tree.url, as: identity, freshness: lifetime, logger: logger) }.get()
+        onReport(.cache(report))
       }
       return tree
     }

@@ -84,7 +84,7 @@ final class InstallTelemetry: Sendable {
     var stageMs: [InstallStage: Int64] = [:]
     var failure: Failure?
     var downloadFailure: DownloadFailureDetail?
-    var cache: DownloadCacheOutcome?
+    var cache: DownloadCacheReport?
   }
 
   private let payloadKind: InstallPayloadKind
@@ -102,8 +102,8 @@ final class InstallTelemetry: Sendable {
       state.withLock { $0.route = route }
     case .download(let report):
       state.withLock { $0.timeToFirstByte = report.timeToFirstByte }
-    case .cache(let outcome):
-      state.withLock { $0.cache = outcome }
+    case .cache(let report):
+      state.withLock { $0.cache = report }
     }
   }
 
@@ -204,7 +204,10 @@ final class InstallTelemetry: Sendable {
       call.setInt(Int(installMs), forKey: "install_ms")
     }
     if let cache = state.cache {
-      call.setNormal(cache.rawValue, forKey: "install_cache")
+      call.setNormal(cache.outcome.rawValue, forKey: "install_cache")
+      if let freeBytes = cache.freeBytes {
+        call.setInt(Int(freeBytes), forKey: "install_cache_free_bytes")
+      }
     }
     if let failure = state.failure {
       if let stage = failure.stage {

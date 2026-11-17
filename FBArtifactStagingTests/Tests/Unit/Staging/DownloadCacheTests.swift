@@ -57,7 +57,7 @@ struct DownloadCacheTests {
   private func install(
     _ url: URL, as kind: ArtifactKind = .application, cache: DownloadCache?, options: InstallOptions = InstallOptions(),
     mutate: (URL) throws -> Void = { _ in }
-  ) async throws -> (identifier: String, outcomes: [DownloadCacheOutcome], downloaded: Bool, marker: String) {
+  ) async throws -> (identifier: String, outcomes: [DownloadCacheOutcome], freeBytes: [Int64?], downloaded: Bool, marker: String) {
     let events = OSAllocatedUnfairLock<[InstallEvent]>(initialState: [])
     let marker = OSAllocatedUnfairLock<String>(initialState: "")
     // URLSession's own HTTP cache would answer a repeat request for a small archive itself.
@@ -74,15 +74,15 @@ struct DownloadCacheTests {
       return Installed(identifier: (NSDictionary(contentsOf: artifact.url.appendingPathComponent("Info.plist"))?["CFBundleIdentifier"] as? String) ?? "")
     }
     let seen = events.withLock { $0 }
-    let outcomes = seen.compactMap { event -> DownloadCacheOutcome? in
-      if case .cache(let outcome) = event { return outcome }
+    let reports = seen.compactMap { event -> DownloadCacheReport? in
+      if case .cache(let report) = event { return report }
       return nil
     }
     let downloaded = seen.contains { event in
       if case .progress(.downloadStarted) = event { return true }
       return false
     }
-    return (installed.identifier, outcomes, downloaded, marker.withLock { $0 })
+    return (installed.identifier, reports.map(\.outcome), reports.map(\.freeBytes), downloaded, marker.withLock { $0 })
   }
 
   // MARK: - Tests
@@ -233,21 +233,22 @@ struct DownloadCacheTests {
     try FileManager.default.createDirectory(at: tree, withIntermediateDirectories: true)
     try Data("app".utf8).write(to: tree.appendingPathComponent("marker"))
 
-    #expect(cache.store(tree, as: identity, freshness: HTTPFreshness(lifetime: 600), logger: logger) == .stored)
-    #expect(cache.store(tree, as: identity, freshness: HTTPFreshness(lifetime: 60_000), logger: logger) == .stored)
+    #expect(cache.store(tree, as: identity, freshness: HTTPFreshness(lifetime: 600), logger: logger).outcome == .stored)
+    #expect(cache.store(tree, as: identity, freshness: HTTPFreshness(lifetime: 60_000), logger: logger).outcome == .stored)
 
     #expect(cache.contains(identity, now: Date().addingTimeInterval(500)))
     #expect(!cache.contains(identity, now: Date().addingTimeInterval(700)))
   }
 
-  /// The free space a test's cache sees, which the test sets.
+  /// The size of a volume holding nothing but the test's cache, which the test sets. What the volume reports free is
+  /// that size less what the cache takes, so a removal frees only what it actually deleted.
   private final class FreeSpace: Sendable {
-    let bytes = OSAllocatedUnfairLock<Int64>(initialState: .max)
+    let capacity = OSAllocatedUnfairLock<Int64>(initialState: .max)
   }
 
   private func cache(minFreeBytes: Int64, freeSpace: FreeSpace) -> DownloadCache {
-    DownloadCache(directory: cacheDirectory, maxBytes: DownloadCache.defaultMaxBytes, minFreeBytes: minFreeBytes) { _ in
-      freeSpace.bytes.withLock { $0 }
+    DownloadCache(directory: cacheDirectory, maxBytes: DownloadCache.defaultMaxBytes, minFreeBytes: minFreeBytes) { [cacheDirectory] _ in
+      freeSpace.capacity.withLock { $0 } - DownloadCache.allocatedBytes(of: cacheDirectory)
     }
   }
 
@@ -256,12 +257,13 @@ struct DownloadCacheTests {
     let server = try await serve(identifier: "com.example.full")
     defer { server.stop() }
     let freeSpace = FreeSpace()
-    freeSpace.bytes.withLock { $0 = 1 << 30 }
+    freeSpace.capacity.withLock { $0 = 1 << 30 }
     let cache = cache(minFreeBytes: 1 << 30, freeSpace: freeSpace)
 
     let result = try await install(server.url, cache: cache)
 
     #expect(result.outcomes == [.skippedLowDisk])
+    #expect(result.freeBytes == [1 << 30])
     #expect(result.identifier == "com.example.full")
     #expect(!cache.contains(DownloadCache.identity(of: server.url, options: InstallOptions())))
   }
@@ -281,11 +283,14 @@ struct DownloadCacheTests {
     let firstIdentity = DownloadCache.identity(of: first.url, options: InstallOptions())
     let entryBytes = DownloadCache.allocatedBytes(of: cacheDirectory.appendingPathComponent(DownloadCache.name(of: firstIdentity)))
     // One byte short of room for another entry of the same size, until the older one goes.
-    freeSpace.bytes.withLock { $0 = minFree + entryBytes - 1 }
+    let capacity = minFree + entryBytes - 1 + DownloadCache.allocatedBytes(of: cacheDirectory)
+    freeSpace.capacity.withLock { $0 = capacity }
 
     let result = try await install(second.url, cache: cache)
 
     #expect(result.outcomes == [.stored])
+    // What the volume reports once the older entry is gone.
+    #expect(result.freeBytes == [capacity])
     #expect(!cache.contains(firstIdentity))
     #expect(cache.contains(DownloadCache.identity(of: second.url, options: InstallOptions())))
   }
@@ -308,7 +313,7 @@ struct DownloadCacheTests {
     try setDirectoryPermissions(0o555, under: stuck)
     defer { try? setDirectoryPermissions(0o755, under: stuck) }
     // Room for another entry of about the same size only if the stuck one's bytes were counted as freed.
-    freeSpace.bytes.withLock { $0 = minFree + entryBytes / 2 }
+    freeSpace.capacity.withLock { $0 = minFree + entryBytes / 2 + DownloadCache.allocatedBytes(of: cacheDirectory) }
 
     let result = try await install(second.url, cache: cache)
 
@@ -337,6 +342,7 @@ struct DownloadCacheTests {
     let result = try await install(server.url, cache: cache)
 
     #expect(result.outcomes == [.skippedLowDisk])
+    #expect(result.freeBytes == [nil])
   }
 
   @Test

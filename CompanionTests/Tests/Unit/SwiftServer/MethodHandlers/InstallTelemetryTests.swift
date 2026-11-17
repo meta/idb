@@ -6,7 +6,7 @@
  */
 
 @testable import CompanionLib
-@preconcurrency import FBArtifactStaging
+@preconcurrency @testable import FBArtifactStaging
 @preconcurrency import FBControlCore
 import Foundation
 import Testing
@@ -45,11 +45,22 @@ private struct Refused: Error {}
   @Test(arguments: [(DownloadCacheOutcome.hit, "hit"), (.stored, "stored"), (.storeFailed, "store_failed"), (.skippedLowDisk, "skipped_low_disk"), (.notCacheable, "not_cacheable")])
   func aCachedInstallReportsWhatTheCacheDid(outcome: DownloadCacheOutcome, column: String) {
     let telemetry = InstallTelemetry(payloadKind: .url)
-    telemetry.observe(InstallEvent.cache(outcome))
+    telemetry.observe(InstallEvent.cache(DownloadCacheReport(outcome: outcome)))
 
     let call = CallTelemetry()
     telemetry.record(into: call)
     #expect(call.normals == ["payload_kind": "url", "install_cache": column])
+    #expect(call.ints["install_cache_free_bytes"] == nil)
+  }
+
+  @Test func aCacheDecisionReportsTheFreeSpaceItWasMadeAgainst() {
+    let telemetry = InstallTelemetry(payloadKind: .url)
+    telemetry.observe(InstallEvent.cache(DownloadCacheReport(outcome: .skippedLowDisk, freeBytes: 40 << 30)))
+
+    let call = CallTelemetry()
+    telemetry.record(into: call)
+    #expect(call.normals["install_cache"] == "skipped_low_disk")
+    #expect(call.ints["install_cache_free_bytes"] == 40 << 30)
   }
 
   @Test func anInstallWithoutACacheReportsNoCacheColumn() {
