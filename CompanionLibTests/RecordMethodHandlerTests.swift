@@ -239,6 +239,21 @@ struct RecordMethodHandlerTests {
     #expect(recording.stops == 0)
   }
 
+  /// Two recordings streamed at once must not write the same file, or one would send a file the other
+  /// is still writing.
+  @Test
+  func eachStreamedRecordingIsStagedInAFileOfItsOwn() {
+    let directory = "/tmp/companion-aux"
+    let first = RecordMethodHandler.stagingPath(in: directory)
+    let second = RecordMethodHandler.stagingPath(in: directory)
+
+    #expect(first != second)
+    for path in [first, second] {
+      #expect((path as NSString).deletingLastPathComponent == directory)
+      #expect((path as NSString).pathExtension == "mp4")
+    }
+  }
+
   /// The claim the fix exists to make: a recording that failed to finalize is still delivered, and
   /// the failure is reported only afterwards. Before the fix the error was raised first and the
   /// caller received nothing at all.

@@ -60,16 +60,25 @@ struct RecordMethodHandler {
     }
   }
 
+  /// Where a recording the companion streams to its client is written first: a file of its own, so
+  /// recordings that overlap never write the same one. It is deleted once the RPC ends.
+  static func stagingPath(in directory: String) -> String {
+    (directory as NSString).appendingPathComponent("idb_encode-\(UUID().uuidString).mp4")
+  }
+
   func handle(requestStream: RequestStreamReader<Idb_RecordRequest>, responseStream: RPCWriter<Idb_RecordResponse>, context: ServerContext) async throws {
 
     let request = try await requestStream.requiredNext()
     guard case let .start(start) = request.control
     else { throw RPCError(code: .failedPrecondition, message: "Expect start as initial request frame") }
 
-    let filePath =
-      start.filePath.isEmpty
-      ? URL(fileURLWithPath: target.auxillaryDirectory).appendingPathComponent("idb_encode").appendingPathExtension("mp4").path
-      : start.filePath
+    let streamingToClient = start.filePath.isEmpty
+    let filePath = streamingToClient ? Self.stagingPath(in: target.auxillaryDirectory) : start.filePath
+    defer {
+      if streamingToClient {
+        try? FileManager.default.removeItem(atPath: filePath)
+      }
+    }
 
     let videoRecording = target.videoRecording
     let encodeOptions = try RecordRequestTranslation.encodeOptions(from: start)
@@ -117,7 +126,7 @@ struct RecordMethodHandler {
 
     try await Self.deliverThenReport(
       outputURL: outputURL,
-      streamingToClient: start.filePath.isEmpty,
+      streamingToClient: streamingToClient,
       localFilePath: start.filePath,
       finalizeError: finalizeError ?? audioError,
       responseStream: responseStream,
