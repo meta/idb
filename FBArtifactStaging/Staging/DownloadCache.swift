@@ -131,6 +131,48 @@ public struct DownloadCache: Sendable {
     directory.appendingPathComponent("\(name).expires")
   }
 
+  /// The file recording the bytes the entry's tree took when it was stored, as `<inode> <bytes>`.
+  private func bytesURL(_ name: String) -> URL {
+    directory.appendingPathComponent("\(name).bytes")
+  }
+
+  /// The bytes recorded for the entry's tree, if the record names the tree now in place. A process that does not keep
+  /// records can replace the tree under the same name and leave an earlier record behind.
+  private func recordedBytes(_ name: String) -> Int64? {
+    guard let fields = (try? String(contentsOf: bytesURL(name), encoding: .utf8))?.split(separator: " "), fields.count == 2,
+      let inode = UInt64(fields[0]), let bytes = Int64(fields[1]), inode == Self.inode(of: treeURL(name))
+    else {
+      return nil
+    }
+    return bytes
+  }
+
+  /// Records `bytes` for the entry's tree. Without a record the entry is measured when listed, so failing to write one
+  /// fails nothing.
+  private func record(_ bytes: Int64, inode: UInt64, for name: String) {
+    try? "\(inode) \(bytes)".write(to: bytesURL(name), atomically: true, encoding: .utf8)
+  }
+
+  /// Measures the entry's tree and records what it found, so the tree is walked once rather than on every store. The
+  /// inode is read first: a tree replaced while it is measured leaves a record no later listing trusts.
+  private func measure(_ name: String) -> Int64 {
+    let tree = treeURL(name)
+    guard let inode = Self.inode(of: tree) else {
+      return 0
+    }
+    let bytes = Self.allocatedBytes(of: tree)
+    record(bytes, inode: inode, for: name)
+    return bytes
+  }
+
+  private static func inode(of url: URL) -> UInt64? {
+    var info = stat()
+    guard lstat(url.path, &info) == 0 else {
+      return nil
+    }
+    return UInt64(info.st_ino)
+  }
+
   /// Whether there is a fresh entry for `identity`. Another process may still evict it before it is restored.
   func contains(_ identity: String, now: Date = Date()) -> Bool {
     let name = Self.name(of: identity)
@@ -200,6 +242,9 @@ public struct DownloadCache: Sendable {
         evict(keeping: name, logger: logger)
         return DownloadCacheReport(outcome: .stored, freeBytes: free)
       }
+      if let inode = Self.inode(of: treeURL(name)) {
+        record(bytes, inode: inode, for: name)
+      }
       // The expiry goes last: an entry is fresh only once its tree is in place.
       try String(Date().addingTimeInterval(lifetime).timeIntervalSince1970).write(to: expiryURL(name), atomically: true, encoding: .utf8)
     } catch {
@@ -266,7 +311,8 @@ public struct DownloadCache: Sendable {
       let name = String(identityFile.dropLast(".identity".count))
       let used = (try? fileManager.attributesOfItem(atPath: identityURL(name).path)[.modificationDate] as? Date) ?? .distantPast
       let expiry = (try? String(contentsOf: expiryURL(name), encoding: .utf8)).flatMap { TimeInterval($0) }.map { Date(timeIntervalSince1970: $0) }
-      entries.append(Entry(name: name, used: used, bytes: Self.allocatedBytes(of: treeURL(name)), expiry: expiry))
+      let bytes = recordedBytes(name) ?? measure(name)
+      entries.append(Entry(name: name, used: used, bytes: bytes, expiry: expiry))
     }
     return entries.sorted { $0.used < $1.used }
   }
@@ -279,6 +325,7 @@ public struct DownloadCache: Sendable {
     // The identity goes first, so no reader takes a tree that is being removed for an entry.
     try? fileManager.removeItem(at: identityURL(entry.name))
     try? fileManager.removeItem(at: expiryURL(entry.name))
+    try? fileManager.removeItem(at: bytesURL(entry.name))
     try? fileManager.removeItem(at: treeURL(entry.name))
     logger.info().log("Evicted install cache entry \(entry.name) (\(entry.bytes) bytes)")
   }

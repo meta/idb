@@ -177,6 +177,103 @@ struct DownloadCacheTests {
   }
 
   @Test
+  func theBudgetCountsAnEntryAtTheSizeRecordedWhenItWasStored() async throws {
+    let first = try await serve(identifier: "com.example.recorded")
+    let second = try await serve(identifier: "com.example.later")
+    defer {
+      first.stop()
+      second.stop()
+    }
+    let cache = DownloadCache(directory: cacheDirectory, maxBytes: 1 << 30, minFreeBytes: 0)
+    _ = try await install(first.url, cache: cache)
+    let firstIdentity = DownloadCache.identity(of: first.url, options: InstallOptions())
+    let firstName = DownloadCache.name(of: firstIdentity)
+    // Recorded past the budget, though its tree is far smaller.
+    try record(bytes: 1 << 31, for: firstName)
+
+    _ = try await install(second.url, cache: cache)
+
+    #expect(!cache.contains(firstIdentity))
+    #expect(cache.contains(DownloadCache.identity(of: second.url, options: InstallOptions())))
+  }
+
+  @Test
+  func aRecordLeftForAnEarlierTreeIsNotTrusted() async throws {
+    let first = try await serve(identifier: "com.example.replaced")
+    let second = try await serve(identifier: "com.example.beside")
+    defer {
+      first.stop()
+      second.stop()
+    }
+    let cache = DownloadCache(directory: cacheDirectory, maxBytes: 1 << 30, minFreeBytes: 0)
+    _ = try await install(first.url, cache: cache)
+    let firstIdentity = DownloadCache.identity(of: first.url, options: InstallOptions())
+    let firstName = DownloadCache.name(of: firstIdentity)
+    try record(bytes: 1 << 31, for: firstName)
+    // A process that keeps no records puts another tree in place under the same name.
+    let tree = cacheDirectory.appendingPathComponent(firstName)
+    let moved = root.appendingPathComponent("moved-\(UUID().uuidString)")
+    try FileManager.default.moveItem(at: tree, to: moved)
+    try FileManager.default.copyItem(at: moved, to: tree)
+
+    _ = try await install(second.url, cache: cache)
+
+    #expect(cache.contains(firstIdentity))
+  }
+
+  /// Records `bytes` for the tree now in place under `name`.
+  private func record(bytes: Int64, for name: String) throws {
+    let tree = cacheDirectory.appendingPathComponent(name)
+    let inode = try #require(try FileManager.default.attributesOfItem(atPath: tree.path)[.systemFileNumber] as? UInt64)
+    try "\(inode) \(bytes)".write(to: cacheDirectory.appendingPathComponent("\(name).bytes"), atomically: true, encoding: .utf8)
+  }
+
+  @Test
+  func anEntryWithoutARecordedSizeIsMeasured() async throws {
+    let first = try await serve(identifier: "com.example.unrecorded")
+    let second = try await serve(identifier: "com.example.after")
+    defer {
+      first.stop()
+      second.stop()
+    }
+    _ = try await install(first.url, cache: DownloadCache(directory: cacheDirectory, minFreeBytes: 0))
+    let firstIdentity = DownloadCache.identity(of: first.url, options: InstallOptions())
+    let firstName = DownloadCache.name(of: firstIdentity)
+    try FileManager.default.removeItem(at: cacheDirectory.appendingPathComponent("\(firstName).bytes"))
+    // Room for one entry of about this size, so the older one goes only if its tree is measured.
+    let entryBytes = DownloadCache.allocatedBytes(of: cacheDirectory.appendingPathComponent(firstName))
+    let cache = DownloadCache(directory: cacheDirectory, maxBytes: entryBytes + entryBytes / 2, minFreeBytes: 0)
+
+    _ = try await install(second.url, cache: cache)
+
+    #expect(!cache.contains(firstIdentity))
+    #expect(cache.contains(DownloadCache.identity(of: second.url, options: InstallOptions())))
+  }
+
+  @Test
+  func anEntryMeasuredForWantOfARecordIsRecordedThen() async throws {
+    let first = try await serve(identifier: "com.example.backfilled")
+    let second = try await serve(identifier: "com.example.third")
+    defer {
+      first.stop()
+      second.stop()
+    }
+    let cache = DownloadCache(directory: cacheDirectory, maxBytes: 1 << 30, minFreeBytes: 0)
+    _ = try await install(first.url, cache: cache)
+    let firstIdentity = DownloadCache.identity(of: first.url, options: InstallOptions())
+    let firstName = DownloadCache.name(of: firstIdentity)
+    let recordURL = cacheDirectory.appendingPathComponent("\(firstName).bytes")
+    // As an entry stored by a companion that keeps no records.
+    try FileManager.default.removeItem(at: recordURL)
+
+    _ = try await install(second.url, cache: cache)
+
+    let tree = cacheDirectory.appendingPathComponent(firstName)
+    let inode = try #require(try FileManager.default.attributesOfItem(atPath: tree.path)[.systemFileNumber] as? UInt64)
+    #expect((try? String(contentsOf: recordURL, encoding: .utf8)) == "\(inode) \(DownloadCache.allocatedBytes(of: tree))")
+  }
+
+  @Test
   func aResponseWithoutAFreshnessLifetimeIsNotKept() async throws {
     let server = try await serve(identifier: "com.example.uncacheable", headers: [])
     defer { server.stop() }
