@@ -255,9 +255,9 @@ struct SimulatorDisplayReadTests {
 
   /// The shape tvOS reports: its only display is an external TVOut with backlight state but no layout activity.
   @Test
-  func reportWithOnlyAnExternalDisplayHasNoActiveIntegratedDisplay() throws {
+  func reportWithOnlyAnExternalDisplayHasNoIntegratedDisplay() throws {
     let fallbacks: [String: SimulatorDisplayFallback] = [
-      "off": .noActiveIntegratedDisplay, "unknown": .legacyIntegratedDisplays(count: 0),
+      "off": .noIntegratedDisplay, "unknown": .legacyIntegratedDisplays(count: 0),
     ]
     for (state, fallback) in fallbacks {
       let tvOut = displayValue(id: "TVOut", active: false, primary: true)

@@ -112,6 +112,18 @@ struct DisplayCommandsTests {
   }
 
   @Test
+  func aRuntimeWithOnlyATVOutputFallsBackWithoutWaiting() async throws {
+    // An Apple TV renders only on its TV output: no integrated display is going to become active.
+    let tvOut = SimulatorDisplay(
+      uniqueID: "F774281A-0000-0000-0000-000000000000", name: "TVOut", activity: .active, isPrimary: true, isIntegrated: false,
+      bounds: CGRect(x: 0, y: 0, width: 3840, height: 2160), scale: 2, rotation: .upright)
+    let displays = DisplayCommandsDouble([.success(.displays([tvOut]))])
+    let resolved = try await displays.resolveDisplay()
+    #expect(resolved == .fallback(.noIntegratedDisplay))
+    #expect(displays.reads == 1)
+  }
+
+  @Test
   func resolvingWhileNoDisplayIsActiveWaitsForOne() async throws {
     let displays = DisplayCommandsDouble([
       .success(.displays([display("cover", activity: .inactive), display("inner", activity: .inactive)])),
