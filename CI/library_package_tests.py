@@ -166,6 +166,41 @@ class LibraryPackageTest(unittest.TestCase):
         self.assertNotIn(".target(", package)
         self.assertFalse((self.output / "Linkage").exists())
 
+    def test_private_products_materialize_one_source_linkage_target(self) -> None:
+        manifest = deepcopy(MANIFEST)
+        manifest["libraries"]["Swifty"]["linker_flags"] = [
+            "PrivateHeaders/Private/Private.tbd"
+        ]
+        (self.root / "Source" / "LibraryPackage.json").write_text(json.dumps(manifest))
+        self._assemble()
+        package = (self.output / "Package.swift").read_text()
+        self.assertEqual(package.count('.target(name: "IDBPackageLinkage"'), 1)
+        self.assertIn('"Cish", "IDBPackageLinkage"]', package)
+        self.assertIn('.library(name: "Cish", targets: ["Cish"]),', package)
+        for name in ("empty.c", "include/IDBPackageLinkage.h"):
+            self.assertEqual(
+                (self.output / "Sources/IDBPackageLinkage" / name).read_text(), ""
+            )
+        self.assertNotIn("IDBPackageLinkage.xcframework", package)
+        self.assertNotIn("unsafeFlags", package)
+
+    def test_reserved_archive_identity_fails_before_materialization(self) -> None:
+        manifest = deepcopy(MANIFEST)
+        manifest["libraries"]["Swifty"]["archives"].append("libIDBPackageLinkage.a")
+        manifest["libraries"]["Swifty"]["linker_flags"] = [
+            "PrivateHeaders/Private/Private.tbd"
+        ]
+        (self.root / "Source/PrivateHeaders/Private/Private.tbd").write_text(
+            "--- !tapi-tbd\n"
+        )
+        (self.root / "Source/LibraryPackage.json").write_text(json.dumps(manifest))
+        self.output.mkdir()
+        (self.output / "keep").write_bytes(b"old package")
+        with self.assertRaisesRegex(library_package.PackageError, "reserved"):
+            self._assemble()
+        self.assertEqual((self.output / "keep").read_bytes(), b"old package")
+        self.assertEqual(self.xcodebuild.commands, [])
+
     def test_a_private_frameworks_stub_is_a_binary_target_not_a_flag(self) -> None:
         MANIFEST["libraries"]["Swifty"]["linker_flags"] = [
             "-weak_library",
@@ -184,7 +219,7 @@ class LibraryPackageTest(unittest.TestCase):
             package,
         )
         self.assertIn(
-            '.library(name: "Swifty", targets: ["PrivateStub", "IDBPrivateHeaders", "Swifty", "Cish"]),',
+            '.library(name: "Swifty", targets: ["PrivateStub", "IDBPrivateHeaders", "Swifty", "Cish", "IDBPackageLinkage"]),',
             package,
         )
         framework = (
@@ -305,7 +340,7 @@ class LibraryPackageTest(unittest.TestCase):
         self.assertFalse(any("-reexport_library" in flag for flag in dylib))
         package = (self.output / "Package.swift").read_text()
         self.assertIn(
-            '.library(name: "Swifty", targets: ["PrivateStub", "IDBPrivateHeaders", "Swifty", "Cish"]),',
+            '.library(name: "Swifty", targets: ["PrivateStub", "IDBPrivateHeaders", "Swifty", "Cish", "IDBPackageLinkage"]),',
             package,
         )
         self.assertIn('.library(name: "Cish", targets: ["Cish"]),', package)

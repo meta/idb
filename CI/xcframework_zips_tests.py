@@ -97,6 +97,23 @@ class XCFrameworkZipsTest(unittest.TestCase):
             {"FBControlCore": ["FBControlCore"]},
         )
 
+    def test_source_target_is_product_metadata_not_a_checksum(self) -> None:
+        manifest = json.loads((self.package / "manifest.json").read_text())
+        manifest["libraries"]["FBControlCore"]["linker_flags"] = [
+            "PrivateHeaders/CoreSimulator/CoreSimulator.tbd"
+        ]
+        (self.package / "manifest.json").write_text(json.dumps(manifest))
+        checksums = xcframework_zips.zip_xcframeworks(
+            self.package, self.output, self.ditto
+        )
+        products = json.loads((self.output / "products.json").read_text())
+        self.assertEqual(
+            products["FBControlCore"],
+            ["CoreSimulatorStub", "FBControlCore", "IDBPackageLinkage"],
+        )
+        self.assertNotIn("IDBPackageLinkage", checksums)
+        self.assertEqual(set(checksums), {"CoreSimulatorStub", "FBControlCore"})
+
     def test_a_package_without_xcframeworks_names_the_build_that_makes_them(
         self,
     ) -> None:

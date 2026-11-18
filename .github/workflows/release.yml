@@ -440,6 +440,11 @@ jobs:
             --run-url "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID" \
             --out tap-formulae
 
+      - name: Archive the complete tap package
+        run: |
+          python3 .github/scripts/tap_formulae.py archive \
+            --directory tap-formulae --out tap-formulae.tar.gz
+
       - name: Upload the formulae as a run artifact
         uses: actions/upload-artifact@v5
         with:
@@ -454,13 +459,14 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           cp tap-formulae/manifest.json formulae-manifest.json
-          gh release upload "$RELEASE_TAG" tap-formulae/*.rb tap-formulae/Package.swift formulae-manifest.json --clobber --repo "$GITHUB_REPOSITORY"
+          gh release upload "$RELEASE_TAG" tap-formulae.tar.gz tap-formulae/*.rb tap-formulae/Package.swift formulae-manifest.json --clobber --repo "$GITHUB_REPOSITORY"
 
       - name: Summarize
         run: |
           {
-            echo '## Tap formulae and Package.swift for this release'
-            echo 'Rendered from `.github/formulae/*.rb.in`; the `tap-formulae` artifact and the release assets `idb-companion.rb`, `idb-cli.rb`, `idb.rb`, `Package.swift` and `formulae-manifest.json` hold the same files.'
+            echo '## Tap formulae and SwiftPM package for this release'
+            echo 'The `tap-formulae` run artifact and public `tap-formulae.tar.gz` archive contain the complete render, including `Package.swift`, its `Sources/` files and `manifest.json`, with relative paths preserved.'
+            echo 'Extract `tap-formulae.tar.gz` before using the SwiftPM package. The standalone `Package.swift` asset is not a complete package when it declares source targets. Flat formula and `formulae-manifest.json` assets remain available to formula-only consumers.'
             echo ''
             echo '```json'
             cat tap-formulae/manifest.json

@@ -14,8 +14,9 @@ its checksum. For each `<Name>.xcframework` in the package this writes
 
     {"FBControlCore": {"file": "FBControlCore.xcframework.zip", "checksum": "..."}}
 
-`products.json` gives each library's SwiftPM product, the binary targets it is made
-of, as the package's own `Package.swift` has them:
+`products.json` gives each library's SwiftPM product members, including the
+reserved source linkage member when needed, as the package's own `Package.swift`
+has them. Only binary members have XCFramework zips and checksums:
 
     {"FBControlCore": ["FBControlCore", "FBControlCoreObjC"]}
 

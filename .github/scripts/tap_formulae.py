@@ -21,11 +21,18 @@ from __future__ import annotations
 import argparse
 import glob
 import hashlib
+import io
 import json
 import re
 import string
 import sys
+import tarfile
 from pathlib import Path
+
+# The release workflow also invokes this file directly, outside Python's module path.
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+
+from CI import package_linkage  # noqa: E402
 
 IDB_REPO = "facebook/idb"
 
@@ -34,7 +41,7 @@ FORMULAE = ("idb-companion.rb", "idb-cli.rb", "idb.rb")
 PACKAGE = "Package.swift"
 # Everything a full render writes into the tap.
 RENDERED = (*FORMULAE, PACKAGE)
-ALLOWED_OUTPUTS = RENDERED
+ALLOWED_OUTPUTS = (*RENDERED, *package_linkage.SOURCE_FILES)
 XCFRAMEWORK_ZIP_SUFFIX = ".xcframework.zip"
 
 TAG_RE = re.compile(r"^v\d+\.\d+\.\d+(?:\.(?:a|b|rc)\d+)?$")
@@ -157,6 +164,11 @@ def rendered_paths(manifest):
         raise FormulaError(
             "the full render declares libraries but has no Package.swift"
         )
+    if PACKAGE in outputs:
+        _validate_package_metadata(products, swiftpm.get("checksums") or {})
+    sources = package_linkage.source_files(products) if PACKAGE in outputs else {}
+    if set(outputs) & set(package_linkage.SOURCE_FILES) != set(sources):
+        raise FormulaError("rendered outputs do not match the source linkage metadata")
     return tuple(outputs)
 
 
@@ -167,6 +179,8 @@ def verify_rendered(outputs, manifest):
     for name in expected:
         if sha256_of_text(outputs[name]) != manifest["outputs"][name]:
             raise FormulaError(f"{name} does not match its own manifest")
+        if name in package_linkage.SOURCE_FILES and outputs[name] != "":
+            raise FormulaError(f"source linkage file must be empty: {name}")
 
 
 def _file_destination(root, name):
@@ -218,16 +232,46 @@ def write_outputs(directory, outputs, *, manifest=None, release=False):
         name = RELEASE_MANIFEST if release else MANIFEST
         paths[name] = _file_destination(root, name)
         texts[name] = manifest_text(manifest)
+    stale = [
+        _output_path(root, name)
+        for name in package_linkage.SOURCE_FILES
+        if PACKAGE in outputs and name not in outputs
+    ]
     root.mkdir(parents=True, exist_ok=True)
     for name, path in paths.items():
         if path.is_file() and path.read_bytes() == texts[name].encode():
             continue
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(texts[name])
+    for path in stale:
+        if path.is_file():
+            path.unlink()
 
 
 def write_rendered(out_dir, outputs, manifest):
     write_outputs(out_dir, outputs, manifest=manifest)
+
+
+def archive_rendered(directory, destination):
+    """The public release archive preserves the validated render's relative paths."""
+    root = Path(directory)
+    raw_manifest = _file_destination(root, MANIFEST).read_bytes()
+    outputs = read_rendered(root, json.loads(raw_manifest))
+    contents = {name: text.encode() for name, text in outputs.items()}
+    contents[MANIFEST] = raw_manifest
+    target = Path(destination)
+    _file_destination(target.parent, target.name)
+    with tarfile.open(target, "w:gz") as archive:
+        for name, data in sorted(contents.items()):
+            member = tarfile.TarInfo(name)
+            member.size = len(data)
+            member.mode = 0o644
+            archive.addfile(member, io.BytesIO(data))
+
+
+def cmd_archive(args):
+    archive_rendered(args.directory, args.out)
+    return 0
 
 
 TEMPLATE_SUFFIX = ".in"
@@ -312,20 +356,54 @@ def render_formulae(
     return outputs
 
 
+def _validate_package_metadata(products, checksums):
+    if any(
+        not isinstance(targets, list)
+        or any(not isinstance(target, str) for target in targets)
+        for targets in products.values()
+    ):
+        raise FormulaError("SwiftPM products must list their target names")
+    referenced = {target for targets in products.values() for target in targets}
+    for name in [*products, *checksums, *referenced]:
+        if not isinstance(name, str) or not re.fullmatch(
+            r"[A-Za-z_][A-Za-z0-9_-]*", name
+        ):
+            raise FormulaError(f"invalid SwiftPM product or target name: {name!r}")
+    if package_linkage.TARGET in checksums:
+        raise FormulaError(
+            f"{package_linkage.TARGET} is a source target, not a binary checksum"
+        )
+    for name, checksum in checksums.items():
+        if not isinstance(checksum, str) or not re.fullmatch(r"[0-9a-f]{64}", checksum):
+            raise FormulaError(f"invalid binary checksum for {name}")
+    missing = sorted(referenced - set(checksums) - {package_linkage.TARGET})
+    if missing:
+        raise FormulaError(f"no checksum for binary target(s) {', '.join(missing)}")
+
+
+def _package_targets(products, checksums, base):
+    _validate_package_metadata(products, checksums)
+    targets = [
+        f'    .binaryTarget(name: "{name}", url: "{base}/{name}{XCFRAMEWORK_ZIP_SUFFIX}", '
+        f'checksum: "{checksums[name]}"),'
+        for name in sorted(checksums)
+    ]
+    linkage = package_linkage.target_declaration(products)
+    if linkage:
+        targets.append(linkage)
+    return targets
+
+
 def render_package(tag, asset_base=None, swiftpm=None):
-    """The tap's Package.swift: each of idb's libraries a SwiftPM product, made of
-    the binary targets the release publishes as `<Name>.xcframework.zip`, fetched by
-    URL and checked against its checksum. `swiftpm` holds `products` (each library's
-    binary targets) and `checksums` (each binary target's); a release from before the
-    libraries were published has none, and renders a package with no products."""
+    """The tap's binary library products and optional source linkage member.
+
+    Binary targets keep their release URLs/checksums. The reserved source member
+    uses the same fixed recipe as the local package; older metadata needs none.
+    """
     base = (asset_base or release_asset_base(tag)).rstrip("/")
     products = dict((swiftpm or {}).get("products") or {})
     checksums = dict((swiftpm or {}).get("checksums") or {})
-    missing = sorted(
-        {target for targets in products.values() for target in targets} - set(checksums)
-    )
-    if missing:
-        raise FormulaError(f"no checksum for binary target(s) {', '.join(missing)}")
+    target_lines = _package_targets(products, checksums, base)
     lines = [
         "// swift-tools-version:6.0",
         # The tap's license, as its formulae carry it.
@@ -352,15 +430,18 @@ def render_package(tag, asset_base=None, swiftpm=None):
             quoted = ", ".join(json.dumps(target) for target in products[name])
             lines.append(f'    .library(name: "{name}", targets: [{quoted}]),')
         lines += ["  ],", "  targets: ["]
-        for name in sorted(checksums):
-            lines.append(
-                f'    .binaryTarget(name: "{name}", '
-                f'url: "{base}/{name}{XCFRAMEWORK_ZIP_SUFFIX}", '
-                f'checksum: "{checksums[name]}"),'
-            )
+        lines.extend(target_lines)
         lines.append("  ]")
     lines += [")", ""]
     return "\n".join(lines)
+
+
+def render_package_files(tag, asset_base=None, swiftpm=None):
+    products = (swiftpm or {}).get("products") or {}
+    return {
+        PACKAGE: render_package(tag, asset_base, swiftpm),
+        **package_linkage.source_files(products),
+    }
 
 
 def swiftpm_inputs(products_path, checksums_path):
@@ -422,8 +503,10 @@ def render_from_manifest(manifest, templates_dir=None, only=None):
         only=only,
     )
     if PACKAGE in (manifest.get("outputs") or {}):
-        outputs[PACKAGE] = render_package(
-            manifest["tag"], manifest.get("asset_base"), manifest.get("swiftpm")
+        outputs.update(
+            render_package_files(
+                manifest["tag"], manifest.get("asset_base"), manifest.get("swiftpm")
+            )
         )
     return outputs
 
@@ -459,7 +542,7 @@ def cmd_render(args):
         only=only,
     )
     if set(only) == set(FORMULAE):
-        outputs[PACKAGE] = render_package(args.tag, asset_base, swiftpm)
+        outputs.update(render_package_files(args.tag, asset_base, swiftpm))
     manifest = render_manifest(
         args.tag,
         outputs,
@@ -489,6 +572,14 @@ def _single_glob(pattern, what):
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     subparsers = parser.add_subparsers(dest="command", required=True)
+    archive = subparsers.add_parser(
+        "archive", help="package a validated render with its relative source paths"
+    )
+    archive.add_argument(
+        "--directory", required=True, help="rendered files and manifest.json"
+    )
+    archive.add_argument("--out", required=True, help="tar.gz file to create")
+    archive.set_defaults(func=cmd_archive)
     render = subparsers.add_parser(
         "render",
         help="render the tap formulae for a release from the templates, "

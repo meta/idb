@@ -24,6 +24,9 @@ The package holds everything a consumer of idb's libraries needs, as
                               libraries link: a small library re-exporting the real
                               one, linked as a binary target rather than through
                               linker flags SwiftPM refuses from a versioned dependency
+      Sources/IDBPackageLinkage/
+                              one empty C source/header target for products with
+                              private stubs, using SwiftPM's own imparted settings
       IDBPrivateHeaders.xcframework
                               the private frameworks' modules again, as a binary
                               target's headers, where SwiftPM and Xcode both find them
@@ -40,6 +43,8 @@ import shutil
 import subprocess
 from collections.abc import Callable, Sequence
 from pathlib import Path
+
+from . import package_linkage
 
 SOURCE_ROOT = Path(__file__).resolve().parent.parent
 MANIFEST = SOURCE_ROOT / "LibraryPackage.json"
@@ -325,18 +330,24 @@ def _swift_string(value: str) -> str:
 
 
 def product_targets(libraries: dict[str, dict[str, list[str]]]) -> dict[str, list[str]]:
-    """Each library's SwiftPM product: the binary targets it is made of.
-
-    Its stub frameworks, the private modules when its interface imports them, and its
-    closure's archives. No source target is needed: the archives' objects autolink the
-    SDK frameworks they import.
-    """
+    """Each product's binaries, plus source linkage support for private stubs."""
+    if package_linkage.TARGET in libraries:
+        raise PackageError(
+            f"{package_linkage.TARGET} is reserved for source linkage support"
+        )
     products: dict[str, list[str]] = {}
     for name, entry in libraries.items():
-        targets = [f"{stub}Stub" for stub in _stub_frameworks(entry)]
+        stubs = _stub_frameworks(entry)
+        targets = [f"{stub}Stub" for stub in stubs]
         if entry["search_paths"]:
             targets.append(PRIVATE_HEADERS_TARGET)
         targets += [archive[len("lib") : -len(".a")] for archive in entry["archives"]]
+        if package_linkage.TARGET in targets:
+            raise PackageError(
+                f"{package_linkage.TARGET} is reserved for source linkage support"
+            )
+        if stubs:
+            targets.append(package_linkage.TARGET)
         products[name] = targets
     return products
 
@@ -351,7 +362,7 @@ def binary_target_names(libraries: dict[str, dict[str, list[str]]]) -> list[str]
 
 
 def _package_manifest(libraries: dict[str, dict[str, list[str]]]) -> str:
-    """Package.swift: a product per library, each the binary targets it is made of."""
+    """Package.swift: binary products with source linkage support where needed."""
     products = [
         f'    .library(name: "{name}", targets: [{", ".join(_swift_string(t) for t in targets)}]),'
         for name, targets in product_targets(libraries).items()
@@ -360,6 +371,9 @@ def _package_manifest(libraries: dict[str, dict[str, list[str]]]) -> str:
         f'    .binaryTarget(name: "{name}", path: "{name}.xcframework"),'
         for name in binary_target_names(libraries)
     ]
+    linkage = package_linkage.target_declaration(product_targets(libraries))
+    if linkage:
+        targets.append(linkage)
     return "\n".join(
         [
             "// swift-tools-version:6.0",
@@ -387,6 +401,7 @@ def assemble(
     manifest = json.loads(MANIFEST.read_text())
     libraries: dict[str, dict[str, list[str]]] = manifest["libraries"]
     products = build_directory / "Products"
+    swiftpm_products = product_targets(libraries)
     weak_exports = _weak_stub_exports(libraries, products)
     if output.exists():
         shutil.rmtree(output)
@@ -413,6 +428,7 @@ def assemble(
     for stub in _all_stub_frameworks(libraries):
         (scratch / stub).mkdir()
         _stub_xcframework(stub, output, scratch / stub, run, weak_exports.get(stub))
+    package_linkage.materialize(output, swiftpm_products)
     (output / "Package.swift").write_text(_package_manifest(libraries))
     return manifest
 
