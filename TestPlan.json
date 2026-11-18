@@ -24,6 +24,12 @@
     "FBDeviceControlTests": [
       "FBDeviceControlTests"
     ],
+    "FBDeviceHID": [
+      "FBDeviceHIDTests"
+    ],
+    "FBDeviceHIDTests": [
+      "FBDeviceHIDTests"
+    ],
     "FBProfilingCore": [
       "FBProfilingCoreTests"
     ],
@@ -161,6 +167,11 @@
       "runner": "large"
     },
     "FBDeviceControlTests": {
+      "bootedSimulator": false,
+      "prerequisites": [],
+      "runner": "standard"
+    },
+    "FBDeviceHIDTests": {
       "bootedSimulator": false,
       "prerequisites": [],
       "runner": "standard"
