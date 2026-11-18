@@ -51,8 +51,8 @@
       "archives": [
         "libFBDeviceControl.a",
         "libFBControlCore.a",
-        "libFBXCTestCore.a",
         "libFBVideoCore.a",
+        "libFBXCTestCore.a",
         "libFBControlCoreObjC.a"
       ],
       "frameworks": [
