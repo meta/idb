@@ -16,6 +16,7 @@ public enum DeviceHIDError: Error, LocalizedError, Sendable {
   case deviceMatchFailed(identifier: UUID, count: Int)
   case deadlineExceeded
   case assertionInvalidated
+  case displayObservationFailed(String)
   case unexpectedCompletion
   case nativeFailure(operation: String, domain: String, code: Int, message: String)
   case cleanupFailed(cause: any Error, failures: [any Error])
@@ -40,6 +41,8 @@ public enum DeviceHIDError: Error, LocalizedError, Sendable {
       return "The physical input could not finish within its execution budget"
     case .assertionInvalidated:
       return "The physical input's owned usage assertion was invalidated"
+    case .displayObservationFailed(let message):
+      return "Physical input display observation failed after input began: \(message)"
     case .unexpectedCompletion:
       return "A physical input operation delivered an unexpected completion"
     case .nativeFailure(let operation, let domain, let code, let message):
@@ -51,6 +54,17 @@ public enum DeviceHIDError: Error, LocalizedError, Sendable {
     case .orientationMayHaveApplied(let message):
       return "Physical orientation may have changed; further input is refused: \(message)"
     }
+  }
+
+  static func observationAfterInput(_ error: any Error) -> DeviceHIDError {
+    if let error = error as? DeviceHIDError {
+      switch error {
+      case .preparationFailed(let reason): return .displayObservationFailed(reason)
+      case .displayObservationFailed: return error
+      default: break
+      }
+    }
+    return .displayObservationFailed(error.localizedDescription)
   }
 
   static func native(_ error: any Error, operation: String) -> DeviceHIDError {

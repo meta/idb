@@ -40,6 +40,7 @@ final class DeviceHIDOperation: Sendable {
   private enum PendingOperation {
     case acquisition
     case factory
+    case display
   }
 
   private struct Cancellation {
@@ -78,6 +79,11 @@ final class DeviceHIDOperation: Sendable {
     var factoryInvoking = false
     var factoryCompleted = false
     var factoryReady = false
+    var displayStarted = false
+    var displayInvoking = false
+    var displayCompleted = false
+    var displayBaseline: DeviceHIDDisplaySnapshot?
+    var displayStopRequested = false
     var cancellations: [Cancellation] = []
     var contactIndex = 0
     var anyStartAdmitted = false
@@ -135,6 +141,7 @@ final class DeviceHIDOperation: Sendable {
     var pending: Bool {
       acquisitionInvoking || (acquisitionStarted && !acquisitionCompleted)
         || observationPending || factoryInvoking || (factoryStarted && !factoryCompleted)
+        || displayInvoking || (displayStarted && !displayCompleted)
         || inputInFlight != nil || cancellations.contains { $0.claimed && !$0.returned }
     }
   }
@@ -142,6 +149,7 @@ final class DeviceHIDOperation: Sendable {
   private enum Action {
     case acquire
     case observe(DeviceHIDAssertion)
+    case display
     case factory
     case input(InputCall)
     case cancel(Int, DeviceHIDCancellation)
@@ -152,6 +160,7 @@ final class DeviceHIDOperation: Sendable {
   }
 
   private let transport: DeviceHIDTransport
+  private let expectedDisplay: DeviceHIDDisplaySnapshot?
   private let contacts: [DeviceHIDContactPlan]
   private let totalDuration: TimeInterval
   private let deadline: ContinuousClock.Instant
@@ -169,8 +178,10 @@ final class DeviceHIDOperation: Sendable {
     let contacts: [DeviceHIDContactPlan]
     switch input {
     case let .touch(touch):
+      expectedDisplay = touch.start.displaySnapshot
       contacts = [DeviceHIDContactPlan(contact: first.contact, duration: first.duration, positions: first.positions, pause: touch.pause)] + touch.subsequent
     case .button:
+      expectedDisplay = nil
       contacts = [first]
     }
     self.contacts = contacts
@@ -272,10 +283,17 @@ final class DeviceHIDOperation: Sendable {
         state.observationPending = true
         actions.append(.observe(lease.assertion))
       }
-      if !stopped, state.observationReturned, !state.acquisitionInvoking, !state.factoryStarted {
-        state.factoryStarted = true
-        state.factoryInvoking = true
-        actions.append(.factory)
+      if !stopped, state.observationReturned, !state.acquisitionInvoking {
+        if expectedDisplay != nil, !state.displayStarted {
+          state.displayStarted = true
+          state.displayInvoking = true
+          actions.append(.display)
+        }
+        if expectedDisplay == nil || state.displayBaseline != nil, !state.displayInvoking, !state.factoryStarted {
+          state.factoryStarted = true
+          state.factoryInvoking = true
+          actions.append(.factory)
+        }
       }
       if !stopped, state.endSucceeded, state.inputInFlight == nil,
         state.contactIndex + 1 < contacts.count, state.holdUntil.map({ ContinuousClock.now >= $0 }) == true
@@ -309,17 +327,17 @@ final class DeviceHIDOperation: Sendable {
         state.barrierScheduled = true
         actions.append(.input(.barrier))
       }
-      if stopped {
-        for index in state.cancellations.indices {
-          let pending: Bool
-          switch state.cancellations[index].operation {
-          case .acquisition: pending = state.acquisitionInvoking || !state.acquisitionCompleted
-          case .factory: pending = state.factoryInvoking || !state.factoryCompleted
-          }
-          if pending, !state.cancellations[index].claimed {
-            state.cancellations[index].claimed = true
-            actions.append(.cancel(index, state.cancellations[index].call))
-          }
+      if state.displayStarted, stopped || state.barrierReturned { state.displayStopRequested = true }
+      for index in state.cancellations.indices {
+        let pending: Bool
+        switch state.cancellations[index].operation {
+        case .acquisition: pending = stopped && (state.acquisitionInvoking || !state.acquisitionCompleted)
+        case .factory: pending = stopped && (state.factoryInvoking || !state.factoryCompleted)
+        case .display: pending = state.displayStopRequested && !state.displayCompleted
+        }
+        if pending, !state.cancellations[index].claimed {
+          state.cancellations[index].claimed = true
+          actions.append(.cancel(index, state.cancellations[index].call))
         }
       }
       let inputDrained = contactEnded && !state.needsBarrier
@@ -356,6 +374,8 @@ final class DeviceHIDOperation: Sendable {
       transportQueue.async { self.acquire() }
     case .observe(let assertion):
       transportQueue.async { self.observe(assertion) }
+    case .display:
+      transportQueue.async { self.observeDisplays() }
     case .factory:
       transportQueue.async { self.makeCapability() }
     case .input(let call):
@@ -485,6 +505,86 @@ final class DeviceHIDOperation: Sendable {
     let changes = state.sync { state -> (Bool, Bool) in
       guard !state.finished, state.assertions[id]?.releaseClaimed == false else { return (false, false) }
       return state.fail(DeviceHIDError.assertionInvalidated, uncertain: state.anyStartAdmitted)
+    }
+    if changes.1 { quarantine() }
+    if changes.0 { operationTimer.cancel() }
+    advance()
+  }
+
+  private func observeDisplays() {
+    guard state.sync(execute: { !$0.finishing && !$0.finished && $0.error == nil && ContinuousClock.now < deadline }) else {
+      state.sync {
+        $0.displayInvoking = false
+        $0.displayCompleted = true
+      }
+      advance()
+      return
+    }
+    do {
+      let cancel = try transport.observeDisplays({ self.receivedDisplay($0) }, { self.completedDisplays($0) })
+      install(cancel, for: .display)
+    } catch {
+      state.sync { $0.displayCompleted = true }
+      stop(DeviceHIDError.native(error, operation: "display observation startup"))
+    }
+    state.sync { $0.displayInvoking = false }
+    advance()
+  }
+
+  private func receivedDisplay(_ snapshot: DeviceHIDDisplaySnapshot) {
+    guard let expectedDisplay else { return }
+    while true {
+      let baseline = state.sync { $0.displayBaseline }
+      let failure: (before: DeviceHIDError, after: DeviceHIDError)?
+      do {
+        if let baseline {
+          try snapshot.validate(against: baseline)
+        } else {
+          try snapshot.validatePreparation(against: expectedDisplay)
+        }
+        failure = nil
+      } catch {
+        let error = DeviceHIDError.native(error, operation: "display observation")
+        failure = (error, DeviceHIDError.observationAfterInput(error))
+      }
+      let changes = state.sync { state -> (retry: Bool, cancelTimer: Bool) in
+        guard !state.finishing, !state.finished, !state.displayCompleted, !state.displayStopRequested else { return (false, false) }
+        let expired = state.reconcile(deadline: deadline)
+        guard state.error == nil else { return (false, expired) }
+        // The baseline can only transition from nil to one immutable full frame.
+        if baseline == nil, state.displayBaseline != nil { return (true, false) }
+        if let failure {
+          return (false, state.fail(state.anyStartAdmitted ? failure.after : failure.before, uncertain: false).0)
+        }
+        if state.displayBaseline == nil { state.displayBaseline = snapshot }
+        return (false, false)
+      }
+      if changes.retry { continue }
+      if changes.cancelTimer { operationTimer.cancel() }
+      break
+    }
+    advance()
+  }
+
+  private func completedDisplays(_ result: Result<Void, any Error>) {
+    let failure: (any Error)?
+    switch result {
+    case .success: failure = nil
+    case .failure(let error):
+      failure = error is CancellationError ? CancellationError() : DeviceHIDError.native(error, operation: "display observation")
+    }
+    let beforeInput = failure ?? DeviceHIDError.preparationFailed("The selected-device display stream ended")
+    let afterInput = DeviceHIDError.observationAfterInput(beforeInput)
+    let changes = withExtendedLifetime(result) {
+      state.sync { state -> (Bool, Bool) in
+        guard !state.displayCompleted else { return state.fail(DeviceHIDError.unexpectedCompletion, uncertain: true) }
+        state.displayCompleted = true
+        if state.displayStopRequested {
+          guard let failure, !(failure is CancellationError) else { return (false, false) }
+          return state.fail(state.anyStartAdmitted ? afterInput : failure, uncertain: false, cleanup: true)
+        }
+        return state.fail(state.anyStartAdmitted ? afterInput : beforeInput, uncertain: false)
+      }
     }
     if changes.1 { quarantine() }
     if changes.0 { operationTimer.cancel() }

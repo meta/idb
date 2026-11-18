@@ -51,12 +51,60 @@ address with that value witness table. A wrong caller-side associated type can
 therefore corrupt result storage before any later cast.
 
 The transport's checked generic factory keeps the factory result as
-`C.ProtocolType` until its conditional conversion to the requested HID protocol.
+`C.ProtocolType` until its conditional conversion to the requested capability protocol.
 The small boundary is both no-inline and optimization-disabled: whole-module
 `-O` otherwise specializes away the conditional cast even with no-inline alone.
 It rejects a mismatched returned implementation before publication to transport
 state. This check is defense in depth: it is not recovery from arbitrary private
 ABI corruption, and requires a correct generic factory/protocol declaration.
+
+## Display monitoring derivation
+
+The same reference file hashes establish the display capability and value ABI.
+The `DisplayInfoCapability` associated-type record at `0x5dbc00` gives both
+aliases typeref `0x5ab4e8`; its indirect reference resolves through `0x64e150`
+to `DisplayInfoProtocol` descriptor `0x5c7e48`, followed by existential `_p`.
+The protocol's requirements are its base conformance, async `displayInfo` getter
+and async-throwing `displayInfoUpdates()` method, in that order.
+
+The getter is async **and throwing**. Its requirement flags alone establish only
+async. The actual witness table at `0x635fc8`, slot `+0x10`, resolves to async
+descriptor `0x57c8e0` and witness `0x2c0a28`. That witness calls descriptor
+`0x573338` (entry `0x11aa5c`) with continuation `0x2b17e4`. The continuation saves
+and tests returned error register `x20` at `0x2b188c` and `0x2b1894`. Success
+resumes the caller with zero; failure follows `0x2b1928` to `0x295d68`, reloads
+the saved error at `0x295dbc`, and resumes the caller without catching it.
+The concrete getter at `0x2bf910` independently uses the same error propagation.
+The declaration is complete even though the stream-first consumer does not call
+this getter; no misdispatch from the earlier omission was demonstrated.
+
+CoreDeviceUtilities contains `DisplayInfo`, `Display`, `OrientationInfo`,
+`DeviceOrientation`, and `Display.DisplayType` under the CoreDevice module.
+Their nominal descriptors are respectively `0x4eae50`, `0x4eada8`, `0x4e6c3c`,
+`0x4e6c04`, and `0x4eadc4`. Native metadata accessors and authenticated value
+witnesses establish sizes/strides of 13/16, 328/328, 3/3, 1/1, and 1/1 bytes.
+The structs contain four, twenty-two, and three stored fields, not just the
+exposed getter subset. Keep them opaque and let native metadata own their layout.
+
+Reflection and native getter bodies agree on the consumed fields: an array of
+`Display`, optional `OrientationInfo`, UInt32 display ID, Bool primary flag,
+`DisplayType`, CGRect bounds, CGSize native size, Int point scale, two String
+rotations, and two `DeviceOrientation` getters. Foreign type descriptors
+`0x4e3260` and `0x4e3280` name CGRect and CGSize; the UInt32 typeref binds its
+Swift descriptor. String getters retain and return two words; enum/optional
+getters write indirect results. Some getter bodies are folded together, so use
+canonical symbol-to-address mappings and reflection, not an incidental label.
+Both enums have no payload cases. Reflected order matches the exported enum-case
+constants: DeviceOrientation's seven cases at `0x485384..0x48539c`, and
+DisplayType's six at `0x49ca0c..0x49ca20`. Use resilient enum cases, not those
+numeric tags as a new source contract.
+
+For updates, recheck field descriptors, value witnesses, getter return conventions
+and enum-case constants as well as the associated aliases and protocol effects.
+Only canonical Swift descriptor symbols are evidence: synthetic `$ld$hide$...`
+linker aliases with similar suffixes are not type descriptors. Static ABI evidence
+does not establish initial stream delivery, remote update ordering, teardown
+semantics or protected-host behavior.
 
 ## Rechecking a framework update
 

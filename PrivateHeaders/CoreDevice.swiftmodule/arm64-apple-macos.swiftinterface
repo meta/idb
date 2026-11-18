@@ -112,6 +112,45 @@ public class RemoteDevice {
   public func getImplementation<CapabilityType>(for capability: CoreDevice.CapabilityStaticMember<CapabilityType>) async throws -> CapabilityType.ProtocolType where CapabilityType: CoreDevice.DeviceCapability
 }
 
+public struct DisplayInfoCapability: CoreDevice.DeviceCapability {
+  public typealias ProtocolType = any CoreDevice.DisplayInfoProtocol
+  public typealias ImplType = any CoreDevice.DisplayInfoProtocol
+  public static var capability: CoreDevice.Capability { get }
+}
+
+public protocol DisplayInfoProtocol: CoreDevice.DeviceCapabilityProtocol {
+  var displayInfo: CoreDevice.DisplayInfo { get async throws }
+  func displayInfoUpdates() async throws -> _Concurrency.AsyncThrowingStream<CoreDevice.DisplayInfo, Swift.Error>
+}
+
+public struct DisplayInfo {
+  public var displays: [CoreDevice.Display] { get }
+  public var orientation: CoreDevice.OrientationInfo? { get }
+}
+
+public struct Display {
+  public enum DisplayType {
+    case unknown, integrated, external, wireless, virtual, dfr
+  }
+  public var displayId: Swift.UInt32 { get }
+  public var primary: Swift.Bool { get }
+  public var type: CoreDevice.Display.DisplayType { get }
+  public var bounds: CoreGraphics.CGRect { get }
+  public var nativeSize: CoreGraphics.CGSize { get }
+  public var pointScale: Swift.Int { get }
+  public var nativeOrientation: Swift.String { get }
+  public var currentOrientation: Swift.String { get }
+}
+
+public struct OrientationInfo {
+  public var currentDeviceOrientation: CoreDevice.DeviceOrientation { get }
+  public var currentDeviceNonFlatOrientation: CoreDevice.DeviceOrientation { get }
+}
+
+public enum DeviceOrientation {
+  case unknown, portrait, portraitUpsideDown, landscapeLeft, landscapeRight, faceUp, faceDown
+}
+
 public struct ButtonHIDCapability: CoreDevice.DeviceCapability {
   public typealias ProtocolType = any CoreDevice.HIDButton
   public typealias ImplType = any CoreDevice.HIDButton

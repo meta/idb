@@ -14,6 +14,7 @@ struct DeviceHIDPreparedTap: Sendable {
   let point: CGPoint
   let duration: TimeInterval?
   var secondPoint: CGPoint?
+  let displaySnapshot: DeviceHIDDisplaySnapshot
 }
 
 enum DeviceHIDPreparation {
@@ -170,12 +171,13 @@ enum DeviceHIDPreparation {
       throw DeviceHIDError.preparationFailed("A touch sequence must contain a contact")
     }
     return DeviceHIDPreparedTouch(
-      start: DeviceHIDPreparedTap(deviceIdentifier: geometry.identifier, point: point, duration: first.duration, secondPoint: secondPoint),
+      start: DeviceHIDPreparedTap(deviceIdentifier: geometry.identifier, point: point, duration: first.duration, secondPoint: secondPoint, displaySnapshot: geometry.snapshot),
       positions: first.positions, pause: first.pause, subsequent: Array(contacts.dropFirst()))
   }
 
   private struct Geometry {
     let identifier: UUID
+    let snapshot: DeviceHIDDisplaySnapshot
     let width: Double
     let height: Double
     let scale: Double
@@ -196,37 +198,33 @@ enum DeviceHIDPreparation {
     let displays = try decoder.decode(Displays.self, from: displays)
     let identifier = try validate(details: details, udid: udid)
     try displays.info.validate(command: "displays", udid: udid, identifier: identifier)
-    let candidates = displays.result.displays
-    let primary = candidates.filter(\.primary)
-    guard candidates.count <= 64, Set(candidates.map(\.displayId)).count == candidates.count,
-      primary.count == 1, let display = primary.first,
-      display.type.count == 1, display.type["integrated"]?.isEmpty == true, display.displayId > 0
-    else {
-      throw DeviceHIDError.preparationFailed("Expected complete, unique display metadata with one primary integrated display")
+    guard displays.result.displays.count <= 64 else {
+      throw DeviceHIDError.preparationFailed("Display metadata exceeds the display count bound")
     }
-    guard display.currentOrientation == "rot0", display.nativeOrientation == "rot0",
-      displays.result.orientation.currentDeviceNonFlatOrientation == "portrait",
-      displays.result.orientation.currentDeviceOrientation == "portrait"
-        || displays.result.orientation.currentDeviceOrientation == "faceUp"
-    else {
-      throw DeviceHIDError.preparationFailed("Physical taps require a portrait display basis")
+    let snapshot = try DeviceHIDDisplaySnapshot(
+      displays: displays.result.displays.map { display in
+        guard let id = UInt32(exactly: display.displayId),
+          display.bounds.count == 2, display.bounds.allSatisfy({ $0.count == 2 }), display.nativeSize.count == 2,
+          display.type.count == 1, display.type.values.allSatisfy(\.isEmpty)
+        else { throw DeviceHIDError.preparationFailed("Invalid display bounds or identity") }
+        return DeviceHIDDisplaySnapshot.Display(
+          identifier: id, primary: display.primary, integrated: display.type["integrated"] != nil,
+          bounds: CGRect(x: display.bounds[0][0], y: display.bounds[0][1], width: display.bounds[1][0], height: display.bounds[1][1]),
+          nativeSize: CGSize(width: display.nativeSize[0], height: display.nativeSize[1]), pointScale: display.pointScale,
+          nativeOrientation: display.nativeOrientation, currentOrientation: display.currentOrientation)
+      },
+      orientation: displayOrientation(displays.result.orientation.currentDeviceOrientation),
+      nonFlatOrientation: displayOrientation(displays.result.orientation.currentDeviceNonFlatOrientation))
+    let primary = try snapshot.primaryDisplay()
+    return Geometry(identifier: identifier, snapshot: snapshot, width: primary.bounds.size.width, height: primary.bounds.size.height, scale: primary.pointScale)
+  }
+
+  private static func displayOrientation(_ value: String) -> DeviceHIDDisplaySnapshot.Orientation {
+    switch value {
+    case "portrait": return .portrait
+    case "faceUp": return .faceUp
+    default: return .unsupported
     }
-    guard display.bounds.count == 2, display.bounds.allSatisfy({ $0.count == 2 }),
-      display.bounds[0] == [0, 0], display.nativeSize.count == 2
-    else {
-      throw DeviceHIDError.preparationFailed("Invalid display bounds")
-    }
-    let width = display.bounds[1][0]
-    let height = display.bounds[1][1]
-    let scale = display.pointScale
-    guard width.isFinite, height.isFinite, scale.isFinite,
-      width >= 1, height >= width, width.rounded() == width, height.rounded() == height,
-      scale > 0, (width / scale).isFinite, (height / scale).isFinite,
-      width / scale >= 1, height / scale >= 1, display.nativeSize == [width, height]
-    else {
-      throw DeviceHIDError.preparationFailed("Expected matching pixel bounds/native size and a positive point scale")
-    }
-    return Geometry(identifier: identifier, width: width, height: height, scale: scale)
   }
 
   private static func validate(details: Details, udid: String) throws -> UUID {

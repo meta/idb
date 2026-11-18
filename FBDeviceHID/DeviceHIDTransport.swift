@@ -22,6 +22,7 @@ final class DeviceHIDTransport: Sendable {
 
   let acquire: @Sendable (@escaping @Sendable (Result<DeviceHIDAssertion, any Error>) -> Void) throws -> DeviceHIDCancellation
   let makeCapability: @Sendable (@escaping @Sendable (Result<Void, any Error>) -> Void) throws -> DeviceHIDCancellation
+  let observeDisplays: @Sendable (@escaping @Sendable (DeviceHIDDisplaySnapshot) -> Void, @escaping @Sendable (Result<Void, any Error>) -> Void) throws -> DeviceHIDCancellation
   let send: @Sendable (DeviceHIDContactPhase, DeviceHIDContact) throws -> Void
   let barrier: @Sendable () throws -> Void
   let discard: @Sendable () -> Void
@@ -41,11 +42,11 @@ final class DeviceHIDTransport: Sendable {
     var retired = false
   }
 
-  // Specialization must not replace C.ProtocolType with a caller-assumed HID
+  // Specialization must not replace C.ProtocolType with a caller-assumed
   // existential or remove the dynamic check at this private ABI boundary.
   @_optimize(none)
   @inline(never)
-  private static func checkedImplementation<C: DeviceCapability, Implementation>(
+  static func checkedImplementation<C: DeviceCapability, Implementation>(
     for capability: CapabilityStaticMember<C>,
     on device: RemoteDevice,
     as implementationType: Implementation.Type
@@ -152,6 +153,21 @@ final class DeviceHIDTransport: Sendable {
         }
         return { task.cancel() }
       },
+      observeDisplays: { receive, completion in
+        let task = Task.detached { () -> Result<Void, any Error> in
+          do {
+            let device = try state.sync { state -> RemoteDevice in
+              guard !state.retired, let device = state.device else { throw CancellationError() }
+              return device
+            }
+            try Task.checkCancellation()
+            try await DeviceHIDDisplaySource.consume(device: device, receive: receive)
+            return .success(())
+          } catch { return .failure(error) }
+        }
+        Task.detached { completion(await task.value) }
+        return { task.cancel() }
+      },
       send: { phase, contact in
         switch contact {
         case let .touch(point, secondPoint):
@@ -223,6 +239,7 @@ final class DeviceHIDTransport: Sendable {
     self.init(
       acquire: { _ in throw DeviceHIDError.unsupportedRuntime("Native arm64 is required") },
       makeCapability: { _ in throw DeviceHIDError.unsupportedRuntime("Native arm64 is required") },
+      observeDisplays: { _, _ in throw DeviceHIDError.unsupportedRuntime("Native arm64 is required") },
       send: { _, _ in throw DeviceHIDError.unsupportedRuntime("Native arm64 is required") },
       barrier: { throw DeviceHIDError.unsupportedRuntime("Native arm64 is required") },
       discard: {})
@@ -232,12 +249,14 @@ final class DeviceHIDTransport: Sendable {
   init(
     acquire: @escaping @Sendable (@escaping @Sendable (Result<DeviceHIDAssertion, any Error>) -> Void) throws -> DeviceHIDCancellation,
     makeCapability: @escaping @Sendable (@escaping @Sendable (Result<Void, any Error>) -> Void) throws -> DeviceHIDCancellation,
+    observeDisplays: @escaping @Sendable (@escaping @Sendable (DeviceHIDDisplaySnapshot) -> Void, @escaping @Sendable (Result<Void, any Error>) -> Void) throws -> DeviceHIDCancellation,
     send: @escaping @Sendable (DeviceHIDContactPhase, DeviceHIDContact) throws -> Void,
     barrier: @escaping @Sendable () throws -> Void,
     discard: @escaping @Sendable () -> Void
   ) {
     self.acquire = acquire
     self.makeCapability = makeCapability
+    self.observeDisplays = observeDisplays
     self.send = send
     self.barrier = barrier
     self.discard = discard

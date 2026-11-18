@@ -145,7 +145,7 @@ final class DeviceHIDFixture: Sendable {
   }
 
   static func prepared(duration: TimeInterval? = nil, point: CGPoint = CGPoint(x: 0.25, y: 0.5)) -> DeviceHIDPreparedTap {
-    DeviceHIDPreparedTap(deviceIdentifier: UUID(), point: point, duration: duration)
+    DeviceHIDPreparedTap(deviceIdentifier: UUID(), point: point, duration: duration, displaySnapshot: displaySnapshot)
   }
 
   func operation(duration: TimeInterval? = nil, operationSeconds: TimeInterval = 3, cleanupReserve: TimeInterval = 1) -> DeviceHIDOperation {
