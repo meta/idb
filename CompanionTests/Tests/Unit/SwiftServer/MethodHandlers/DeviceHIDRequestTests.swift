@@ -29,10 +29,10 @@ struct DeviceHIDRequestTests {
       Issue.record("Missing touch recipe")
       return
     }
-    #expect(sequence.positions.count == 2)
-    #expect(sequence.positions[1].point.x == 3)
-    #expect(sequence.positions[1].point.y == 4)
-    #expect(sequence.positions[1].delay == 0.2)
+    #expect(sequence.contacts[0].positions.count == 2)
+    #expect(sequence.contacts[0].positions[1].point.x == 3)
+    #expect(sequence.contacts[0].positions[1].point.y == 4)
+    #expect(sequence.contacts[0].positions[1].delay == 0.2)
   }
 
   @Test func swipeMatchesTheConstantSpeedSimulatorRecipe() async throws {
@@ -49,8 +49,8 @@ struct DeviceHIDRequestTests {
       Issue.record("Missing swipe recipe")
       return
     }
-    #expect(sequence.positions.map { $0.point.x } == [10, 20, 30, 30])
-    #expect(sequence.positions.allSatisfy { $0.delay == 0.1 })
+    #expect(sequence.contacts[0].positions.map { $0.point.x } == [10, 20, 30, 30])
+    #expect(sequence.contacts[0].positions.allSatisfy { $0.delay == 0.1 })
     #expect(sequence.duration == 0.4)
   }
 

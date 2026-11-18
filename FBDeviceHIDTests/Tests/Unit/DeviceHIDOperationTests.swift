@@ -39,6 +39,7 @@ struct DeviceHIDReentrantError: LocalizedError, Sendable {
 final class DeviceHIDFixture: Sendable {
   struct State {
     var points: [CGPoint] = []
+    var calls: [String: Int] = [:]
     var buttons: [DeviceHIDButton] = []
     var acquisition: (@Sendable (Result<DeviceHIDAssertion, any Error>) -> Void)?
     var factory: (@Sendable (Result<Void, any Error>) -> Void)?
@@ -65,10 +66,17 @@ final class DeviceHIDFixture: Sendable {
   }
 
   private func call(_ name: String) throws {
+    let ordinal = state.sync { state in
+      state.calls[name, default: 0] += 1
+      return state.calls[name, default: 0]
+    }
+    let indexed = "\(name)\(ordinal)"
     events.record(name)
-    if block == name { gate.wait() }
-    if fail == name { throw DeviceHIDTestError.nativeFailure }
+    events.record(indexed)
+    if block == name || block == indexed { gate.wait() }
+    if fail == name || fail == indexed { throw DeviceHIDTestError.nativeFailure }
     events.record(name + "Returned")
+    events.record(indexed + "Returned")
   }
 
   var assertion: DeviceHIDAssertion {

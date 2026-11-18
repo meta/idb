@@ -46,12 +46,20 @@ struct DeviceHIDPreparationTests {
 
   @Test func normalizesEveryTouchPositionFromOneSnapshot() throws {
     let (details, displays) = try metadata()
-    let sequence = try DeviceHIDTouchSequence([.down(x: 100, y: 200), .delay(0.1), .move(x: 300, y: 400), .up(x: 300, y: 400)])
+    let sequence = try DeviceHIDTouchSequence([.down(x: 100, y: 200), .delay(0.1), .move(x: 300, y: 400), .up(x: 300, y: 400), .delay(0.2), .down(x: 200, y: 600), .move(x: 250, y: 700), .up(x: 250, y: 700)])
     let prepared = try DeviceHIDPreparation.decodeTouch(details: details, displays: displays, udid: "test-phone", sequence: sequence)
     #expect(abs(prepared.start.point.x - 100.0 / 393) < 1e-12)
     #expect(abs(prepared.positions[0].point.x - 300.0 / 393) < 1e-12)
     #expect(abs(prepared.positions[0].point.y - 400.0 / 852) < 1e-12)
-    let outside = try DeviceHIDTouchSequence([.down(x: 100, y: 200), .move(x: 393, y: 400), .up(x: 393, y: 400)])
+    #expect(prepared.pause == 0.2)
+    #expect(prepared.subsequent.count == 1)
+    guard case let .touch(secondStart) = prepared.subsequent[0].contact else {
+      Issue.record("Expected a second touch")
+      return
+    }
+    #expect(abs(secondStart.x - 200.0 / 393) < 1e-12)
+    #expect(abs(prepared.subsequent[0].positions[0].point.y - 700.0 / 852) < 1e-12)
+    let outside = try DeviceHIDTouchSequence([.down(x: 100, y: 200), .up(x: 100, y: 200), .down(x: 200, y: 400), .move(x: 393, y: 400), .up(x: 393, y: 400)])
     #expect(throws: DeviceHIDError.self) {
       try DeviceHIDPreparation.decodeTouch(details: details, displays: displays, udid: "test-phone", sequence: outside)
     }

@@ -176,11 +176,17 @@ enum DeviceHIDPreparation {
 
   static func decodeTouch(details: Data, displays: Data, udid: String, sequence: DeviceHIDTouchSequence) throws -> DeviceHIDPreparedTouch {
     let geometry = try decodeGeometry(details: details, displays: displays, udid: udid)
-    let positions = try sequence.positions.map { DeviceHIDPosition(point: try geometry.normalize($0.point), delay: $0.delay) }
-    guard let first = positions.first else { throw DeviceHIDError.preparationFailed("A touch sequence must contain a down") }
+    let contacts = try sequence.contacts.map { contact -> DeviceHIDContactPlan in
+      let positions = try contact.positions.map { DeviceHIDPosition(point: try geometry.normalize($0.point), delay: $0.delay) }
+      guard let first = positions.first else { throw DeviceHIDError.preparationFailed("A touch contact must contain a down") }
+      return DeviceHIDContactPlan(contact: .touch(first.point), duration: first.delay, positions: Array(positions.dropFirst()), pause: contact.pause)
+    }
+    guard let first = contacts.first, case let .touch(point) = first.contact else {
+      throw DeviceHIDError.preparationFailed("A touch sequence must contain a contact")
+    }
     return DeviceHIDPreparedTouch(
-      start: DeviceHIDPreparedTap(deviceIdentifier: geometry.identifier, point: first.point, duration: first.delay),
-      positions: Array(positions.dropFirst()))
+      start: DeviceHIDPreparedTap(deviceIdentifier: geometry.identifier, point: point, duration: first.duration),
+      positions: first.positions, pause: first.pause, subsequent: Array(contacts.dropFirst()))
   }
 
   private struct Geometry {

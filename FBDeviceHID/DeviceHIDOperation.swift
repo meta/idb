@@ -79,6 +79,8 @@ final class DeviceHIDOperation: Sendable {
     var factoryCompleted = false
     var factoryReady = false
     var cancellations: [Cancellation] = []
+    var contactIndex = 0
+    var anyStartAdmitted = false
     var startScheduled = false
     var startAdmitted = false
     var startReturned = false
@@ -95,6 +97,21 @@ final class DeviceHIDOperation: Sendable {
     var inputInFlight: InputCall?
     var discardClaimed = false
     var discardReturned = false
+
+    mutating func nextContact() {
+      contactIndex += 1
+      startScheduled = false
+      startAdmitted = false
+      startReturned = false
+      holdUntil = nil
+      positionIndex = 0
+      positionScheduled = false
+      lastAdmittedContact = nil
+      endScheduled = false
+      endClaimed = false
+      endReturned = false
+      endSucceeded = false
+    }
 
     mutating func fail(_ error: any Error, uncertain: Bool, cleanup: Bool = false) -> (Bool, Bool) {
       let newlyUncertain = uncertain && !self.uncertain
@@ -135,9 +152,7 @@ final class DeviceHIDOperation: Sendable {
   }
 
   private let transport: DeviceHIDTransport
-  private let contact: DeviceHIDContact
-  private let duration: TimeInterval
-  private let positions: [DeviceHIDPosition]
+  private let contacts: [DeviceHIDContactPlan]
   private let totalDuration: TimeInterval
   private let deadline: ContinuousClock.Instant
   private let cleanupReserve: TimeInterval
@@ -150,10 +165,16 @@ final class DeviceHIDOperation: Sendable {
 
   init(transport: DeviceHIDTransport, input: DeviceHIDPreparedInput, operationSeconds: TimeInterval = 10, cleanupReserve: TimeInterval = 5, timerQueue: DispatchQueue = .global(), quarantine: @escaping @Sendable () -> Void) {
     self.transport = transport
-    contact = input.contact
-    duration = input.duration ?? 0
-    positions = input.positions
-    totalDuration = input.positions.reduce(input.duration ?? 0) { $0 + $1.delay }
+    let first = DeviceHIDContactPlan(contact: input.contact, duration: input.duration ?? 0, positions: input.positions)
+    let contacts: [DeviceHIDContactPlan]
+    switch input {
+    case let .touch(touch):
+      contacts = [DeviceHIDContactPlan(contact: first.contact, duration: first.duration, positions: first.positions, pause: touch.pause)] + touch.subsequent
+    case .button:
+      contacts = [first]
+    }
+    self.contacts = contacts
+    totalDuration = contacts.reduce(0) { $0 + $1.totalDuration }
     deadline = ContinuousClock.now.advanced(by: .seconds(operationSeconds))
     self.cleanupReserve = cleanupReserve
     self.quarantine = quarantine
@@ -190,15 +211,20 @@ final class DeviceHIDOperation: Sendable {
           return
         }
         do {
-          switch contact {
-          case let .touch(point): try Self.validate(point: point, duration: duration)
-          case .button:
-            guard duration.isFinite, duration >= 0 else { throw DeviceHIDError.preparationFailed("The hold duration must be finite and nonnegative") }
+          guard contacts.reduce(0, { $0 + $1.positions.count + 2 }) <= DeviceHIDTouchSequence.maximumEvents,
+            totalDuration.isFinite, contacts.last?.pause == 0
+          else { throw DeviceHIDError.preparationFailed("The contact plan exceeds its count or duration bound") }
+          for plan in contacts {
+            guard plan.pause.isFinite, plan.pause >= 0 else { throw DeviceHIDError.preparationFailed("Contact pauses must be finite and nonnegative") }
+            switch plan.contact {
+            case let .touch(point): try Self.validate(point: point, duration: plan.duration)
+            case .button:
+              guard contacts.count == 1, plan.positions.isEmpty, plan.duration.isFinite, plan.duration >= 0 else {
+                throw DeviceHIDError.preparationFailed("A button plan must contain one bounded press")
+              }
+            }
+            for position in plan.positions { try Self.validate(point: position.point, duration: position.delay) }
           }
-          guard positions.count < DeviceHIDTouchSequence.maximumEvents, totalDuration.isFinite else {
-            throw DeviceHIDError.preparationFailed("The contact plan exceeds its count or duration bound")
-          }
-          for position in positions { try Self.validate(point: position.point, duration: position.delay) }
           if Task.isCancelled { cancel() }
           advance()
         } catch {
@@ -243,6 +269,11 @@ final class DeviceHIDOperation: Sendable {
         state.factoryInvoking = true
         actions.append(.factory)
       }
+      if !stopped, state.endSucceeded, state.inputInFlight == nil,
+        state.contactIndex + 1 < contacts.count, state.holdUntil.map({ ContinuousClock.now >= $0 }) == true
+      {
+        state.nextContact()
+      }
       if !stopped, state.factoryReady, !state.factoryInvoking, !state.startScheduled {
         state.startScheduled = true
         actions.append(.input(.start))
@@ -252,7 +283,7 @@ final class DeviceHIDOperation: Sendable {
           state.endScheduled = true
           actions.append(.input(.end))
         } else if state.holdUntil.map({ ContinuousClock.now >= $0 }) == true {
-          if state.positionIndex < positions.count {
+          if state.positionIndex < contacts[state.contactIndex].positions.count {
             if !state.positionScheduled {
               state.positionScheduled = true
               actions.append(.input(.position))
@@ -264,7 +295,9 @@ final class DeviceHIDOperation: Sendable {
         }
       }
       let contactEnded = !state.startAdmitted || state.endReturned
-      if state.needsBarrier, state.inputInFlight == nil, !state.barrierScheduled, contactEnded {
+      if state.needsBarrier, state.inputInFlight == nil, !state.barrierScheduled,
+        stopped ? contactEnded : (state.endReturned && state.contactIndex == contacts.count - 1)
+      {
         state.barrierScheduled = true
         actions.append(.input(.barrier))
       }
@@ -443,7 +476,7 @@ final class DeviceHIDOperation: Sendable {
   private func invalidated(_ id: UUID) {
     let changes = state.sync { state -> (Bool, Bool) in
       guard !state.finished, state.assertions[id]?.releaseClaimed == false else { return (false, false) }
-      return state.fail(DeviceHIDError.assertionInvalidated, uncertain: state.startAdmitted)
+      return state.fail(DeviceHIDError.assertionInvalidated, uncertain: state.anyStartAdmitted)
     }
     if changes.1 { quarantine() }
     if changes.0 { operationTimer.cancel() }
@@ -508,35 +541,43 @@ final class DeviceHIDOperation: Sendable {
   private func input(_ call: InputCall) {
     var refusal: (any Error)?
     var clockExpired = false
-    var inputContact = contact
+    var inputContact = contacts[0].contact
     var hold: TimeInterval = 0
     let admitted = state.sync { state -> Bool in
       clockExpired = state.reconcile(deadline: deadline)
       guard !state.finishing, !state.finished, state.inputInFlight == nil else { return false }
       let now = ContinuousClock.now
+      let plan = contacts[state.contactIndex]
       switch call {
       case .start:
         guard state.error == nil else { return false }
         let remaining = now.duration(to: deadline).components
         let seconds = Double(remaining.seconds) + Double(remaining.attoseconds) / 1e18
-        guard totalDuration < seconds - cleanupReserve else {
-          refusal = DeviceHIDError.preparationFailed("Insufficient input budget: \(seconds)s remaining, \(totalDuration)s hold, \(cleanupReserve)s reserved for contact cleanup")
+        let remainingDuration = contacts[state.contactIndex...].reduce(0) { $0 + $1.totalDuration }
+        guard remainingDuration < seconds - cleanupReserve else {
+          refusal =
+            state.anyStartAdmitted
+            ? DeviceHIDError.deadlineExceeded
+            : DeviceHIDError.preparationFailed("Insufficient input budget: \(seconds)s remaining, \(remainingDuration)s hold, \(cleanupReserve)s reserved for contact cleanup")
           return false
         }
+        state.anyStartAdmitted = true
         state.startAdmitted = true
-        state.lastAdmittedContact = contact
-        hold = duration
+        inputContact = plan.contact
+        state.lastAdmittedContact = inputContact
+        hold = plan.duration
       case .position:
         state.positionScheduled = false
-        guard state.error == nil, state.startReturned, !state.endScheduled, positions.indices.contains(state.positionIndex) else { return false }
-        let position = positions[state.positionIndex]
+        guard state.error == nil, state.startReturned, !state.endScheduled, plan.positions.indices.contains(state.positionIndex) else { return false }
+        let position = plan.positions[state.positionIndex]
         inputContact = .touch(position.point)
         hold = position.delay
         state.lastAdmittedContact = inputContact
       case .end:
         guard state.startAdmitted, state.startReturned, !state.endClaimed else { return false }
         state.endClaimed = true
-        inputContact = state.lastAdmittedContact ?? contact
+        inputContact = state.lastAdmittedContact ?? plan.contact
+        hold = plan.pause
       case .barrier:
         guard state.needsBarrier, !state.startAdmitted || state.endReturned else { return false }
       }
@@ -574,6 +615,7 @@ final class DeviceHIDOperation: Sendable {
         case .end:
           state.endReturned = true
           state.endSucceeded = summary == nil
+          state.holdUntil = ContinuousClock.now.advanced(by: .seconds(hold))
         case .barrier:
           state.barrierReturned = true
           state.needsBarrier = false

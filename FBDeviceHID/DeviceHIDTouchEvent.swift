@@ -8,7 +8,7 @@
 import CoreGraphics
 import Foundation
 
-/// One bounded contact, submitted in full before any input is sent. Coordinates are display points.
+/// A bounded recipe, submitted in full before any input is sent. Coordinates are display points.
 public enum DeviceHIDTouchEvent: Sendable {
   case down(x: Double, y: Double)
   case move(x: Double, y: Double)
@@ -21,46 +21,70 @@ struct DeviceHIDPosition: Sendable {
   var delay: TimeInterval
 }
 
-/// The lift matches the last position, including when that position's delivery is uncertain.
+struct DeviceHIDTouchContact: Sendable {
+  let positions: [DeviceHIDPosition]
+  var pause: TimeInterval = 0
+}
+
+/// Each lift matches its last position. Contacts never overlap or remain held across calls.
 public struct DeviceHIDTouchSequence: Sendable {
   public static let maximumEvents = 256
-  let positions: [DeviceHIDPosition]
+  let contacts: [DeviceHIDTouchContact]
   let duration: TimeInterval
 
   public init(_ events: [DeviceHIDTouchEvent]) throws {
     guard (2...Self.maximumEvents).contains(events.count),
-      case let .down(x, y) = events[0]
-    else { throw DeviceHIDError.preparationFailed("A touch sequence requires one down and one up, with at most 256 events") }
-    var positions = [DeviceHIDPosition(point: CGPoint(x: x, y: y), delay: 0)]
+      case .down = events[0], case .up = events[events.count - 1]
+    else { throw DeviceHIDError.preparationFailed("A touch sequence must start with down and end with up, with at most 256 events") }
+    var contacts: [DeviceHIDTouchContact] = []
+    var positions: [DeviceHIDPosition] = []
     var duration: TimeInterval = 0
-    for (index, event) in events.enumerated().dropFirst() {
+    for event in events {
       switch event {
-      case .down:
-        throw DeviceHIDError.preparationFailed("A touch sequence owns exactly one contact")
+      case let .down(x, y):
+        guard positions.isEmpty else { throw DeviceHIDError.preparationFailed("Touch contacts must not overlap") }
+        positions.append(DeviceHIDPosition(point: CGPoint(x: x, y: y), delay: 0))
       case let .move(x, y):
-        guard index < events.count - 1 else { throw DeviceHIDError.preparationFailed("A touch sequence must end with up") }
+        guard !positions.isEmpty else { throw DeviceHIDError.preparationFailed("A position update requires an active contact") }
         positions.append(DeviceHIDPosition(point: CGPoint(x: x, y: y), delay: 0))
       case let .delay(delay):
-        guard index < events.count - 1, delay.isFinite, delay >= 0 else {
-          throw DeviceHIDError.preparationFailed("Touch delays must be finite, nonnegative, and precede up")
+        guard delay.isFinite, delay >= 0 else {
+          throw DeviceHIDError.preparationFailed("Touch delays must be finite and nonnegative")
         }
         duration += delay
-        positions[positions.count - 1].delay += delay
-      case let .up(x, y):
-        guard index == events.count - 1, positions.last?.point == CGPoint(x: x, y: y) else {
-          throw DeviceHIDError.preparationFailed("The final up must match the last contact position")
+        if !positions.isEmpty {
+          positions[positions.count - 1].delay += delay
+        } else if !contacts.isEmpty {
+          contacts[contacts.count - 1].pause += delay
         }
+      case let .up(x, y):
+        guard !positions.isEmpty, positions.last?.point == CGPoint(x: x, y: y) else {
+          throw DeviceHIDError.preparationFailed("Each up must match the last active contact position")
+        }
+        contacts.append(DeviceHIDTouchContact(positions: positions))
+        positions.removeAll(keepingCapacity: true)
       }
     }
-    guard case .up = events[events.count - 1], duration.isFinite, duration < 5,
-      positions.allSatisfy({ $0.point.x.isFinite && $0.point.y.isFinite && $0.point.x >= 0 && $0.point.y >= 0 })
-    else { throw DeviceHIDError.preparationFailed("Touch coordinates must be finite and nonnegative, and total hold must be less than five seconds") }
-    self.positions = positions
+    guard positions.isEmpty, duration.isFinite, duration < 5,
+      contacts.allSatisfy({ $0.positions.allSatisfy { $0.point.x.isFinite && $0.point.y.isFinite && $0.point.x >= 0 && $0.point.y >= 0 } })
+    else { throw DeviceHIDError.preparationFailed("Touch coordinates must be finite and nonnegative, and combined holds and pauses must be less than five seconds") }
+    self.contacts = contacts
     self.duration = duration
   }
+}
+
+struct DeviceHIDContactPlan: Sendable {
+  let contact: DeviceHIDContact
+  let duration: TimeInterval
+  let positions: [DeviceHIDPosition]
+  var pause: TimeInterval = 0
+
+  var totalDuration: TimeInterval { positions.reduce(duration + pause) { $0 + $1.delay } }
 }
 
 struct DeviceHIDPreparedTouch: Sendable {
   let start: DeviceHIDPreparedTap
   let positions: [DeviceHIDPosition]
+  var pause: TimeInterval = 0
+  var subsequent: [DeviceHIDContactPlan] = []
 }

@@ -17,17 +17,17 @@ struct DeviceHIDTouchTests {
       .down(x: 10, y: 20), .delay(0.1), .delay(0.2),
       .move(x: 30, y: 40), .delay(0.3), .move(x: 50, y: 60), .up(x: 50, y: 60),
     ])
-    #expect(sequence.positions.map(\.point) == [CGPoint(x: 10, y: 20), CGPoint(x: 30, y: 40), CGPoint(x: 50, y: 60)])
-    #expect(abs(sequence.positions[0].delay - 0.3) < 1e-12)
+    #expect(sequence.contacts[0].positions.map(\.point) == [CGPoint(x: 10, y: 20), CGPoint(x: 30, y: 40), CGPoint(x: 50, y: 60)])
+    #expect(abs(sequence.contacts[0].positions[0].delay - 0.3) < 1e-12)
     #expect(abs(sequence.duration - 0.6) < 1e-12)
   }
 
-  @Test func rejectsIncompleteMultipleAndOversizedContacts() {
+  @Test func rejectsIncompleteOverlappingAndOversizedContacts() {
     let down = DeviceHIDTouchEvent.down(x: 1, y: 2)
     let up = DeviceHIDTouchEvent.up(x: 1, y: 2)
     let invalid: [[DeviceHIDTouchEvent]] = [
       [], [down], [up, down], [down, down, up], [down, .move(x: 2, y: 3)],
-      [down, .move(x: 2, y: 3), up], [down, up, .delay(0)], [down, up, down, up],
+      [down, .move(x: 2, y: 3), up], [down, up, .delay(0)], [down, up, .move(x: 1, y: 2), up],
       [down, .delay(5), up], [down, .delay(.nan), up], [down, .delay(-1), up],
       [down, .move(x: .infinity, y: 2), .up(x: .infinity, y: 2)],
       [down] + Array(repeating: .delay(0), count: 255) + [up],
