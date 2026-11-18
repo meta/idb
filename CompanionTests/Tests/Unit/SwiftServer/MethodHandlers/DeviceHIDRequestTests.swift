@@ -58,7 +58,7 @@ struct DeviceHIDRequestTests {
     let down = touch(.down, 1, 2)
     let up = touch(.up, 1, 2)
     let invalid: [[Idb_HIDEvent]] = [
-      [], [down], [up, down], [down, touch(.down, 3, 4), up], [down, up, down, up],
+      [], [down], [up, down], [down, touch(.down, 3, 4), up], [down, up, up, down, up],
       [down, delay(.nan), touch(.down, 3, 4), touch(.up, 3, 4)],
       [down, delay(5), touch(.down, 3, 4), touch(.up, 3, 4)],
       [Idb_HIDEvent.with { $0.press.action.button.button = .home }],
@@ -101,6 +101,109 @@ struct DeviceHIDRequestTests {
       return try await DeviceHIDRequest.read(from: stream([touch(.down, 1, 2), touch(.down, 3, 4), touch(.up, 3, 4)]))
     }
     await #expect(throws: CancellationError.self) { try await task.value }
+  }
+
+  @Test(arguments: [2, 3, 64, 128])
+  func multipleTapsStayInOneBoundedRecipe(count: Int) async throws {
+    let events = Array(repeating: [touch(.down, 10, 20), touch(.up, 10, 20)], count: count).flatMap { $0 }
+    let request = try await DeviceHIDRequest.read(from: stream(events))
+    guard case let .touch(sequence) = request else {
+      Issue.record("Multiple taps did not compile as one recipe")
+      return
+    }
+    #expect(sequence.contacts.count == count)
+    #expect(sequence.contacts.allSatisfy { $0.positions.count == 1 && $0.positions[0].point.x == 10 && $0.positions[0].point.y == 20 })
+  }
+
+  @Test func separatesHoldsFromInterTapPauses() async throws {
+    let request = try await DeviceHIDRequest.read(
+      from: stream([
+        touch(.down, 10, 20), delay(0.1), touch(.up, 10, 20), delay(0.2),
+        touch(.down, 10, 20), delay(0.3), touch(.up, 10, 20),
+      ]))
+    guard case let .touch(sequence) = request else {
+      Issue.record("Missing double-tap recipe")
+      return
+    }
+    #expect(sequence.contacts.count == 2)
+    #expect(sequence.contacts[0].positions[0].delay == 0.1)
+    #expect(sequence.contacts[0].pause == 0.2)
+    #expect(sequence.contacts[1].positions[0].delay == 0.3)
+    #expect(sequence.contacts[1].pause == 0)
+    #expect(abs(sequence.duration - 0.6) < 1e-12)
+  }
+
+  @Test func downAfterUpStartsANewContactButRepeatedDownStillMoves() async throws {
+    let request = try await DeviceHIDRequest.read(
+      from: stream([
+        touch(.down, 1, 2), touch(.down, 3, 4), touch(.up, 3, 4), delay(0.1),
+        touch(.down, 5, 6), touch(.down, 7, 8), touch(.up, 7, 8),
+      ]))
+    guard case let .touch(sequence) = request else {
+      Issue.record("Missing sequential contact recipe")
+      return
+    }
+    #expect(sequence.contacts.map { $0.positions.map { $0.point.x } } == [[1, 3], [5, 7]])
+    #expect(sequence.contacts[0].pause == 0.1)
+  }
+
+  @Test func invalidSuffixAndAggregateBoundsRejectTheEntireRequest() async {
+    let down = touch(.down, 1, 2)
+    let up = touch(.up, 1, 2)
+    let invalid: [[Idb_HIDEvent]] = [
+      [down, up, down], [down, up, down, touch(.up, 3, 4)],
+      [down, up, delay(.nan), down, up], [down, up, delay(-1), down, up],
+      [down, up, delay(.infinity), down, up], [down, up, down, up, delay(0)],
+      [down, delay(2), up, delay(1), down, delay(2), up],
+      [down, up, touch(.down, -.infinity, 2), touch(.up, -.infinity, 2)],
+      [down, up, Idb_HIDEvent.with { $0.press.action.touch = .init() }],
+      [down, up, Idb_HIDEvent.with { $0.press.action.button.button = .home }, up],
+      [
+        down, up,
+        Idb_HIDEvent.with {
+          $0.swipe.start.x = 1
+          $0.swipe.end.x = 2
+        },
+      ],
+      Array(repeating: [down, up], count: 129).flatMap { $0 },
+    ]
+    for events in invalid {
+      await #expect(throws: RPCError.self) { try await DeviceHIDRequest.read(from: stream(events)) }
+    }
+  }
+
+  @Test(arguments: [2, 128])
+  func failingEOFAfterAllContactsCannotReturnAPrefix(count: Int) async {
+    let requests = AsyncThrowingStream<Idb_HIDEvent, any Error> { continuation in
+      for _ in 0..<count {
+        continuation.yield(touch(.down, 1, 2))
+        continuation.yield(touch(.up, 1, 2))
+      }
+      continuation.finish(throwing: StreamFailure.failed)
+    }
+    await #expect(throws: StreamFailure.self) { try await DeviceHIDRequest.read(from: requests) }
+  }
+
+  @Test func cancellationAtSuccessfulEOFRejectsAllContacts() async {
+    let events = [touch(.down, 1, 2), touch(.up, 1, 2), touch(.down, 1, 2), touch(.up, 1, 2)]
+    let task = Task { try await DeviceHIDRequest.read(from: CancelAtEOF(events: events)) }
+    await #expect(throws: CancellationError.self) { try await task.value }
+  }
+
+  private struct CancelAtEOF: AsyncSequence {
+    typealias Element = Idb_HIDEvent
+    let events: [Idb_HIDEvent]
+
+    struct AsyncIterator: AsyncIteratorProtocol {
+      var events: IndexingIterator<[Idb_HIDEvent]>
+      mutating func next() async -> Idb_HIDEvent? {
+        if let event = events.next() { return event }
+        withUnsafeCurrentTask { $0?.cancel() }
+        return nil
+      }
+    }
+
+    func makeAsyncIterator() -> AsyncIterator { AsyncIterator(events: events.makeIterator()) }
   }
 
   private enum StreamFailure: Error { case failed }

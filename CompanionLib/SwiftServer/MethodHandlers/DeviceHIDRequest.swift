@@ -22,7 +22,7 @@ enum DeviceHIDRequest {
     for try await message in requests {
       try Task.checkCancellation()
       guard messages.count < DeviceHIDTouchSequence.maximumEvents else {
-        throw RPCError(code: .invalidArgument, message: "Physical HID accepts at most 256 events per contact")
+        throw RPCError(code: .invalidArgument, message: "Physical HID accepts at most 256 events per recipe")
       }
       messages.append(message)
     }
@@ -43,7 +43,8 @@ enum DeviceHIDRequest {
       if messages.count == 1, case .swipe(let swipe)? = messages.first?.event {
         return .touch(try DeviceHIDTouchSequence(swipeEvents(swipe)))
       }
-      let events = try messages.enumerated().map { index, message -> DeviceHIDTouchEvent in
+      var activeContact = false
+      let events = try messages.map { message -> DeviceHIDTouchEvent in
         switch message.event {
         case let .press(press):
           guard case let .touch(touch)? = press.action.action, touch.hasPoint else {
@@ -51,8 +52,12 @@ enum DeviceHIDRequest {
           }
           switch press.direction {
           case .down:
-            return index == 0 ? .down(x: touch.point.x, y: touch.point.y) : .move(x: touch.point.x, y: touch.point.y)
-          case .up: return .up(x: touch.point.x, y: touch.point.y)
+            let event: DeviceHIDTouchEvent = activeContact ? .move(x: touch.point.x, y: touch.point.y) : .down(x: touch.point.x, y: touch.point.y)
+            activeContact = true
+            return event
+          case .up:
+            activeContact = false
+            return .up(x: touch.point.x, y: touch.point.y)
           case .UNRECOGNIZED: throw RPCError(code: .invalidArgument, message: "Unrecognized physical touch direction")
           }
         case let .delay(delay): return .delay(delay.duration)
