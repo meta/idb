@@ -54,7 +54,7 @@ final class DeviceHIDTestRecorder: Sendable {
 
   func time(_ name: String) -> ContinuousClock.Instant? { state.sync { $0.times[name] } }
 
-  func waitFor(_ name: String) async throws {
+  func waitFor(_ name: String, timeout: TimeInterval = 3) async throws {
     let id = UUID()
     try await withCheckedThrowingContinuation { continuation in
       let observed = state.sync { state -> Bool in
@@ -66,7 +66,7 @@ final class DeviceHIDTestRecorder: Sendable {
         continuation.resume()
         return
       }
-      DispatchQueue.global().asyncAfter(deadline: .now() + 3) {
+      DispatchQueue.global().asyncAfter(deadline: .now() + timeout) {
         let expired = self.state.sync { $0.waiters.removeValue(forKey: id) }
         expired?.continuation.resume(throwing: WaitError.timedOut)
       }

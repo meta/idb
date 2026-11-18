@@ -37,6 +37,8 @@ exports:
       - '_$s10CoreDevice22DigitizerHIDCapabilityVMn'
       - '_$s10CoreDevice22DigitizerHIDCapabilityVAA0B10CapabilityAAMc'
       - '_$s10CoreDevice0B10CapabilityMp'
+      - '_$s10CoreDevice0B10CapabilityTL'
+      - '_$s12ProtocolType10CoreDevice0D10CapabilityPTl'
       - '_$s10CoreDevice12HIDDigitizerMp'
       - '_$s10CoreDevice0B14UsageAssertionCMa'
       - '_$s10CoreDevice0B14UsageAssertionCMn'

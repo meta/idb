@@ -18,6 +18,7 @@ public enum DeviceHIDError: Error, LocalizedError, Sendable {
   case assertionInvalidated
   case unexpectedCompletion
   case nativeFailure(operation: String, domain: String, code: Int, message: String)
+  case cleanupFailed(cause: any Error, failures: [any Error])
 
   public var errorDescription: String? {
     switch self {
@@ -41,6 +42,8 @@ public enum DeviceHIDError: Error, LocalizedError, Sendable {
       return "A physical input operation delivered an unexpected completion"
     case .nativeFailure(let operation, let domain, let code, let message):
       return "Physical input \(operation) failed: \(message) [\(domain) (\(code))]"
+    case .cleanupFailed(let cause, let failures):
+      return "\(cause.localizedDescription); cleanup also failed: \(failures.map { $0.localizedDescription }.joined(separator: "; "))"
     }
   }
 

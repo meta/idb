@@ -106,6 +106,8 @@ enum DeviceHIDRuntime {
         "$s10CoreDevice0B7ManagerCMa",
         "$s10CoreDevice26UsageAssertionRequirementsVMa",
         "$s10CoreDevice06RemoteB0C17getImplementation3for12ProtocolTypeQzAA22CapabilityStaticMemberVyxG_tYaKAA0bI0RzlFTjTu",
+        "$s10CoreDevice0B10CapabilityTL",
+        "$s12ProtocolType10CoreDevice0D10CapabilityPTl",
         "$s10CoreDevice22CapabilityStaticMemberVACyxGycfC",
         "$s10CoreDevice22CapabilityStaticMemberVMn",
         "$s10CoreDevice22DigitizerHIDCapabilityVMa",

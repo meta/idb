@@ -77,8 +77,8 @@
       "archives": [
         "libFBDeviceHID.a",
         "libFBControlCore.a",
-        "libIDBConcurrency.a",
-        "libFBControlCoreObjC.a"
+        "libFBControlCoreObjC.a",
+        "libIDBConcurrency.a"
       ],
       "frameworks": [
         "Cocoa.framework",

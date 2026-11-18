@@ -47,6 +47,13 @@ storage. The return path at `0x17ea58`–`0x17ea84` writes into the caller's res
 address with that value witness table. A wrong caller-side associated type can
 therefore corrupt result storage before any later cast.
 
+The transport's checked generic factory keeps the factory result as
+`C.ProtocolType` until its conditional conversion to the requested HID protocol.
+The small boundary is both no-inline and optimization-disabled: whole-module
+`-O` otherwise specializes away the conditional cast even with no-inline alone.
+It rejects a mismatched returned implementation before publication to transport
+state. This check is defense in depth: it is not recovery from arbitrary private
+ABI corruption, and requires a correct generic factory/protocol declaration.
 
 ## Rechecking a framework update
 

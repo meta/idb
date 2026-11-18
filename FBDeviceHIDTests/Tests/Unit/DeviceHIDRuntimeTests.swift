@@ -5,13 +5,55 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+import Darwin
 import Dispatch
+import FBControlCore
 @testable import FBDeviceHID
 import Foundation
+import IDBConcurrency
 import Testing
 
 @Suite("Physical HID runtime validation")
 struct DeviceHIDRuntimeTests {
+  @Test func catalogueMatchesWeakImports() async throws {
+    var image = Dl_info()
+    try #require(dladdr(#dsohandle, &image) != 0)
+    let path = String(cString: try #require(image.dli_fname))
+    let imports = Atomic(wrappedValue: [String]())
+    try await Subprocess(executable: "/usr/bin/nm", arguments: ["-m", "-u", path]).withRunning(
+      output: .lines { line in
+        if Self.coreDeviceSymbol(in: line) != nil { imports.sync { $0.append(line) } }
+      },
+      error: .logger(ControlCoreGlobalConfiguration.defaultLogger)
+    ) { running in
+      try #require(try await running.terminationStatus(within: 10) == .exited(0))
+    }
+    let lines = imports.wrappedValue
+    #expect(lines.allSatisfy { $0.contains("weak external") })
+    let required = Set(lines.compactMap(Self.coreDeviceSymbol))
+    #if arch(arm64)
+    let declared = Set(DeviceHIDRuntime.images.flatMap(\.symbols))
+    let missing = required.subtracting(declared)
+    let unused = declared.subtracting(required)
+    #expect(missing.isEmpty)
+    #expect(unused.isEmpty)
+    #else
+    #expect(required.isEmpty)
+    #endif
+  }
+
+  private static func coreDeviceSymbol(in line: String) -> String? {
+    line.split(whereSeparator: \.isWhitespace).first {
+      $0.hasPrefix("_$s") && ($0.contains("10CoreDevice") || $0.contains("19CoreDeviceUtilities"))
+    }.map { String($0.dropFirst()) }
+  }
+
+  @Test func catalogueRecognizesAssociatedTypeManglings() {
+    #expect(Self.coreDeviceSymbol(in: "(undefined) weak external _$s12ProtocolType10CoreDevice0D10CapabilityPTl (from CoreDevice)") == "$s12ProtocolType10CoreDevice0D10CapabilityPTl")
+    #expect(Self.coreDeviceSymbol(in: "(undefined) weak external _$s10CoreDevice12HIDDigitizerMp (from CoreDevice)") == "$s10CoreDevice12HIDDigitizerMp")
+    #expect(Self.coreDeviceSymbol(in: "(undefined) external _$s10Foundation4UUIDVMa (from Foundation)") == nil)
+  }
+
   @Test func latePreflightCannotBeatADelayedTimer() async throws {
     let timers = DispatchQueue(label: "device-hid-test.runtime-timers")
     let events = DeviceHIDTestRecorder()
