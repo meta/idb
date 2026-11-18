@@ -188,12 +188,16 @@ final class DeviceHIDOperation: Sendable {
     operationTimer.cancel()
   }
 
-  static func validate(point: CGPoint, duration: TimeInterval?) throws {
+  static func validate(point: CGPoint, duration: TimeInterval?, secondPoint: CGPoint? = nil) throws {
     guard point.x.isFinite, point.y.isFinite, point.x >= 0, point.x < 1, point.y >= 0, point.y < 1 else {
       throw DeviceHIDError.preparationFailed("The normalized point must be finite and inside the display")
     }
     if let duration, !duration.isFinite || duration < 0 {
       throw DeviceHIDError.preparationFailed("The hold duration must be finite and nonnegative")
+    }
+    if let secondPoint {
+      try validate(point: secondPoint, duration: nil)
+      guard secondPoint != point else { throw DeviceHIDError.preparationFailed("Two-finger points must be distinct") }
     }
   }
 
@@ -217,13 +221,17 @@ final class DeviceHIDOperation: Sendable {
           for plan in contacts {
             guard plan.pause.isFinite, plan.pause >= 0 else { throw DeviceHIDError.preparationFailed("Contact pauses must be finite and nonnegative") }
             switch plan.contact {
-            case let .touch(point): try Self.validate(point: point, duration: plan.duration)
+            case let .touch(point, secondPoint):
+              try Self.validate(point: point, duration: plan.duration, secondPoint: secondPoint)
+              guard plan.positions.allSatisfy({ ($0.secondPoint == nil) == (secondPoint == nil) }) else {
+                throw DeviceHIDError.preparationFailed("A contact cannot change between one and two fingers")
+              }
             case .button:
               guard contacts.count == 1, plan.positions.isEmpty, plan.duration.isFinite, plan.duration >= 0 else {
                 throw DeviceHIDError.preparationFailed("A button plan must contain one bounded press")
               }
             }
-            for position in plan.positions { try Self.validate(point: position.point, duration: position.delay) }
+            for position in plan.positions { try Self.validate(point: position.point, duration: position.delay, secondPoint: position.secondPoint) }
           }
           if Task.isCancelled { cancel() }
           advance()
@@ -570,7 +578,7 @@ final class DeviceHIDOperation: Sendable {
         state.positionScheduled = false
         guard state.error == nil, state.startReturned, !state.endScheduled, plan.positions.indices.contains(state.positionIndex) else { return false }
         let position = plan.positions[state.positionIndex]
-        inputContact = .touch(position.point)
+        inputContact = .touch(position.point, secondPoint: position.secondPoint)
         hold = position.delay
         state.lastAdmittedContact = inputContact
       case .end:

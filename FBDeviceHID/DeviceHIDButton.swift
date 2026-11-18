@@ -16,7 +16,7 @@ public enum DeviceHIDButton: Sendable {
 }
 
 enum DeviceHIDContact: Sendable {
-  case touch(CGPoint)
+  case touch(CGPoint, secondPoint: CGPoint? = nil)
   case button(DeviceHIDButton)
 }
 
@@ -39,7 +39,7 @@ enum DeviceHIDPreparedInput: Sendable {
 
   var contact: DeviceHIDContact {
     switch self {
-    case let .touch(value): .touch(value.start.point)
+    case let .touch(value): .touch(value.start.point, secondPoint: value.start.secondPoint)
     case let .button(value): .button(value.button)
     }
   }

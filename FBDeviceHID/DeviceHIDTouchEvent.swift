@@ -19,6 +19,7 @@ public enum DeviceHIDTouchEvent: Sendable {
 struct DeviceHIDPosition: Sendable {
   let point: CGPoint
   var delay: TimeInterval
+  var secondPoint: CGPoint?
 }
 
 struct DeviceHIDTouchContact: Sendable {
@@ -31,6 +32,11 @@ public struct DeviceHIDTouchSequence: Sendable {
   public static let maximumEvents = 256
   let contacts: [DeviceHIDTouchContact]
   let duration: TimeInterval
+
+  init(contacts: [DeviceHIDTouchContact], duration: TimeInterval) {
+    self.contacts = contacts
+    self.duration = duration
+  }
 
   public init(_ events: [DeviceHIDTouchEvent]) throws {
     guard (2...Self.maximumEvents).contains(events.count),

@@ -13,6 +13,7 @@ struct DeviceHIDPreparedTap: Sendable {
   let deviceIdentifier: UUID
   let point: CGPoint
   let duration: TimeInterval?
+  var secondPoint: CGPoint?
 }
 
 enum DeviceHIDPreparation {
@@ -177,15 +178,17 @@ enum DeviceHIDPreparation {
   static func decodeTouch(details: Data, displays: Data, udid: String, sequence: DeviceHIDTouchSequence) throws -> DeviceHIDPreparedTouch {
     let geometry = try decodeGeometry(details: details, displays: displays, udid: udid)
     let contacts = try sequence.contacts.map { contact -> DeviceHIDContactPlan in
-      let positions = try contact.positions.map { DeviceHIDPosition(point: try geometry.normalize($0.point), delay: $0.delay) }
+      let positions = try contact.positions.map {
+        DeviceHIDPosition(point: try geometry.normalize($0.point), delay: $0.delay, secondPoint: try $0.secondPoint.map { try geometry.normalize($0) })
+      }
       guard let first = positions.first else { throw DeviceHIDError.preparationFailed("A touch contact must contain a down") }
-      return DeviceHIDContactPlan(contact: .touch(first.point), duration: first.delay, positions: Array(positions.dropFirst()), pause: contact.pause)
+      return DeviceHIDContactPlan(contact: .touch(first.point, secondPoint: first.secondPoint), duration: first.delay, positions: Array(positions.dropFirst()), pause: contact.pause)
     }
-    guard let first = contacts.first, case let .touch(point) = first.contact else {
+    guard let first = contacts.first, case let .touch(point, secondPoint) = first.contact else {
       throw DeviceHIDError.preparationFailed("A touch sequence must contain a contact")
     }
     return DeviceHIDPreparedTouch(
-      start: DeviceHIDPreparedTap(deviceIdentifier: geometry.identifier, point: point, duration: first.duration),
+      start: DeviceHIDPreparedTap(deviceIdentifier: geometry.identifier, point: point, duration: first.duration, secondPoint: secondPoint),
       positions: first.positions, pause: first.pause, subsequent: Array(contacts.dropFirst()))
   }
 

@@ -39,6 +39,7 @@ struct DeviceHIDReentrantError: LocalizedError, Sendable {
 final class DeviceHIDFixture: Sendable {
   struct State {
     var points: [CGPoint] = []
+    var secondPoints: [CGPoint?] = []
     var calls: [String: Int] = [:]
     var buttons: [DeviceHIDButton] = []
     var acquisition: (@Sendable (Result<DeviceHIDAssertion, any Error>) -> Void)?
@@ -118,7 +119,9 @@ final class DeviceHIDFixture: Sendable {
         defer { withExtendedLifetime(lifetime) {} }
         self.state.sync { state in
           switch contact {
-          case let .touch(point): state.points.append(point)
+          case let .touch(point, secondPoint):
+            state.points.append(point)
+            state.secondPoints.append(secondPoint)
           case let .button(button): state.buttons.append(button)
           }
         }
@@ -136,7 +139,7 @@ final class DeviceHIDFixture: Sendable {
     DeviceHIDPreparedTap(deviceIdentifier: UUID(), point: point, duration: duration)
   }
 
-  func operation(duration: TimeInterval? = nil, operationSeconds: TimeInterval = 2, cleanupReserve: TimeInterval = 0.1) -> DeviceHIDOperation {
+  func operation(duration: TimeInterval? = nil, operationSeconds: TimeInterval = 3, cleanupReserve: TimeInterval = 1) -> DeviceHIDOperation {
     DeviceHIDOperation(
       transport: transport,
       prepared: Self.prepared(duration: duration),

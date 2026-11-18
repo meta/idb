@@ -154,7 +154,7 @@ final class DeviceHIDTransport: Sendable {
       },
       send: { phase, contact in
         switch contact {
-        case let .touch(point):
+        case let .touch(point, secondPoint):
           let digitizer = try state.sync { state -> any HIDDigitizer in
             guard !state.retired, let digitizer = state.digitizer else { throw CancellationError() }
             return digitizer
@@ -166,7 +166,7 @@ final class DeviceHIDTransport: Sendable {
             case .position: event = .position
             case .end: event = .end
             }
-            try digitizer.send(pointOne: point, pointTwo: nil, eventType: event, edge: .none, target: .mainScreen)
+            try digitizer.send(pointOne: point, pointTwo: secondPoint, eventType: event, edge: .none, target: .mainScreen)
           }
         case let .button(selected):
           let button = try state.sync { state -> any HIDButton in

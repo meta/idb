@@ -53,7 +53,7 @@ struct DeviceHIDPreparationTests {
     #expect(abs(prepared.positions[0].point.y - 400.0 / 852) < 1e-12)
     #expect(prepared.pause == 0.2)
     #expect(prepared.subsequent.count == 1)
-    guard case let .touch(secondStart) = prepared.subsequent[0].contact else {
+    guard case let .touch(secondStart, _) = prepared.subsequent[0].contact else {
       Issue.record("Expected a second touch")
       return
     }
@@ -62,6 +62,31 @@ struct DeviceHIDPreparationTests {
     let outside = try DeviceHIDTouchSequence([.down(x: 100, y: 200), .up(x: 100, y: 200), .down(x: 200, y: 400), .move(x: 393, y: 400), .up(x: 393, y: 400)])
     #expect(throws: DeviceHIDError.self) {
       try DeviceHIDPreparation.decodeTouch(details: details, displays: displays, udid: "test-phone", sequence: outside)
+    }
+  }
+
+  @Test func normalizesBothPinchPointsAndRejectsAnOutOfBoundsSecondPoint() throws {
+    let (details, displays) = try metadata()
+    let sequence = try DeviceHIDTouchSequence.pinch(x: 200, y: 200, scale: 2, duration: 0.3, radius: 50)
+    let prepared = try DeviceHIDPreparation.decodeTouch(details: details, displays: displays, udid: "test-phone", sequence: sequence)
+    #expect(abs(prepared.start.point.x - 150.0 / 393) < 1e-12)
+    let second = try #require(prepared.start.secondPoint)
+    #expect(abs(second.x - 250.0 / 393) < 1e-12)
+    #expect(abs(second.y - 200.0 / 852) < 1e-12)
+    for (source, position) in zip(sequence.contacts[0].positions.dropFirst(), prepared.positions) {
+      let sourceSecond = try #require(source.secondPoint)
+      let normalizedSecond = try #require(position.secondPoint)
+      #expect(abs(position.point.x - source.point.x / 393) < 1e-12)
+      #expect(abs(normalizedSecond.x - sourceSecond.x / 393) < 1e-12)
+      #expect(abs(normalizedSecond.y - sourceSecond.y / 852) < 1e-12)
+    }
+    let outside = try DeviceHIDTouchSequence.pinch(x: 300, y: 200, scale: 5, radius: 20)
+    #expect(throws: DeviceHIDError.self) {
+      try DeviceHIDPreparation.decodeTouch(details: details, displays: displays, udid: "test-phone", sequence: outside)
+    }
+    let (_, landscape) = try metadata(orientation: "landscapeLeft")
+    #expect(throws: DeviceHIDError.self) {
+      try DeviceHIDPreparation.decodeTouch(details: details, displays: landscape, udid: "test-phone", sequence: sequence)
     }
   }
 
