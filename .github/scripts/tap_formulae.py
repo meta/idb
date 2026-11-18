@@ -511,6 +511,73 @@ def render_from_manifest(manifest, templates_dir=None, only=None):
     return outputs
 
 
+def _recorded_release(directory):
+    path = _file_destination(Path(directory), RELEASE_MANIFEST)
+    try:
+        manifest = json.loads(path.read_bytes())
+    except (FileNotFoundError, json.JSONDecodeError) as error:
+        raise FormulaError(
+            "partial apply requires existing complete release provenance"
+        ) from error
+    if not isinstance(manifest, dict):
+        raise FormulaError("partial apply requires a release manifest object")
+    for name in ("tag", "asset_base", "run_url"):
+        if not isinstance(manifest.get(name), str) or not manifest[name]:
+            raise FormulaError(f"partial apply requires recorded {name} provenance")
+    if not re.fullmatch(
+        r"https://github\.com/(facebook|meta)/idb/actions/runs/\d+", manifest["run_url"]
+    ):
+        raise FormulaError("partial apply requires a recorded GitHub release run")
+    if manifest["asset_base"].endswith("/"):
+        raise FormulaError("partial apply requires a canonical asset base")
+    outputs = read_rendered(directory, manifest)
+    if not set(RENDERED).issubset(outputs):
+        raise FormulaError(
+            "partial apply requires complete formula and package provenance"
+        )
+    if render_from_manifest(manifest) != outputs:
+        raise FormulaError(
+            "existing release provenance does not describe the current tap"
+        )
+    return outputs, manifest
+
+
+def merge_partial_render(directory, outputs, manifest):
+    """Compose a same-release partial only when one manifest explains every byte."""
+    verify_rendered(outputs, manifest)
+    if not outputs or not set(outputs) < set(FORMULAE):
+        raise FormulaError("a partial apply must contain a proper subset of formulae")
+    existing, original = _recorded_release(directory)
+    for name in ("tag", "asset_base", "run_url"):
+        if manifest.get(name) != original[name]:
+            raise FormulaError(f"partial {name} provenance differs or is missing")
+    if manifest.get("swiftpm") is not None and manifest["swiftpm"] != original.get(
+        "swiftpm"
+    ):
+        raise FormulaError(
+            "partial package provenance differs from the retained package"
+        )
+    merged = dict(original)
+    for name in ("companion_sha256", "wheel_sha256"):
+        if manifest.get(name) is not None:
+            merged[name] = manifest[name]
+    blocks = dict(original.get("bottle_blocks") or {})
+    incoming_blocks = manifest.get("bottle_blocks") or {}
+    if set(incoming_blocks) - set(outputs):
+        raise FormulaError("partial bottle provenance includes unchanged formulae")
+    for name in outputs:
+        blocks.pop(name, None)
+    blocks.update(incoming_blocks)
+    merged["bottle_blocks"] = blocks
+    merged["outputs"] = {**original["outputs"], **manifest["outputs"]}
+    complete = {**existing, **outputs}
+    if render_from_manifest(merged) != complete:
+        raise FormulaError(
+            "partial provenance cannot describe all retained output bytes"
+        )
+    return complete, merged
+
+
 def cmd_render(args):
     only = tuple(args.only) if args.only else FORMULAE
     if "idb-companion.rb" in only and not args.companion:

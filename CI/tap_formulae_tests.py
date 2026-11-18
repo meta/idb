@@ -17,6 +17,7 @@ import tempfile
 import unittest
 from pathlib import Path
 from typing import Any
+from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / ".github" / "scripts"))
 import tap_formulae  # noqa: E402
@@ -239,3 +240,44 @@ class RenderedOutputPathSafetyTest(unittest.TestCase):
             path: path.read_bytes() for path in self.root.rglob("*") if path.is_file()
         }
         self.assertEqual(before, after)
+
+
+class PartialRenderProvenanceTest(unittest.TestCase):
+    def setUp(self) -> None:
+        self.root = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, self.root)
+
+    def test_merge_partial_render_rejects_incompatible_package_provenance(
+        self,
+    ) -> None:
+        outputs, manifest = _full_render()
+        tap = self.root / "tap"
+        tap_formulae.write_outputs(tap, outputs, manifest=manifest, release=True)
+
+        incompatible_swiftpm = json.loads(json.dumps(SWIFTPM))
+        incompatible_swiftpm["checksums"]["FBControlCore"] = "f" * 64
+        partial_outputs = tap_formulae.render_formulae(
+            TAG,
+            None,
+            WHEEL_SHA,
+            asset_base=ASSET_BASE,
+            only=["idb-cli.rb"],
+            templates_dir=TEMPLATES,
+        )
+        partial_manifest = tap_formulae.render_manifest(
+            TAG,
+            partial_outputs,
+            None,
+            WHEEL_SHA,
+            ASSET_BASE,
+            run_url=RUN_URL,
+            swiftpm=incompatible_swiftpm,
+        )
+        with (
+            patch.object(tap_formulae, "default_templates_dir", return_value=TEMPLATES),
+            self.assertRaisesRegex(
+                tap_formulae.FormulaError,
+                "partial package provenance differs from the retained package",
+            ),
+        ):
+            tap_formulae.merge_partial_render(tap, partial_outputs, partial_manifest)
