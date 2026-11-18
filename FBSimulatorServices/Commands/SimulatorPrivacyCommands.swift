@@ -9,6 +9,7 @@
 @preconcurrency import FBControlCore
 import FBSimulatorControl
 @preconcurrency import Foundation
+import os
 
 public enum SimulatorPrivacyError: Error {
   case noDataDirectoryForPlists
@@ -179,9 +180,12 @@ public struct SimulatorPrivacyCommands {
     let urlKey = Self.magicDeeplinkKey(forScheme: scheme)
     switch try schemeApprovalStore() {
     case .preferencesDaemon:
+      let lastWrite = schemeApprovalLastWrite()
       let defaults = SimulatorDefaults(simulator: simulator)
-      for bundleID in bundleIDs {
+      for bundleID in bundleIDs where lastWrite?.holds(bundleID, forKey: urlKey) != true {
+        lastWrite?.forget()
         try await defaults.setPreference(urlKey, value: bundleID, type: "string", domain: Self.schemeApprovalDomain)
+        lastWrite?.recordWrite(of: bundleID, forKey: urlKey)
       }
     case .plist:
       try grantInSchemeApprovalPlist(bundleIDs, urlKey: urlKey)
@@ -199,6 +203,7 @@ public struct SimulatorPrivacyCommands {
     let urlKey = Self.magicDeeplinkKey(forScheme: scheme)
     switch try schemeApprovalStore() {
     case .preferencesDaemon:
+      schemeApprovalLastWrite()?.forget()
       try await SimulatorDefaults(simulator: simulator).removePreference(urlKey, domain: Self.schemeApprovalDomain)
     case .plist:
       try revokeInSchemeApprovalPlist(urlKey: urlKey)
@@ -226,6 +231,15 @@ public struct SimulatorPrivacyCommands {
     case .creating, .booting, .shuttingDown, .DFU, .recovery, .restoreOS, .unknown:
       throw SimulatorPrivacyError.schemeApprovalUnavailable(state: state)
     }
+  }
+
+  private func schemeApprovalLastWrite() -> SchemeApprovalLastWrite? {
+    guard let dataDirectory = simulator.dataDirectory else {
+      return nil
+    }
+    let preferencesDirectory = (dataDirectory as NSString).appendingPathComponent("Library/Preferences")
+    let plistPath = (preferencesDirectory as NSString).appendingPathComponent("\(Self.schemeApprovalDomain).plist")
+    return simulator.commandCache.resolve { SchemeApprovalLastWrite(plistPath: plistPath) }
   }
 
   private func grantInSchemeApprovalPlist(_ bundleIDs: Set<String>, urlKey: String) throws {
@@ -376,5 +390,102 @@ public struct SimulatorPrivacyCommands {
 
   internal static func magicDeeplinkKey(forScheme scheme: String) -> String {
     "com.apple.CoreSimulator.CoreSimulatorBridge-->\(scheme)"
+  }
+}
+
+/// The URL scheme approval this process last wrote through a booted Simulator's preferences daemon, and the plist that
+/// held it just afterwards.
+///
+/// `lsd` drops its copy of the approval domain only when the daemon reports a change, and the daemon replaces the plist
+/// whenever it changes it. While the plist is still the file read just after the write, `lsd` therefore holds the
+/// approval that write gave it, and writing the same approval again would only cost another run of `defaults`.
+///
+/// The file's identity and the approval it holds come from one read of one open file, and nothing is recorded unless
+/// that file names the app just written. A plist put in place before the read, by an edit `lsd` was not told about or by
+/// another process, therefore records nothing unless it names the app `lsd` was just given; a replacement after the read
+/// changes the file's identity, so the next approval writes again.
+final class SchemeApprovalLastWrite: Sendable {
+  private struct Approval: Equatable, Sendable {
+    let urlKey: String
+    let bundleID: String
+    let plist: FileVersion
+  }
+
+  private let plistPath: String
+  private let approval = OSAllocatedUnfairLock<Approval?>(initialState: nil)
+
+  init(plistPath: String) {
+    self.plistPath = plistPath
+  }
+
+  /// Whether the last write approved `bundleID` for `urlKey`, and the plist has not been replaced or changed since.
+  func holds(_ bundleID: String, forKey urlKey: String) -> Bool {
+    guard let current = FileVersion(ofFileAtPath: plistPath) else {
+      return false
+    }
+    return approval.withLock { $0 == Approval(urlKey: urlKey, bundleID: bundleID, plist: current) }
+  }
+
+  /// Records a write of `bundleID` for `urlKey` the daemon has just completed, if the plist now on disk names it.
+  func recordWrite(of bundleID: String, forKey urlKey: String) {
+    let read = Self.approval(forKey: urlKey, inPlistAt: plistPath)
+    let recorded = read?.bundleID == bundleID ? read.map { Approval(urlKey: urlKey, bundleID: bundleID, plist: $0.plist) } : nil
+    approval.withLock { $0 = recorded }
+  }
+
+  func forget() {
+    approval.withLock { $0 = nil }
+  }
+
+  /// The app the plist approves for `urlKey` and the identity of the file that says so, both from one open file. Nil
+  /// when the file cannot be read or parsed, or changes while it is read.
+  private static func approval(forKey urlKey: String, inPlistAt path: String) -> (bundleID: String?, plist: FileVersion)? {
+    let descriptor = open(path, O_RDONLY | O_CLOEXEC)
+    guard descriptor >= 0 else {
+      return nil
+    }
+    let file = FileHandle(fileDescriptor: descriptor, closeOnDealloc: true)
+    guard let before = FileVersion(ofOpenFile: descriptor),
+      let data = try? file.readToEnd(),
+      FileVersion(ofOpenFile: descriptor) == before,
+      let plist = try? PropertyListSerialization.propertyList(from: data, format: nil) as? NSDictionary
+    else {
+      return nil
+    }
+    return (plist[urlKey] as? String, before)
+  }
+}
+
+/// Which file is at a path, and whether it has been written since. The preferences daemon replaces the plist whenever
+/// it changes it, so a different device, file number, size or modification time means the plist was rewritten.
+struct FileVersion: Equatable, Sendable {
+  let device: Int32
+  let fileNumber: UInt64
+  let size: Int64
+  let modificationSeconds: Int
+  let modificationNanoseconds: Int
+
+  init?(ofFileAtPath path: String) {
+    var status = stat()
+    guard stat(path, &status) == 0 else {
+      return nil
+    }
+    self.init(status)
+  }
+
+  init?(ofOpenFile descriptor: Int32) {
+    var status = stat()
+    guard fstat(descriptor, &status) == 0 else {
+      return nil
+    }
+    self.init(status)
+  }
+
+  private init(_ status: stat) {
+    device = status.st_dev
+    fileNumber = status.st_ino
+    size = status.st_size
+    modificationSeconds = status.st_mtimespec.tv_sec
+    modificationNanoseconds = status.st_mtimespec.tv_nsec
   }
 }

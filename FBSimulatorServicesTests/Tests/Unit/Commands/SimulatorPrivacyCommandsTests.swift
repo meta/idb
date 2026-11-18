@@ -143,17 +143,112 @@ struct SimulatorPrivacyCommandsTests {
   @Test
   func approvingOnABootedSimulatorWritesThroughItsPreferences() async throws {
     let device = SchemeApprovalDevice(state: .booted)
+    defer { device.removeDataDirectory() }
     let simulator = SimulatorTestSupport.testableSimulator(withDevice: device)
 
     try await simulator.privacy.grantAccess(["com.test"], toDeeplink: "myapp")
 
     #expect(device.spawnedArguments == [["/usr/bin/defaults", "write", Self.schemeApprovalDomain, Self.schemeApprovalKey, "-string", "com.test"]])
-    #expect(!FileManager.default.fileExists(atPath: device.schemeApprovalPlist), "lsd never sees a plist rewritten underneath its preferences")
+  }
+
+  @Test
+  func repeatingAnApprovalWritesItOnce() async throws {
+    let device = SchemeApprovalDevice(state: .booted)
+    defer { device.removeDataDirectory() }
+    let simulator = SimulatorTestSupport.testableSimulator(withDevice: device)
+
+    try await simulator.privacy.grantAccess(["com.test"], toDeeplink: "myapp")
+    try await simulator.privacy.grantAccess(["com.test"], toDeeplink: "myapp")
+
+    #expect(device.writes == 1, "lsd was told about the first write, and the plist has not changed since")
+  }
+
+  @Test
+  func onlyTheLastWriteIsSkipped() async throws {
+    let device = SchemeApprovalDevice(state: .booted)
+    defer { device.removeDataDirectory() }
+    let simulator = SimulatorTestSupport.testableSimulator(withDevice: device)
+
+    try await simulator.privacy.grantAccess(["com.test"], toDeeplink: "myapp")
+    try await simulator.privacy.grantAccess(["com.test"], toDeeplink: "otherapp")
+    try await simulator.privacy.grantAccess(["com.test"], toDeeplink: "myapp")
+    try await simulator.privacy.grantAccess(["com.other"], toDeeplink: "myapp")
+
+    #expect(device.writes == 4)
+  }
+
+  @Test
+  func aPlistReplacedBeforeTheWriteIsRecordedDoesNotStandForIt() async throws {
+    let device = SchemeApprovalDevice(state: .booted)
+    defer { device.removeDataDirectory() }
+    let simulator = SimulatorTestSupport.testableSimulator(withDevice: device)
+    // Between the daemon finishing the write and the companion recording it, something replaces the plist with
+    // another app's approval without telling the daemon, so lsd still holds com.test.
+    device.afterNextWrite = { $0.replacePlist(with: [Self.schemeApprovalKey: "com.other"]) }
+
+    try await simulator.privacy.grantAccess(["com.test"], toDeeplink: "myapp")
+    try await simulator.privacy.grantAccess(["com.other"], toDeeplink: "myapp")
+
+    #expect(device.writes == 2, "The replaced plist names com.other, but lsd was never told")
+  }
+
+  @Test
+  func aPlistReplacedBeforeTheWriteIsRecordedWithTheSameApprovalStillCounts() async throws {
+    let device = SchemeApprovalDevice(state: .booted)
+    defer { device.removeDataDirectory() }
+    let simulator = SimulatorTestSupport.testableSimulator(withDevice: device)
+    device.afterNextWrite = { $0.replacePlist(with: [Self.schemeApprovalKey: "com.test"]) }
+
+    try await simulator.privacy.grantAccess(["com.test"], toDeeplink: "myapp")
+    try await simulator.privacy.grantAccess(["com.test"], toDeeplink: "myapp")
+
+    #expect(device.writes == 1, "lsd holds com.test from the write, and the file read afterwards names it")
+  }
+
+  @Test
+  func anApprovalIsWrittenAgainAfterSomethingElseRewritesThePlist() async throws {
+    let device = SchemeApprovalDevice(state: .booted)
+    defer { device.removeDataDirectory() }
+    let simulator = SimulatorTestSupport.testableSimulator(withDevice: device)
+
+    try await simulator.privacy.grantAccess(["com.test"], toDeeplink: "myapp")
+    device.replacePlist(with: [:])
+    try await simulator.privacy.grantAccess(["com.test"], toDeeplink: "myapp")
+    device.replacePlist(with: [Self.schemeApprovalKey: "com.test"])
+    try await simulator.privacy.grantAccess(["com.test"], toDeeplink: "myapp")
+
+    #expect(device.writes == 3, "A revoke from elsewhere, or an edit lsd may not have been told about, is written over")
+  }
+
+  @Test
+  func anApprovalInThePlistThatThisProcessDidNotWriteIsWritten() async throws {
+    let device = SchemeApprovalDevice(state: .booted)
+    defer { device.removeDataDirectory() }
+    device.replacePlist(with: [Self.schemeApprovalKey: "com.test"])
+    let simulator = SimulatorTestSupport.testableSimulator(withDevice: device)
+
+    try await simulator.privacy.grantAccess(["com.test"], toDeeplink: "myapp")
+
+    #expect(device.writes == 1, "Something may have put it in the plist without telling lsd")
+  }
+
+  @Test
+  func aFailedRevokeMakesTheNextApprovalWrite() async throws {
+    let device = SchemeApprovalDevice(state: .booted, deletesFail: true)
+    defer { device.removeDataDirectory() }
+    let simulator = SimulatorTestSupport.testableSimulator(withDevice: device)
+
+    try await simulator.privacy.grantAccess(["com.test"], toDeeplink: "myapp")
+    await #expect(throws: (any Error).self) { try await simulator.privacy.revokeAccess(["com.test"], toDeeplink: "myapp") }
+    try await simulator.privacy.grantAccess(["com.test"], toDeeplink: "myapp")
+
+    #expect(device.writes == 2, "After a revoke this process cannot vouch for what lsd holds")
   }
 
   @Test
   func revokingOnABootedSimulatorDeletesThroughItsPreferencesAndConfirmsTheKeyIsGone() async throws {
     let device = SchemeApprovalDevice(state: .booted)
+    defer { device.removeDataDirectory() }
     let simulator = SimulatorTestSupport.testableSimulator(withDevice: device)
 
     try await simulator.privacy.revokeAccess(["com.test"], toDeeplink: "myapp")
@@ -167,7 +262,9 @@ struct SimulatorPrivacyCommandsTests {
 
   @Test
   func revokingOnABootedSimulatorFailsWhenTheApprovalCanStillBeRead() async {
-    let device = SchemeApprovalDevice(state: .booted, readOutput: "com.test\n")
+    let device = SchemeApprovalDevice(state: .booted, deletesFail: true)
+    defer { device.removeDataDirectory() }
+    device.replacePlist(with: [Self.schemeApprovalKey: "com.test"])
     let simulator = SimulatorTestSupport.testableSimulator(withDevice: device)
 
     do {
@@ -263,24 +360,43 @@ struct SimulatorPrivacyCommandsTests {
 
 // MARK: - Device double
 
-/// A Simulator in a given state with a data directory of its own, which records the tools it is asked to
-/// spawn rather than running them, answering each `defaults read` with `readOutput`. Its runtime root is the
-/// host's, so the runtime's `defaults` resolves to `/usr/bin/defaults`, which is validated but never run.
+/// A Simulator in a given state with a data directory of its own. Tools it is asked to spawn are recorded rather than run,
+/// and it stands in for the preferences daemon: a `defaults write` or `delete` replaces the scheme approval plist, unless
+/// `deletesFail`, and a `defaults read` answers from it. Its runtime root is the host's, so the runtime's `defaults`
+/// resolves to `/usr/bin/defaults`, which is validated but never run.
 private final class SchemeApprovalDevice: @unchecked Sendable {
   @objc(UDID) let udid = NSUUID()
   @objc let state: UInt64
   @objc let runtime = HostRuntime()
   let dataDirectory = (NSTemporaryDirectory() as NSString).appendingPathComponent(UUID().uuidString)
-  private let readOutput: Data
+  private let deletesFail: Bool
   private(set) var spawnedArguments: [[String]] = []
+  /// Runs once, after the next `defaults write` has replaced the plist and before the tool exits.
+  var afterNextWrite: ((SchemeApprovalDevice) -> Void)?
 
-  init(state: TargetState, readOutput: String = "") {
+  init(state: TargetState, deletesFail: Bool = false) {
     self.state = UInt64(state.rawValue)
-    self.readOutput = Data(readOutput.utf8)
+    self.deletesFail = deletesFail
   }
 
   var schemeApprovalPlist: String {
     (dataDirectory as NSString).appendingPathComponent("Library/Preferences/com.apple.launchservices.schemeapproval.plist")
+  }
+
+  /// The `defaults write`s spawned so far.
+  var writes: Int {
+    spawnedArguments.filter { $0.dropFirst().first == "write" }.count
+  }
+
+  /// Replaces the plist with a new file holding `approvals`.
+  func replacePlist(with approvals: [String: String]) {
+    try? FileManager.default.createDirectory(
+      atPath: (schemeApprovalPlist as NSString).deletingLastPathComponent, withIntermediateDirectories: true)
+    (approvals as NSDictionary).write(toFile: schemeApprovalPlist, atomically: true)
+  }
+
+  func removeDataDirectory() {
+    try? FileManager.default.removeItem(atPath: dataDirectory)
   }
 
   @objc func dataPath() -> String {
@@ -298,8 +414,26 @@ private final class SchemeApprovalDevice: @unchecked Sendable {
   ) {
     let arguments = options["arguments"] as? [String] ?? []
     spawnedArguments.append(arguments)
-    if arguments.dropFirst().first == "read", let fileDescriptor = (options["stdout"] as? NSNumber)?.int32Value {
-      readOutput.withUnsafeBytes { _ = write(fileDescriptor, $0.baseAddress, $0.count) }
+    let command = Array(arguments.dropFirst())
+    var approvals = NSDictionary(contentsOfFile: schemeApprovalPlist) as? [String: String] ?? [:]
+    var output = ""
+    switch command.first {
+    case "write" where command.count == 5:
+      approvals[command[2]] = command[4]
+      replacePlist(with: approvals)
+      let afterWrite = afterNextWrite
+      afterNextWrite = nil
+      afterWrite?(self)
+    case "delete" where command.count == 3 && !deletesFail:
+      approvals[command[2]] = nil
+      replacePlist(with: approvals)
+    case "read" where command.count == 3:
+      output = approvals[command[2]].map { "\($0)\n" } ?? ""
+    default:
+      break
+    }
+    if let fileDescriptor = (options["stdout"] as? NSNumber)?.int32Value {
+      Data(output.utf8).withUnsafeBytes { _ = write(fileDescriptor, $0.baseAddress, $0.count) }
     }
     completionQueue.async {
       completionHandler(nil, 4242)
