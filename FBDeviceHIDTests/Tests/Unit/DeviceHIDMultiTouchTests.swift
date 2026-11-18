@@ -190,13 +190,13 @@ struct DeviceHIDMultiTouchTests {
     let device = DeviceHIDRetentionTests.makeInertDevice()
     let prepared = prepared()
     let commands = DeviceHIDCommands(
-      device: device, prepare: { _, _, _, _ in throw DeviceHIDTestError.nativeFailure },
+      device: device,
       checkRuntime: {}, makeTransport: { _ in fixture.transport }, prepareTouch: { _, _ in prepared },
       prepareButton: { _, _, _ in throw DeviceHIDTestError.nativeFailure })
     let sequence = try DeviceHIDTouchSequence([.down(x: 1, y: 2), .up(x: 1, y: 2), .down(x: 1, y: 2), .up(x: 1, y: 2)])
     let task = Task { try await commands.touch(sequence) }
     try await fixture.events.waitFor("start2")
-    await #expect { try await commands.tap(x: 1, y: 2, duration: nil) } throws: { error in
+    await #expect { try await commands.touch(.tap(x: 1, y: 2, duration: nil)) } throws: { error in
       if case DeviceHIDError.busy = error { return true }
       return false
     }

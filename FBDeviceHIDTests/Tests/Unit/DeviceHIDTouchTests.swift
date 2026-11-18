@@ -12,6 +12,55 @@ import Testing
 
 @Suite("Bounded physical touch sequences")
 struct DeviceHIDTouchTests {
+  @Test func swipePreservesSamplingAndDistributedHolds() throws {
+    let sequence = try DeviceHIDTouchSequence.swipe(30, yStart: 40, xEnd: 10, yEnd: 20, delta: 10, duration: 0.4)
+    #expect(sequence.contacts.count == 1)
+    #expect(
+      sequence.contacts[0].positions.map(\.point) == [
+        CGPoint(x: 30, y: 40), CGPoint(x: 20, y: 30), CGPoint(x: 10, y: 20), CGPoint(x: 10, y: 20),
+      ])
+    #expect(sequence.contacts[0].positions.allSatisfy { $0.delay == 0.1 && $0.secondPoint == nil })
+    #expect(sequence.duration == 0.4)
+  }
+
+  @Test(arguments: [0.0, -1.0])
+  func swipeRetainsTheDefaultDelta(delta: Double) throws {
+    let sequence = try DeviceHIDTouchSequence.swipe(10, yStart: 20, xEnd: 35, yEnd: 20, delta: delta, duration: 0)
+    #expect(sequence.contacts[0].positions.map { $0.point.x } == [10, 22.5, 35, 35])
+    #expect(sequence.contacts[0].positions.allSatisfy { $0.delay == 0 })
+  }
+
+  @Test func zeroDistanceSwipeStillSendsTheCompleteRecipe() throws {
+    let sequence = try DeviceHIDTouchSequence.swipe(10, yStart: 20, xEnd: 10, yEnd: 20, delta: 10, duration: 0.3)
+    #expect(sequence.contacts[0].positions.map(\.point) == Array(repeating: CGPoint(x: 10, y: 20), count: 3))
+    #expect(sequence.contacts[0].positions.allSatisfy { $0.delay == 0.3 / 3 })
+    #expect(sequence.duration == 0.3)
+  }
+
+  @Test func swipeRejectsInvalidNumbersAndExpandedEventOverflow() throws {
+    for (xStart, yStart, xEnd, yEnd, delta, duration) in [
+      (-1.0, 0.0, 10.0, 20.0, 10.0, 0.5), (0, -1, 10, 20, 10, 0.5),
+      (0, 0, -1, 20, 10, 0.5), (0, 0, 10, -1, 10, 0.5),
+      (Double.nan, 0, 10, 20, 10, 0.5), (0, Double.infinity, 10, 20, 10, 0.5),
+      (0, 0, Double.infinity, 20, 10, 0.5), (0, 0, 10, Double.nan, 10, 0.5),
+      (0, 0, 10, 20, Double.nan, 0.5), (0, 0, 10, 20, Double.infinity, 0.5),
+      (0, 0, 10, 20, -Double.infinity, 0.5), (0, 0, 10, 20, 10, -1),
+      (0, 0, 10, 20, 10, Double.nan), (0, 0, 10, 20, 10, Double.infinity),
+      (0, 0, 10, 20, 10, 5), (0, 0, Double.greatestFiniteMagnitude, Double.greatestFiniteMagnitude, 10, 0.5),
+      (0, 0, 10, 20, Double.leastNonzeroMagnitude, 0.5),
+    ] {
+      #expect(throws: DeviceHIDError.self) {
+        try DeviceHIDTouchSequence.swipe(xStart, yStart: yStart, xEnd: xEnd, yEnd: yEnd, delta: delta, duration: duration)
+      }
+    }
+    let boundary = try DeviceHIDTouchSequence.swipe(0, yStart: 0, xEnd: 1250, yEnd: 0, delta: 10, duration: 0)
+    #expect(boundary.contacts[0].positions.count == 127)
+    #expect(boundary.contacts[0].positions.last?.point.x == 1250)
+    #expect(throws: DeviceHIDError.self) {
+      try DeviceHIDTouchSequence.swipe(0, yStart: 0, xEnd: 1260, yEnd: 0, delta: 10, duration: 0)
+    }
+  }
+
   @Test func compilesExplicitPhasesAndAccumulatesHolds() throws {
     let sequence = try DeviceHIDTouchSequence([
       .down(x: 10, y: 20), .delay(0.1), .delay(0.2),

@@ -201,10 +201,12 @@ struct DeviceOrientationTests {
       defer { fixture.gate.open() }
       let input = DeviceHIDCommands(
         device: device,
-        prepare: { _, _, _, duration in DeviceHIDFixture.prepared(duration: duration) },
         checkRuntime: {}, makeTransport: { _ in fixture.transport },
+        prepareTouch: { _, sequence in
+          DeviceHIDPreparedTouch(start: DeviceHIDFixture.prepared(duration: sequence.duration), positions: [])
+        },
         orientationTool: DeviceOrientationTool(launcher: launcher, temporaryRoot: root))
-      let task = Task { try await input.tap(x: 1, y: 1, duration: nil) }
+      let task = Task { try await input.touch(.tap(x: 1, y: 1, duration: nil)) }
       try await fixture.events.waitFor("start")
       for setting: DeviceOrientation? in [nil, .landscapeLeft] {
         do {
@@ -227,7 +229,7 @@ struct DeviceOrientationTests {
       try await launcher.events.waitFor("set")
       for button in [false, true] {
         do {
-          if button { try await input.button(.home) } else { try await input.tap(x: 1, y: 1, duration: nil) }
+          if button { try await input.button(.home) } else { try await input.touch(.tap(x: 1, y: 1, duration: nil)) }
           Issue.record("Input overlapped SET")
         } catch DeviceHIDError.busy {}
       }
@@ -250,10 +252,12 @@ struct DeviceOrientationTests {
       let fixture = DeviceHIDFixture(retainAcquisition: true)
       let input = DeviceHIDCommands(
         device: device,
-        prepare: { _, _, _, duration in DeviceHIDFixture.prepared(duration: duration) },
         checkRuntime: {}, makeTransport: { _ in fixture.transport },
+        prepareTouch: { _, sequence in
+          DeviceHIDPreparedTouch(start: DeviceHIDFixture.prepared(duration: sequence.duration), positions: [])
+        },
         orientationTool: DeviceOrientationTool(launcher: launcher, temporaryRoot: root))
-      try await input.tap(x: 1, y: 1, duration: nil)
+      try await input.touch(.tap(x: 1, y: 1, duration: nil))
       let orientation = DeviceOrientationCommands(input: input)
       let task = Task { try await orientation.set(.landscapeLeft) }
       try await launcher.events.waitFor(phase)
@@ -384,7 +388,7 @@ struct DeviceOrientationTests {
         switch operation {
         case 0: _ = try await orientation.current()
         case 1: try await orientation.set(.portrait)
-        case 2: try await input.tap(x: 1, y: 1, duration: nil)
+        case 2: try await input.touch(.tap(x: 1, y: 1, duration: nil))
         default: try await input.button(.home)
         }
         Issue.record("Uncertain SET admitted more input")

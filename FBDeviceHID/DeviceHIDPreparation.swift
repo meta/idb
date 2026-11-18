@@ -18,19 +18,12 @@ struct DeviceHIDPreparedTap: Sendable {
 
 enum DeviceHIDPreparation {
   static func prepare(
-    udid: String, x: Double, y: Double, duration: TimeInterval?,
+    udid: String, sequence: DeviceHIDTouchSequence,
     on launcher: any SubprocessLauncher = HostSubprocessLauncher(),
     queryTimeout: TimeInterval = 10,
     temporaryRoot: URL = FileManager.default.temporaryDirectory
-  ) async throws -> DeviceHIDPreparedTap {
+  ) async throws -> DeviceHIDPreparedTouch {
     let snapshot = try await snapshot(udid: udid, on: launcher, queryTimeout: queryTimeout, temporaryRoot: temporaryRoot)
-    let prepared = try decode(details: snapshot.details, displays: snapshot.requiredDisplays(), udid: udid, x: x, y: y, duration: duration)
-    try Task.checkCancellation()
-    return prepared
-  }
-
-  static func prepare(udid: String, sequence: DeviceHIDTouchSequence) async throws -> DeviceHIDPreparedTouch {
-    let snapshot = try await snapshot(udid: udid, on: HostSubprocessLauncher(), queryTimeout: 10, temporaryRoot: FileManager.default.temporaryDirectory)
     let prepared = try decodeTouch(details: snapshot.details, displays: snapshot.requiredDisplays(), udid: udid, sequence: sequence)
     try Task.checkCancellation()
     return prepared
@@ -162,17 +155,6 @@ enum DeviceHIDPreparation {
         }
       }
     }
-  }
-
-  static func decode(
-    details: Data, displays: Data, udid: String, x: Double, y: Double,
-    duration: TimeInterval?
-  ) throws -> DeviceHIDPreparedTap {
-    let geometry = try decodeGeometry(details: details, displays: displays, udid: udid)
-    if let duration, !duration.isFinite || duration < 0 {
-      throw DeviceHIDError.preparationFailed("Tap duration must be finite and nonnegative")
-    }
-    return DeviceHIDPreparedTap(deviceIdentifier: geometry.identifier, point: try geometry.normalize(CGPoint(x: x, y: y)), duration: duration)
   }
 
   static func decodeTouch(details: Data, displays: Data, udid: String, sequence: DeviceHIDTouchSequence) throws -> DeviceHIDPreparedTouch {

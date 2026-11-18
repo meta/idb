@@ -33,8 +33,6 @@ struct HidMethodHandler {
     try await withRPCCancellation(context.cancellation) {
       if let deviceHID {
         switch try await DeviceHIDRequest.read(from: requestStream) {
-        case let .tap(tap):
-          try await deviceHID.tap(x: tap.x, y: tap.y, duration: tap.duration)
         case let .touch(sequence):
           try await deviceHID.touch(sequence)
         case let .button(request):
@@ -80,12 +78,10 @@ struct HidMethodHandler {
       return .input(.delay(delay.duration))
 
     case let .pinch(pinch):
-      let centerX = Double(pinch.center.x)
-      let centerY = Double(pinch.center.y)
-      let scale = pinch.scale
-      let duration = pinch.duration > 0 ? pinch.duration : 0.5
-      let radius = pinch.radius > 0 ? pinch.radius : 100.0
-      return .input(.pinchAt(x: centerX, y: centerY, scale: scale, duration: duration, radius: radius))
+      return .input(
+        .pinchAt(
+          x: pinch.center.x, y: pinch.center.y, scale: pinch.scale,
+          duration: pinch.effectiveDuration, radius: pinch.effectiveRadius))
 
     case let .orientation(orientation):
       return .orientation(try OrientationMethodHandler.orientation(orientation.orientation))
@@ -169,4 +165,9 @@ struct HidMethodHandler {
       return nil
     }
   }
+}
+
+extension Idb_HIDEvent.HIDPinch {
+  var effectiveDuration: Double { duration > 0 ? duration : 0.5 }
+  var effectiveRadius: Double { radius > 0 ? radius : 100 }
 }

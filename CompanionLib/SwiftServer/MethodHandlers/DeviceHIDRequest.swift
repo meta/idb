@@ -6,13 +6,11 @@
  */
 
 import FBDeviceHID
-import Foundation
 import GRPCCore
 import IDBGRPCSwift
 
 /// Buffers one bounded recipe through successful EOF; no event is emitted while reading.
 enum DeviceHIDRequest {
-  case tap(DeviceTapRequest)
   case touch(DeviceHIDTouchSequence)
   case button(DeviceButtonRequest)
 
@@ -30,18 +28,15 @@ enum DeviceHIDRequest {
     if case let .press(press)? = messages.first?.event, case .button? = press.action.action {
       return .button(try DeviceButtonRequest.parse(messages))
     }
-    if messages.count == 2 || (messages.count == 3 && messages[1].event?.isDelay == true),
-      case .press(let press)? = messages.first?.event, case .touch? = press.action.action
-    {
-      let buffered = AsyncStream<Idb_HIDEvent> { continuation in
-        for message in messages { continuation.yield(message) }
-        continuation.finish()
-      }
-      return .tap(try await DeviceTapRequest.read(from: buffered))
-    }
     do {
       if messages.count == 1, case .swipe(let swipe)? = messages.first?.event {
-        return .touch(try DeviceHIDTouchSequence(swipeEvents(swipe)))
+        guard swipe.hasStart, swipe.hasEnd else {
+          throw RPCError(code: .invalidArgument, message: "Swipe requires start and end points")
+        }
+        return .touch(
+          try .swipe(
+            swipe.start.x, yStart: swipe.start.y, xEnd: swipe.end.x, yEnd: swipe.end.y,
+            delta: swipe.delta, duration: swipe.duration))
       }
       if messages.count == 1, case .pinch(let pinch)? = messages.first?.event {
         guard pinch.hasCenter, pinch.duration.isFinite, pinch.duration >= 0, pinch.radius.isFinite, pinch.radius >= 0 else {
@@ -50,15 +45,20 @@ enum DeviceHIDRequest {
         return .touch(
           try .pinch(
             x: pinch.center.x, y: pinch.center.y, scale: pinch.scale,
-            duration: pinch.duration == 0 ? 0.5 : pinch.duration,
-            radius: pinch.radius == 0 ? 100 : pinch.radius))
+            duration: pinch.effectiveDuration, radius: pinch.effectiveRadius))
       }
       var activeContact = false
       let events = try messages.map { message -> DeviceHIDTouchEvent in
         switch message.event {
         case let .press(press):
-          guard case let .touch(touch)? = press.action.action, touch.hasPoint else {
+          guard let action = press.action.action else {
+            throw RPCError(code: .invalidArgument, message: "Missing physical HID press action")
+          }
+          guard case let .touch(touch) = action else {
             throw RPCError(code: .unimplemented, message: "Physical HID does not support this press action")
+          }
+          guard touch.hasPoint else {
+            throw RPCError(code: .invalidArgument, message: "Physical touch requires a point")
           }
           switch press.direction {
           case .down:
@@ -81,39 +81,5 @@ enum DeviceHIDRequest {
     } catch let error as DeviceHIDError {
       throw RPCError(code: .invalidArgument, message: error.localizedDescription)
     }
-  }
-
-  private static func swipeEvents(_ swipe: Idb_HIDEvent.HIDSwipe) throws -> [DeviceHIDTouchEvent] {
-    guard swipe.hasStart, swipe.hasEnd,
-      swipe.start.x.isFinite, swipe.start.y.isFinite, swipe.end.x.isFinite, swipe.end.y.isFinite,
-      swipe.start.x >= 0, swipe.start.y >= 0, swipe.end.x >= 0, swipe.end.y >= 0,
-      swipe.delta.isFinite, swipe.duration.isFinite, swipe.duration >= 0, swipe.duration < 5
-    else { throw RPCError(code: .invalidArgument, message: "Swipe points and duration must be finite and nonnegative; duration must be less than five seconds") }
-    let distance = hypot(swipe.end.x - swipe.start.x, swipe.end.y - swipe.start.y)
-    let delta = swipe.delta > 0 ? swipe.delta : 10
-    let count = floor(distance / delta)
-    // A start, a delay after each down, one duplicate endpoint, and one up.
-    guard count.isFinite, count <= Double((DeviceHIDTouchSequence.maximumEvents - 5) / 2) else {
-      throw RPCError(code: .invalidArgument, message: "Swipe exceeds the bounded physical sample count; use a larger delta")
-    }
-    let steps = max(1, Int(count))
-    let delay = swipe.duration / Double(steps + 2)
-    var events: [DeviceHIDTouchEvent] = [.down(x: swipe.start.x, y: swipe.start.y), .delay(delay)]
-    for index in 1...steps {
-      let fraction = Double(index) / Double(steps)
-      events.append(.move(x: swipe.start.x + (swipe.end.x - swipe.start.x) * fraction, y: swipe.start.y + (swipe.end.y - swipe.start.y) * fraction))
-      events.append(.delay(delay))
-    }
-    events.append(.move(x: swipe.end.x, y: swipe.end.y))
-    events.append(.delay(delay))
-    events.append(.up(x: swipe.end.x, y: swipe.end.y))
-    return events
-  }
-}
-
-private extension Idb_HIDEvent.OneOf_Event {
-  var isDelay: Bool {
-    if case .delay = self { return true }
-    return false
   }
 }

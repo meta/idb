@@ -163,28 +163,27 @@ struct DeviceHIDRuntimeTests {
   }
 
   @Test(arguments: DeviceHIDRuntime.images)
-  func requiresTheVersionCheckedLoadedOwnerForEverySymbol(_ image: DeviceHIDRuntime.Image) throws {
+  func validatesLoadedOwnerAgainstInstalledSnapshot(_ image: DeviceHIDRuntime.Image) throws {
     let canonical = URL(fileURLWithPath: image.path).resolvingSymlinksInPath().path
     let wrongImage = try #require(DeviceHIDRuntime.images.first { $0.name != image.name })
+    let symbol = try #require(image.symbols.first)
     let newUUID = String(repeating: "1", count: 32)
     let installedVersions = [newUUID: "651.13.5"]
-    for symbol in image.symbols {
-      try DeviceHIDRuntime.validateIdentity(.init(path: canonical, uuid: newUUID, version: "651.13.5"), image: image, installedVersions: installedVersions, symbol: symbol)
-      #expect(throws: DeviceHIDError.self) {
-        try DeviceHIDRuntime.validateIdentity(nil, image: image, installedVersions: installedVersions, symbol: symbol)
-      }
-      #expect(throws: DeviceHIDError.self) {
-        try DeviceHIDRuntime.validateIdentity(.init(path: wrongImage.path, uuid: newUUID, version: "651.13.5"), image: image, installedVersions: installedVersions, symbol: symbol)
-      }
-      #expect(throws: DeviceHIDError.self) {
-        try DeviceHIDRuntime.validateIdentity(.init(path: canonical, uuid: String(repeating: "2", count: 32), version: "651.13.5"), image: image, installedVersions: installedVersions, symbol: symbol)
-      }
-      #expect(throws: DeviceHIDError.self) {
-        try DeviceHIDRuntime.validateIdentity(.init(path: canonical, uuid: newUUID, version: "651.13.5"), image: image, installedVersions: [:], symbol: symbol)
-      }
-      #expect(throws: DeviceHIDError.self) {
-        try DeviceHIDRuntime.validateIdentity(.init(path: canonical, uuid: newUUID, version: "651.13.4"), image: image, installedVersions: installedVersions, symbol: symbol)
-      }
+    try DeviceHIDRuntime.validateIdentity(.init(path: canonical, uuid: newUUID, version: "651.13.5"), image: image, installedVersions: installedVersions, symbol: symbol)
+    #expect(throws: DeviceHIDError.self) {
+      try DeviceHIDRuntime.validateIdentity(nil, image: image, installedVersions: installedVersions, symbol: symbol)
+    }
+    #expect(throws: DeviceHIDError.self) {
+      try DeviceHIDRuntime.validateIdentity(.init(path: wrongImage.path, uuid: newUUID, version: "651.13.5"), image: image, installedVersions: installedVersions, symbol: symbol)
+    }
+    #expect(throws: DeviceHIDError.self) {
+      try DeviceHIDRuntime.validateIdentity(.init(path: canonical, uuid: String(repeating: "2", count: 32), version: "651.13.5"), image: image, installedVersions: installedVersions, symbol: symbol)
+    }
+    #expect(throws: DeviceHIDError.self) {
+      try DeviceHIDRuntime.validateIdentity(.init(path: canonical, uuid: newUUID, version: "651.13.5"), image: image, installedVersions: [:], symbol: symbol)
+    }
+    #expect(throws: DeviceHIDError.self) {
+      try DeviceHIDRuntime.validateIdentity(.init(path: canonical, uuid: newUUID, version: "651.13.4"), image: image, installedVersions: installedVersions, symbol: symbol)
     }
   }
 

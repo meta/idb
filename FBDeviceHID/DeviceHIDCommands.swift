@@ -26,7 +26,6 @@ public final class DeviceHIDCommands: Sendable {
   }
 
   private let state: Atomic<State>
-  private let prepare: @Sendable (String, Double, Double, TimeInterval?) async throws -> DeviceHIDPreparedTap
   private let checkRuntime: @Sendable () async throws -> Void
   private let makeTransport: @Sendable (UUID) -> DeviceHIDTransport
   private let prepareTouch: @Sendable (String, DeviceHIDTouchSequence) async throws -> DeviceHIDPreparedTouch
@@ -36,9 +35,6 @@ public final class DeviceHIDCommands: Sendable {
 
   init(
     device: Device,
-    prepare: @escaping @Sendable (String, Double, Double, TimeInterval?) async throws -> DeviceHIDPreparedTap = {
-      try await DeviceHIDPreparation.prepare(udid: $0, x: $1, y: $2, duration: $3)
-    },
     checkRuntime: @escaping @Sendable () async throws -> Void = { try await DeviceHIDRuntime.checkAsync() },
     makeTransport: @escaping @Sendable (UUID) -> DeviceHIDTransport = { DeviceHIDTransport(deviceIdentifier: $0) },
     prepareTouch: @escaping @Sendable (String, DeviceHIDTouchSequence) async throws -> DeviceHIDPreparedTouch = { try await DeviceHIDPreparation.prepare(udid: $0, sequence: $1) },
@@ -47,24 +43,12 @@ public final class DeviceHIDCommands: Sendable {
     orientationTool: DeviceOrientationTool = DeviceOrientationTool()
   ) {
     state = Atomic(wrappedValue: State(device: device))
-    self.prepare = prepare
     self.checkRuntime = checkRuntime
     self.makeTransport = makeTransport
     self.prepareTouch = prepareTouch
     self.prepareButton = prepareButton
     self.makeButtonTransport = makeButtonTransport
     self.orientationTool = orientationTool
-  }
-
-  /// Coordinates are display points. A nil or zero duration adds no intentional hold.
-  /// Success reports local native returns, not a remote delivery acknowledgment.
-  public func tap(x: Double, y: Double, duration: TimeInterval?) async throws {
-    guard x.isFinite, y.isFinite, x >= 0, y >= 0,
-      duration.map({ $0.isFinite && $0 >= 0 }) ?? true
-    else { throw DeviceHIDError.preparationFailed("Coordinates and duration must be finite and nonnegative") }
-    try await perform { udid in
-      .touch(DeviceHIDPreparedTouch(start: try await self.prepare(udid, x, y, duration), positions: []))
-    }
   }
 
   /// Sends a complete, bounded down/move/up recipe; it never leaves a contact held for a later call.

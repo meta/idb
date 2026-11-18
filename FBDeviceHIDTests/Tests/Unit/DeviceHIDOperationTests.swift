@@ -14,6 +14,15 @@ import Testing
 
 // MARK: - Touch test adapter
 
+extension DeviceHIDTouchSequence {
+  static func tap(x: Double, y: Double, duration: TimeInterval? = nil) throws -> Self {
+    var events: [DeviceHIDTouchEvent] = [.down(x: x, y: y)]
+    if let duration { events.append(.delay(duration)) }
+    events.append(.up(x: x, y: y))
+    return try Self(events)
+  }
+}
+
 extension DeviceHIDOperation {
   convenience init(transport: DeviceHIDTransport, prepared: DeviceHIDPreparedTap, positions: [DeviceHIDPosition] = [], operationSeconds: TimeInterval = 10, cleanupReserve: TimeInterval = 5, timerQueue: DispatchQueue = .global(), quarantine: @escaping @Sendable () -> Void) {
     self.init(transport: transport, input: .touch(DeviceHIDPreparedTouch(start: prepared, positions: positions)), operationSeconds: operationSeconds, cleanupReserve: cleanupReserve, timerQueue: timerQueue, quarantine: quarantine)

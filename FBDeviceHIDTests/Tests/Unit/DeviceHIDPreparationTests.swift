@@ -93,9 +93,7 @@ struct DeviceHIDPreparationTests {
   @Test(arguments: ["portrait", "faceUp"])
   func normalizesDisplayPoints(orientation: String) throws {
     let (details, displays) = try metadata(orientation: orientation)
-    let prepared = try DeviceHIDPreparation.decode(
-      details: details, displays: displays, udid: "test-phone", x: 100, y: 200,
-      duration: 0.15)
+    let prepared = try decode(details, displays)
     #expect(abs(prepared.point.x - 100.0 / 393) < 1e-12)
     #expect(abs(prepared.point.y - 200.0 / 852) < 1e-12)
     #expect(prepared.duration == 0.15)
@@ -174,7 +172,7 @@ struct DeviceHIDPreparationTests {
     }
     let nilHold = try decode(details, displays, duration: nil)
     let zeroHold = try decode(details, displays, duration: 0)
-    #expect(nilHold.duration == nil)
+    #expect(nilHold.duration == 0)
     #expect(zeroHold.duration == 0)
   }
 
@@ -185,11 +183,11 @@ struct DeviceHIDPreparationTests {
       let launcher = MetadataLauncher(result: result, details: details, displays: displays)
       do {
         let prepared = try await DeviceHIDPreparation.prepare(
-          udid: "test-phone", x: 100, y: 200, duration: 0.15,
+          udid: "test-phone", sequence: .tap(x: 100, y: 200, duration: 0.15),
           on: launcher, queryTimeout: result == .timeout ? 0 : 10, temporaryRoot: root)
         #expect(result == .success)
-        #expect(abs(prepared.point.x - 100.0 / 393) < 1e-12)
-        #expect(abs(prepared.point.y - 200.0 / 852) < 1e-12)
+        #expect(abs(prepared.start.point.x - 100.0 / 393) < 1e-12)
+        #expect(abs(prepared.start.point.y - 200.0 / 852) < 1e-12)
       } catch {
         switch result {
         case .success:
@@ -223,7 +221,7 @@ struct DeviceHIDPreparationTests {
     let (details, displays) = try metadata()
     try await withTemporaryRoot { root in
       let launcher = MetadataLauncher(result: .success, details: details, displays: displays, controlled: true)
-      async let preparation = DeviceHIDPreparation.prepare(udid: "test-phone", x: 100, y: 200, duration: nil, on: launcher, temporaryRoot: root)
+      async let preparation = DeviceHIDPreparation.prepare(udid: "test-phone", sequence: .tap(x: 100, y: 200), on: launcher, temporaryRoot: root)
       try await launcher.events.waitFor("details")
       try await launcher.events.waitFor("displays")
       let (_, running) = await launcher.requests()
@@ -232,7 +230,7 @@ struct DeviceHIDPreparationTests {
       try await launcher.release("details")
       try await launcher.release("displays")
       let prepared = try await preparation
-      #expect(abs(prepared.point.x - 100.0 / 393) < 1e-12)
+      #expect(abs(prepared.start.point.x - 100.0 / 393) < 1e-12)
       let (paths, pids) = await launcher.requests()
       try await checkCleanup(root: root, paths: paths, pids: pids)
     }
@@ -243,7 +241,7 @@ struct DeviceHIDPreparationTests {
     let (details, displays) = try metadata()
     try await withTemporaryRoot { root in
       let launcher = MetadataLauncher(result: .success, details: details, displays: displays, controlled: true, failingOperation: "details")
-      async let preparation = DeviceHIDPreparation.prepare(udid: "test-phone", x: 100, y: 200, duration: nil, on: launcher, temporaryRoot: root)
+      async let preparation = DeviceHIDPreparation.prepare(udid: "test-phone", sequence: .tap(x: 100, y: 200), on: launcher, temporaryRoot: root)
       try await launcher.events.waitFor("details")
       try await launcher.events.waitFor("displays")
       try await launcher.release("details")
@@ -267,7 +265,7 @@ struct DeviceHIDPreparationTests {
       let launcher = MetadataLauncher(result: .success, details: details, displays: displays, controlled: true)
       let task = Task {
         try await DeviceHIDPreparation.prepare(
-          udid: "test-phone", x: 100, y: 200, duration: nil,
+          udid: "test-phone", sequence: .tap(x: 100, y: 200),
           on: launcher, temporaryRoot: root)
       }
       do {
@@ -295,7 +293,7 @@ struct DeviceHIDPreparationTests {
       let task = Task {
         withUnsafeCurrentTask { $0?.cancel() }
         return try await DeviceHIDPreparation.prepare(
-          udid: "test-phone", x: 100, y: 200, duration: nil,
+          udid: "test-phone", sequence: .tap(x: 100, y: 200),
           on: launcher, temporaryRoot: root)
       }
       await #expect(throws: CancellationError.self) { try await task.value }
@@ -465,7 +463,10 @@ struct DeviceHIDPreparationTests {
   }
 
   private func decode(_ details: Data, _ displays: Data, udid: String = "test-phone", x: Double = 100, y: Double = 200, duration: Double? = 0.15) throws -> DeviceHIDPreparedTap {
-    try DeviceHIDPreparation.decode(details: details, displays: displays, udid: udid, x: x, y: y, duration: duration)
+    try DeviceHIDPreparation.decodeTouch(
+      details: details, displays: displays, udid: udid,
+      sequence: .tap(x: x, y: y, duration: duration)
+    ).start
   }
 
   private func replacingInfo(_ data: Data, key: String, value: Any?) throws -> Data {

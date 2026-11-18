@@ -38,6 +38,35 @@ public struct DeviceHIDTouchSequence: Sendable {
     self.duration = duration
   }
 
+  /// The constant-speed simulator recipe, including its duplicate endpoint and distributed delays.
+  public static func swipe(
+    _ xStart: Double, yStart: Double, xEnd: Double, yEnd: Double, delta: Double, duration: TimeInterval
+  ) throws -> Self {
+    guard xStart.isFinite, yStart.isFinite, xEnd.isFinite, yEnd.isFinite,
+      xStart >= 0, yStart >= 0, xEnd >= 0, yEnd >= 0,
+      delta.isFinite, duration.isFinite, duration >= 0, duration < 5
+    else { throw DeviceHIDError.preparationFailed("Swipe points and duration must be finite and nonnegative; duration must be less than five seconds") }
+    let distance = hypot(xEnd - xStart, yEnd - yStart)
+    let delta = delta > 0 ? delta : 10
+    let count = floor(distance / delta)
+    // A start, a delay after each down, one duplicate endpoint, and one up.
+    guard count.isFinite, count <= Double((Self.maximumEvents - 5) / 2) else {
+      throw DeviceHIDError.preparationFailed("Swipe exceeds the bounded physical sample count; use a larger delta")
+    }
+    let steps = max(1, Int(count))
+    let delay = duration / Double(steps + 2)
+    var events: [DeviceHIDTouchEvent] = [.down(x: xStart, y: yStart), .delay(delay)]
+    for index in 1...steps {
+      let fraction = Double(index) / Double(steps)
+      events.append(.move(x: xStart + (xEnd - xStart) * fraction, y: yStart + (yEnd - yStart) * fraction))
+      events.append(.delay(delay))
+    }
+    events.append(.move(x: xEnd, y: yEnd))
+    events.append(.delay(delay))
+    events.append(.up(x: xEnd, y: yEnd))
+    return try Self(events)
+  }
+
   public init(_ events: [DeviceHIDTouchEvent]) throws {
     guard (2...Self.maximumEvents).contains(events.count),
       case .down = events[0], case .up = events[events.count - 1]

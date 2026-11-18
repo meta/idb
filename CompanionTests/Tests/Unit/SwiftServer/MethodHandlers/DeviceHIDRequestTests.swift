@@ -13,14 +13,129 @@ import Testing
 
 @Suite("Physical HID recipe parsing")
 struct DeviceHIDRequestTests {
-  @Test func retainsTheLegacyTapRoute() async throws {
-    let request = try await DeviceHIDRequest.read(from: stream([touch(.down, 1, 2), delay(0.15), touch(.up, 1, 2)]))
-    guard case let .tap(tap) = request else {
-      Issue.record("Tap did not use the legacy parser")
+  @Test(arguments: [nil, 0.0, 0.15] as [Double?])
+  func singleTapUsesTheCommonTouchRecipe(duration: Double?) async throws {
+    var events = [touch(.down, 1, 2)]
+    if let duration { events.append(delay(duration)) }
+    events.append(touch(.up, 1, 2))
+    let request = try await DeviceHIDRequest.read(from: stream(events))
+    guard case let .touch(sequence) = request else {
+      Issue.record("Missing tap recipe")
       return
     }
-    #expect(tap.x == 1)
-    #expect(tap.duration == 0.15)
+    #expect(sequence.contacts.count == 1)
+    #expect(sequence.contacts[0].positions.count == 1)
+    #expect(sequence.contacts[0].positions[0].point.x == 1)
+    #expect(sequence.contacts[0].positions[0].point.y == 2)
+    #expect(sequence.duration == (duration ?? 0))
+    #expect(sequence.contacts[0].positions[0].delay == (duration ?? 0))
+  }
+
+  @Test(arguments: [Idb_HIDEvent.HIDDirection.down, .up])
+  func missingTouchPointIsAnInvalidArgument(direction: Idb_HIDEvent.HIDDirection) async {
+    let malformed = Idb_HIDEvent.with {
+      $0.press.direction = direction
+      $0.press.action.touch = .init()
+    }
+    for events in [[malformed], [touch(.down, 1, 2), touch(.up, 1, 2), malformed]] {
+      await #expect { try await DeviceHIDRequest.read(from: stream(events)) } throws: { error in
+        (error as? RPCError)?.code == .invalidArgument
+      }
+    }
+  }
+
+  @Test func missingPressActionIsAnInvalidArgument() async {
+    for event in [Idb_HIDEvent.with { $0.press = .init() }, Idb_HIDEvent.with { $0.press.action = .init() }] {
+      await #expect { try await DeviceHIDRequest.read(from: stream([event])) } throws: { error in
+        (error as? RPCError)?.code == .invalidArgument
+      }
+    }
+  }
+
+  @Test func unsupportedPhysicalHIDShapesKeepCompanionErrors() async {
+    let unsupported = [
+      Idb_HIDEvent.with { $0.press.action.key.keycode = 4 },
+      Idb_HIDEvent.with { $0.orientation.orientation = .portrait },
+      Idb_HIDEvent.with { $0.shake = .init() },
+      Idb_HIDEvent.with { $0.hinge.angle = 90 },
+    ]
+    for event in unsupported {
+      await #expect { try await DeviceHIDRequest.read(from: stream([event])) } throws: { error in
+        (error as? RPCError)?.code == .unimplemented
+      }
+    }
+    for button in [Idb_HIDEvent.HIDButtonType.applePay, .lock, .sideButton, .siri, .playPause, .eject] {
+      let events = [Idb_HIDEvent.HIDDirection.down, .up].map { direction in
+        Idb_HIDEvent.with {
+          $0.press.direction = direction
+          $0.press.action.button.button = button
+        }
+      }
+      await #expect { try await DeviceHIDRequest.read(from: stream(events)) } throws: { error in
+        (error as? RPCError)?.code == .unimplemented
+      }
+    }
+  }
+
+  @Test(arguments: [-1.0, Double.nan, Double.infinity, -Double.infinity])
+  func rejectsInvalidTapCoordinates(value: Double) async {
+    for (x, y) in [(value, 0.0), (0.0, value)] {
+      await #expect { try await DeviceHIDRequest.read(from: stream([touch(.down, x, y), touch(.up, x, y)])) } throws: { error in
+        (error as? RPCError)?.code == .invalidArgument
+      }
+    }
+  }
+
+  @Test(arguments: [-1.0, Double.nan, Double.infinity, -Double.infinity, 5.0, 10.0])
+  func rejectsInvalidTapHolds(value: Double) async {
+    await #expect { try await DeviceHIDRequest.read(from: stream([touch(.down, 0, 0), delay(value), touch(.up, 0, 0)])) } throws: { error in
+      (error as? RPCError)?.code == .invalidArgument
+    }
+  }
+
+  @Test(arguments: [false, true])
+  func waitsForEOFWithoutAdmittingCancelledInput(cancel: Bool) async throws {
+    let (requests, continuation) = AsyncStream<Idb_HIDEvent>.makeStream()
+    let (waiting, waitingContinuation) = AsyncStream<Void>.makeStream()
+    let admission = Admission()
+    let observed = ObservedStream(base: requests, onEOFWait: { waitingContinuation.yield(()) })
+    let task = Task {
+      defer { waitingContinuation.finish() }
+      let request = try await DeviceHIDRequest.read(from: observed)
+      await admission.mark()
+      return request
+    }
+    continuation.yield(touch(.down, 0, 0))
+    continuation.yield(touch(.up, 0, 0))
+    var waitingIterator = waiting.makeAsyncIterator()
+    guard await waitingIterator.next() != nil else {
+      task.cancel()
+      continuation.finish()
+      let result = await task.result
+      Issue.record("Parser completed without requesting EOF: \(result)")
+      return
+    }
+    #expect(await admission.admitted == false)
+    if cancel { task.cancel() }
+    continuation.finish()
+    waitingContinuation.finish()
+    if cancel {
+      await #expect(throws: CancellationError.self) { try await task.value }
+      #expect(await admission.admitted == false)
+    } else {
+      _ = try await task.value
+      #expect(await admission.admitted)
+    }
+  }
+
+  @Test func repeatedDelaysAccumulateWithinATap() async throws {
+    let request = try await DeviceHIDRequest.read(from: stream([touch(.down, 1, 2), delay(0.1), delay(0.2), touch(.up, 1, 2)]))
+    guard case let .touch(sequence) = request else {
+      Issue.record("Missing tap recipe")
+      return
+    }
+    #expect(abs(sequence.duration - 0.3) < 1e-12)
+    #expect(abs(sequence.contacts[0].positions[0].delay - 0.3) < 1e-12)
   }
 
   @Test func repeatedDownMeansMoveWithinOneCompleteContact() async throws {
@@ -35,13 +150,14 @@ struct DeviceHIDRequestTests {
     #expect(sequence.contacts[0].positions[1].delay == 0.2)
   }
 
-  @Test func swipeMatchesTheConstantSpeedSimulatorRecipe() async throws {
+  @Test(arguments: [0.0, -1.0, 10.0])
+  func swipeForwardsSamplingAndDefaultDelta(delta: Double) async throws {
     let swipe = Idb_HIDEvent.with {
       $0.swipe.start.x = 10
       $0.swipe.start.y = 20
       $0.swipe.end.x = 30
       $0.swipe.end.y = 20
-      $0.swipe.delta = 10
+      $0.swipe.delta = delta
       $0.swipe.duration = 0.4
     }
     let request = try await DeviceHIDRequest.read(from: stream([swipe]))
@@ -58,7 +174,10 @@ struct DeviceHIDRequestTests {
     let down = touch(.down, 1, 2)
     let up = touch(.up, 1, 2)
     let invalid: [[Idb_HIDEvent]] = [
-      [], [down], [up, down], [down, touch(.down, 3, 4), up], [down, up, up, down, up],
+      [], [down], [up, down], [down, down], [down, touch(.up, 3, 4)],
+      [delay(0.1), down, up], [down, up, delay(0)],
+      [Idb_HIDEvent()], [Idb_HIDEvent.with { $0.press.action.touch = .init() }, up],
+      [down, touch(.down, 3, 4), up], [down, up, up, down, up],
       [down, delay(.nan), touch(.down, 3, 4), touch(.up, 3, 4)],
       [down, delay(5), touch(.down, 3, 4), touch(.up, 3, 4)],
       [Idb_HIDEvent.with { $0.press.action.button.button = .home }],
@@ -71,6 +190,29 @@ struct DeviceHIDRequestTests {
     for events in invalid {
       await #expect(throws: RPCError.self) { try await DeviceHIDRequest.read(from: stream(events)) }
     }
+  }
+
+  @Test func swipeRequiresBothWirePointsAndKeepsZeroDuration() async throws {
+    for swipe in [
+      Idb_HIDEvent.with { $0.swipe.start = .init() },
+      Idb_HIDEvent.with { $0.swipe.end = .init() },
+    ] {
+      await #expect { try await DeviceHIDRequest.read(from: stream([swipe])) } throws: { error in
+        (error as? RPCError)?.code == .invalidArgument
+      }
+    }
+    let swipe = Idb_HIDEvent.with {
+      $0.swipe.start = .init()
+      $0.swipe.end = .init()
+    }
+    let request = try await DeviceHIDRequest.read(from: stream([swipe]))
+    guard case let .touch(sequence) = request else {
+      Issue.record("Missing stationary swipe recipe")
+      return
+    }
+    #expect(sequence.contacts[0].positions.count == 3)
+    #expect(sequence.contacts[0].positions.allSatisfy { $0.point.x == 0 && $0.point.y == 0 && $0.delay == 0 })
+    #expect(sequence.duration == 0)
   }
 
   @Test func oversizedAndNonfiniteSwipesAreRejectedBeforeIntegerConversion() async {
@@ -172,7 +314,7 @@ struct DeviceHIDRequestTests {
     }
   }
 
-  @Test(arguments: [2, 128])
+  @Test(arguments: [1, 2, 128])
   func failingEOFAfterAllContactsCannotReturnAPrefix(count: Int) async {
     let requests = AsyncThrowingStream<Idb_HIDEvent, any Error> { continuation in
       for _ in 0..<count {
@@ -184,8 +326,9 @@ struct DeviceHIDRequestTests {
     await #expect(throws: StreamFailure.self) { try await DeviceHIDRequest.read(from: requests) }
   }
 
-  @Test func cancellationAtSuccessfulEOFRejectsAllContacts() async {
-    let events = [touch(.down, 1, 2), touch(.up, 1, 2), touch(.down, 1, 2), touch(.up, 1, 2)]
+  @Test(arguments: [1, 2])
+  func cancellationAtSuccessfulEOFRejectsAllContacts(count: Int) async {
+    let events = Array(repeating: [touch(.down, 1, 2), touch(.up, 1, 2)], count: count).flatMap { $0 }
     let task = Task { try await DeviceHIDRequest.read(from: CancelAtEOF(events: events)) }
     await #expect(throws: CancellationError.self) { try await task.value }
   }
@@ -204,7 +347,8 @@ struct DeviceHIDRequestTests {
   }
 
   @Test func zeroPinchScalarsRetainWireDefaults() async throws {
-    let request = try await DeviceHIDRequest.read(from: stream([pinch(scale: 1, duration: 0, radius: 0)]))
+    let event = pinch(scale: 1, duration: 0, radius: 0)
+    let request = try await DeviceHIDRequest.read(from: stream([event]))
     guard case let .touch(sequence) = request else {
       Issue.record("Missing defaulted pinch")
       return
@@ -215,6 +359,10 @@ struct DeviceHIDRequestTests {
     #expect(first.point.x == 100)
     #expect(second.x == 300)
     #expect(first.delay == 0.125)
+    #expect(
+      try HidMethodHandler.request(from: event)
+        == .input(
+          .pinchAt(x: 200, y: 200, scale: 1, duration: sequence.duration, radius: second.x - 200)))
   }
 
   @Test func malformedOrOversizedPinchIsRejectedBeforeInput() async {
@@ -266,6 +414,33 @@ struct DeviceHIDRequestTests {
       $0.pinch.scale = scale
       $0.pinch.duration = duration
       $0.pinch.radius = radius
+    }
+  }
+
+  private actor Admission {
+    var admitted = false
+    func mark() { admitted = true }
+  }
+
+  private struct ObservedStream: AsyncSequence, Sendable {
+    typealias Element = Idb_HIDEvent
+    let base: AsyncStream<Idb_HIDEvent>
+    let onEOFWait: @Sendable () -> Void
+
+    func makeAsyncIterator() -> Iterator {
+      Iterator(base: base.makeAsyncIterator(), onEOFWait: onEOFWait)
+    }
+
+    struct Iterator: AsyncIteratorProtocol {
+      var base: AsyncStream<Idb_HIDEvent>.Iterator
+      let onEOFWait: @Sendable () -> Void
+      var readCount = 0
+
+      mutating func next() async -> Idb_HIDEvent? {
+        if readCount == 2 { onEOFWait() }
+        readCount += 1
+        return await base.next()
+      }
     }
   }
 
