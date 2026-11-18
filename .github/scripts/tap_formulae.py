@@ -242,7 +242,7 @@ def write_outputs(directory, outputs, *, manifest=None, release=False):
         if path.is_file() and path.read_bytes() == texts[name].encode():
             continue
         path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(texts[name])
+        path.write_text(texts[name], encoding="utf-8")
     for path in stale:
         if path.is_file():
             path.unlink()

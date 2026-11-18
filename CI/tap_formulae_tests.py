@@ -10,7 +10,9 @@ from __future__ import annotations
 import contextlib
 import io
 import json
+import os
 import shutil
+import subprocess
 import sys
 import tarfile
 import tempfile
@@ -114,6 +116,52 @@ class ArchiveRoundTripTest(unittest.TestCase):
         self.assertEqual(
             tap_formulae.read_rendered(unpacked, unpacked_manifest), outputs
         )
+
+
+class RenderedEncodingTest(unittest.TestCase):
+    def test_utf8_round_trip_without_rewriting_under_an_ascii_locale(self) -> None:
+        script = r"""
+import locale
+import os
+import sys
+from pathlib import Path
+sys.path.insert(0, sys.argv[1])
+import tap_formulae
+assert not sys.flags.utf8_mode
+assert locale.getpreferredencoding(False) in ("ANSI_X3.4-1968", "US-ASCII", "ASCII")
+outputs = {"idb-cli.rb": "# caf\u00e9\n"}
+manifest = {"outputs": {name: tap_formulae.sha256_of_text(text) for name, text in outputs.items()}}
+for release in (False, True):
+    root = Path(sys.argv[2]) / str(release)
+    tap_formulae.write_outputs(root, outputs, manifest=manifest, release=release)
+    assert (root / "idb-cli.rb").read_bytes() == b"# caf\xc3\xa9\n"
+    assert tap_formulae.read_rendered(root, manifest) == outputs
+    paths = [root / "idb-cli.rb", root / (tap_formulae.RELEASE_MANIFEST if release else tap_formulae.MANIFEST)]
+    for path in paths:
+        os.utime(path, ns=(1_000_000_000, 1_000_000_000))
+    tap_formulae.write_outputs(root, outputs, manifest=manifest, release=release)
+    assert all(path.stat().st_mtime_ns == 1_000_000_000 for path in paths)
+"""
+        with tempfile.TemporaryDirectory() as directory:
+            result = subprocess.run(
+                [
+                    sys.executable,
+                    "-c",
+                    script,
+                    str(Path(tap_formulae.__file__).parent),
+                    directory,
+                ],
+                env={
+                    **os.environ,
+                    "LC_ALL": "C",
+                    "PYTHONUTF8": "0",
+                    "PYTHONCOERCECLOCALE": "0",
+                },
+                capture_output=True,
+                encoding="utf-8",
+                timeout=30,
+            )
+        self.assertEqual(result.returncode, 0, result.stderr)
 
 
 class RenderValidationRejectsCorruptOutputTest(unittest.TestCase):
