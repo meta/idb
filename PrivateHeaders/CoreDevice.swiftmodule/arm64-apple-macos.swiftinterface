@@ -1,0 +1,113 @@
+// swift-interface-format-version: 1.0
+// swift-compiler-version: reconstructed from CoreDevice/CoreDeviceUtilities 651.13.5
+// Derivation and update checks: ../CoreDevice/README.md
+// swift-module-flags: -target arm64-apple-macos15.0 -enable-objc-interop -enable-library-evolution -swift-version 5 -module-name CoreDevice
+
+import CoreGraphics
+import Dispatch
+import Foundation
+import Swift
+import _Concurrency
+
+/*
+ * Copyright (c) Meta Platforms, Inc. and affiliates.
+ *
+ * This source code is licensed under the MIT license found in the
+ * LICENSE file in the root directory of this source tree.
+ */
+
+public struct Capability: Swift.Hashable {
+  public static func == (lhs: CoreDevice.Capability, rhs: CoreDevice.Capability) -> Swift.Bool
+  public func hash(into hasher: inout Swift.Hasher)
+  public var hashValue: Swift.Int { get }
+}
+
+public struct AssertableDeviceState: Swift.Hashable {
+  public static func == (lhs: CoreDevice.AssertableDeviceState, rhs: CoreDevice.AssertableDeviceState) -> Swift.Bool
+  public func hash(into hasher: inout Swift.Hasher)
+  public var hashValue: Swift.Int { get }
+}
+
+public struct UsageAssertionRequirements {
+  public init(deviceStates: Swift.Set<CoreDevice.AssertableDeviceState>, capabilities: Swift.Set<CoreDevice.Capability>)
+}
+
+public protocol DeviceCapabilityProtocol {
+  static var capability: CoreDevice.Capability { get }
+  static var identifier: Swift.String { get }
+  static var identifierSuffix: Swift.String { get }
+  static var priority: Swift.Int { get }
+}
+
+public protocol DeviceCapability {
+  associatedtype ProtocolType
+  associatedtype ImplType
+  static var capability: CoreDevice.Capability { get }
+}
+
+public struct CapabilityStaticMember<Member> {
+  public init()
+}
+
+public struct DigitizerHIDCapability: CoreDevice.DeviceCapability {
+  public typealias ProtocolType = any CoreDevice.HIDDigitizer
+  public typealias ImplType = any CoreDevice.HIDDigitizer
+  public static var capability: CoreDevice.Capability { get }
+}
+
+public struct DigitizerPoint {
+}
+
+public enum DigitizerEventType {
+  case start
+  case position
+  case end
+}
+
+public enum DigitizerEdge {
+  case none
+  case top
+  case left
+  case bottom
+  case right
+}
+
+public enum DigitizerTarget {
+  case mainScreen
+  case display1
+  case display2
+  case display3
+  case display4
+  case display5
+  case display6
+  case display7
+  case display8
+  case display9
+  case display10
+}
+
+public protocol HIDDigitizer: CoreDevice.DeviceCapabilityProtocol {
+  func send(pointOne: CoreDevice.DigitizerPoint, pointTwo: CoreDevice.DigitizerPoint?, eventType: CoreDevice.DigitizerEventType, edge: CoreDevice.DigitizerEdge, target: CoreDevice.DigitizerTarget) throws
+  func sendBarrier()
+}
+
+extension CoreDevice.HIDDigitizer {
+  public func send(pointOne: CoreGraphics.CGPoint, pointTwo: CoreGraphics.CGPoint?, eventType: CoreDevice.DigitizerEventType, edge: CoreDevice.DigitizerEdge, target: CoreDevice.DigitizerTarget) throws
+}
+
+public class DeviceManager {
+  public static var shared: CoreDevice.DeviceManager { get }
+  final public func allDevices() -> [CoreDevice.RemoteDevice]
+}
+
+public class DeviceUsageAssertion {
+  final public var identifier: Foundation.UUID { get }
+  public func releaseAssertion()
+  public func registerInvalidationHandler(invokingOnQueue: Dispatch.DispatchQueue?, handler: @escaping (Swift.Error?) -> Swift.Void)
+}
+
+public class RemoteDevice {
+  final public var id: Foundation.UUID { get }
+  final public func acquireDeviceUsageAssertion(withReason: Swift.String, requirements: CoreDevice.UsageAssertionRequirements, invokingCompletionHandlerOn: Dispatch.DispatchQueue?, completionHandler: @escaping @Sendable (Swift.Result<CoreDevice.DeviceUsageAssertion, Swift.Error>) -> Swift.Void) -> Foundation.Progress
+  public func getImplementation<CapabilityType>(for capability: CoreDevice.CapabilityStaticMember<CapabilityType>) async throws -> CapabilityType.ProtocolType where CapabilityType: CoreDevice.DeviceCapability
+}

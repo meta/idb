@@ -1,0 +1,78 @@
+--- !tapi-tbd
+# Copyright (c) Meta Platforms, Inc. and affiliates.
+#
+# This source code is licensed under the MIT license found in the
+# LICENSE file in the root directory of this source tree.
+tbd-version: 4
+targets: [ arm64-macos ]
+install-name: '/Library/Developer/PrivateFrameworks/CoreDevice.framework/Versions/A/CoreDevice'
+current-version: 651.13.5
+compatibility-version: 1
+reexported-libraries:
+  - targets: [ arm64-macos ]
+    libraries: [ '/Library/Developer/PrivateFrameworks/CoreDeviceUtilities.framework/Versions/A/CoreDeviceUtilities' ]
+exports:
+  - targets: [ arm64-macos ]
+    symbols:
+      - '_$s10CoreDevice0B7ManagerC6sharedACvgZ'
+      - '_$s10CoreDevice0B7ManagerC10allDevicesSayAA06RemoteB0CGyF'
+      - '_$s10CoreDevice06RemoteB0C2id10Foundation4UUIDVvg'
+      - '_$s10CoreDevice26UsageAssertionRequirementsV12deviceStates12capabilitiesACShyAA010AssertableB5StateVG_ShyAA10CapabilityVGtcfC'
+      - '_$s10CoreDevice010AssertableB5StateVSHAAMc'
+      - '_$s10CoreDevice06RemoteB0C07acquireB14UsageAssertion10withReason12requirements27invokingCompletionHandlerOn010completionL0So10NSProgressCSS_AA0eF12RequirementsVSo17OS_dispatch_queueCSgys6ResultOyAA0beF0Cs5Error_pGYbctF'
+      - '_$s10CoreDevice0B14UsageAssertionC10identifier10Foundation4UUIDVvg'
+      - '_$s10CoreDevice0B14UsageAssertionC07releaseD0yyFTj'
+      - '_$s10CoreDevice0B14UsageAssertionC27registerInvalidationHandler15invokingOnQueue7handlerySo17OS_dispatch_queueCSg_ys5Error_pSgctFTj'
+      - '_$s10CoreDevice010AssertableB5StateVMa'
+      - '_$s10CoreDevice06RemoteB0CMa'
+      - '_$s10CoreDevice06RemoteB0CMn'
+      - '_$s10CoreDevice0B7ManagerCMa'
+      - '_$s10CoreDevice26UsageAssertionRequirementsVMa'
+      - '_$s10CoreDevice06RemoteB0C17getImplementation3for12ProtocolTypeQzAA22CapabilityStaticMemberVyxG_tYaKAA0bI0RzlFTj'
+      - '_$s10CoreDevice06RemoteB0C17getImplementation3for12ProtocolTypeQzAA22CapabilityStaticMemberVyxG_tYaKAA0bI0RzlFTjTu'
+      - '_$s10CoreDevice22CapabilityStaticMemberVACyxGycfC'
+      - '_$s10CoreDevice22CapabilityStaticMemberVMa'
+      - '_$s10CoreDevice22CapabilityStaticMemberVMn'
+      - '_$s10CoreDevice22DigitizerHIDCapabilityVMa'
+      - '_$s10CoreDevice22DigitizerHIDCapabilityVMn'
+      - '_$s10CoreDevice22DigitizerHIDCapabilityVAA0B10CapabilityAAMc'
+      - '_$s10CoreDevice0B10CapabilityMp'
+      - '_$s10CoreDevice12HIDDigitizerMp'
+      - '_$s10CoreDevice0B14UsageAssertionCMa'
+      - '_$s10CoreDevice0B14UsageAssertionCMn'
+      - '_$s10CoreDevice22DigitizerHIDCapabilityVAA0B10CapabilityAAWP'
+      - '_$s10CoreDevice12HIDDigitizerPAAE4send8pointOne0E3Two9eventType4edge6targetySo7CGPointV_AKSgAA014DigitizerEventI0OAA0M4EdgeOAA0M6TargetOtKF'
+      - '_$s10CoreDevice12HIDDigitizerP4send8pointOne0E3Two9eventType4edge6targetyAA14DigitizerPointV_AKSgAA0l5EventI0OAA0L4EdgeOAA0L6TargetOtKFTj'
+      - '_$s10CoreDevice12HIDDigitizerP11sendBarrieryyFTj'
+      - '_$s10CoreDevice12HIDDigitizerP4send8pointOne0E3Two9eventType4edge6targetyAA14DigitizerPointV_AKSgAA0l5EventI0OAA0L4EdgeOAA0L6TargetOtKFTq'
+      - '_$s10CoreDevice12HIDDigitizerP11sendBarrieryyFTq'
+      - '_$s10CoreDevice12HIDDigitizerPAA0B18CapabilityProtocolTb'
+      - '_$s10CoreDevice0B18CapabilityProtocolMp'
+      - '_$s10CoreDevice0B18CapabilityProtocolP10capabilityAA0C0VvgZTq'
+      - '_$s10CoreDevice0B18CapabilityProtocolP10identifierSSvgZTq'
+      - '_$s10CoreDevice0B18CapabilityProtocolP16identifierSuffixSSvgZTq'
+      - '_$s10CoreDevice0B18CapabilityProtocolP8prioritySivgZTq'
+--- !tapi-tbd
+tbd-version: 4
+targets: [ arm64-macos ]
+install-name: '/Library/Developer/PrivateFrameworks/CoreDeviceUtilities.framework/Versions/A/CoreDeviceUtilities'
+current-version: 651.13.5
+compatibility-version: 1
+exports:
+  - targets: [ arm64-macos ]
+    symbols:
+      - '_$s10CoreDevice10CapabilityVSHAAMc'
+      - '_$s10CoreDevice10CapabilityVMa'
+      - '_$s10CoreDevice14DigitizerPointVMa'
+      - '_$s10CoreDevice14DigitizerPointVMn'
+      - '_$s10CoreDevice18DigitizerEventTypeOMa'
+      - '_$s10CoreDevice18DigitizerEventTypeOMn'
+      - '_$s10CoreDevice13DigitizerEdgeOMa'
+      - '_$s10CoreDevice13DigitizerEdgeOMn'
+      - '_$s10CoreDevice15DigitizerTargetOMa'
+      - '_$s10CoreDevice15DigitizerTargetOMn'
+      - '_$s10CoreDevice18DigitizerEventTypeO5startyA2CmFWC'
+      - '_$s10CoreDevice18DigitizerEventTypeO3endyA2CmFWC'
+      - '_$s10CoreDevice13DigitizerEdgeO4noneyA2CmFWC'
+      - '_$s10CoreDevice15DigitizerTargetO10mainScreenyA2CmFWC'
+...

@@ -73,6 +73,30 @@
         "PrivateHeaders"
       ]
     },
+    "FBDeviceHID": {
+      "archives": [
+        "libFBDeviceHID.a",
+        "libFBControlCore.a",
+        "libIDBConcurrency.a",
+        "libFBControlCoreObjC.a"
+      ],
+      "frameworks": [
+        "Cocoa.framework",
+        "CoreGraphics.framework",
+        "Foundation.framework",
+        "ServiceManagement.framework",
+        "UniformTypeIdentifiers.framework"
+      ],
+      "linker_flags": [
+        "-weak_library",
+        "PrivateHeaders/CoreDevice/CoreDevice.tbd"
+      ],
+      "resources": [],
+      "search_paths": [],
+      "weak_stub_frameworks": [
+        "CoreDevice"
+      ]
+    },
     "FBProfilingCore": {
       "archives": [
         "libFBProfilingCore.a",
