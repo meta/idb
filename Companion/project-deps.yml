@@ -21,6 +21,8 @@ targets:
         embed: false
       - framework: ../Build/Products/Release/libFBDeviceControl.a
         embed: false
+      - framework: ../Build/Products/Release/libFBDeviceHID.a
+        embed: false
       - framework: ../Build/Products/Release/libFBProfilingCore.a
         embed: false
       - framework: ../Build/Products/Release/libFBSimulatorAX.a
@@ -99,6 +101,8 @@ targets:
         embed: false
       - framework: ../Build/Products/Release/libFBDeviceControl.a
         embed: false
+      - framework: ../Build/Products/Release/libFBDeviceHID.a
+        embed: false
       - framework: ../Build/Products/Release/libFBProfilingCore.a
         embed: false
       - framework: ../Build/Products/Release/libFBSimulatorAX.a
@@ -146,6 +150,8 @@ targets:
       - framework: ../Build/Products/Release/libFBControlCoreObjC.a
         embed: false
       - framework: ../Build/Products/Release/libFBDeviceControl.a
+        embed: false
+      - framework: ../Build/Products/Release/libFBDeviceHID.a
         embed: false
       - framework: ../Build/Products/Release/libFBProfilingCore.a
         embed: false

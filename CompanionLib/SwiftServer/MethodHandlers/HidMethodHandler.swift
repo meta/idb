@@ -6,6 +6,8 @@
  */
 
 import FBControlCore
+import FBDeviceControl
+import FBDeviceHID
 import FBSimulatorControl
 import GRPCCore
 import IDBGRPCSwift
@@ -27,7 +29,13 @@ struct HidMethodHandler {
     // Resolved up front so the stream's closure can hold it, and thrown only when a device action needs it.
     let simulator = Result { try target.simulator() }
     let commandExecutor = commandExecutor
+    let deviceHID = (target as? Device)?.hid
     try await withRPCCancellation(context.cancellation) {
+      if let deviceHID {
+        let tap = try await DeviceTapRequest.read(from: requestStream)
+        try await deviceHID.tap(x: tap.x, y: tap.y, duration: tap.duration)
+        return
+      }
       try await commandExecutor.hid(
         events: requestStream.compactMap { message -> SimulatorHIDEvent? in
           switch try Self.request(from: message) {
