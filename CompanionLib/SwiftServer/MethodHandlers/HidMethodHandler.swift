@@ -37,6 +37,8 @@ struct HidMethodHandler {
           try await deviceHID.tap(x: tap.x, y: tap.y, duration: tap.duration)
         case let .touch(sequence):
           try await deviceHID.touch(sequence)
+        case let .button(request):
+          try await deviceHID.button(request.button, duration: request.duration)
         }
         return
       }

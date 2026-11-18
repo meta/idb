@@ -14,6 +14,7 @@ import IDBGRPCSwift
 enum DeviceHIDRequest {
   case tap(DeviceTapRequest)
   case touch(DeviceHIDTouchSequence)
+  case button(DeviceButtonRequest)
 
   static func read<S: AsyncSequence>(from requests: S) async throws -> Self where S.Element == Idb_HIDEvent {
     var messages: [Idb_HIDEvent] = []
@@ -26,6 +27,9 @@ enum DeviceHIDRequest {
       messages.append(message)
     }
     try Task.checkCancellation()
+    if case let .press(press)? = messages.first?.event, case .button? = press.action.action {
+      return .button(try DeviceButtonRequest.parse(messages))
+    }
     if messages.count == 2 || (messages.count == 3 && messages[1].event?.isDelay == true),
       case .press(let press)? = messages.first?.event, case .touch? = press.action.action
     {
