@@ -5,6 +5,7 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+import CoreGraphics
 import FBControlCore
 @testable import FBDeviceControl
 @testable import FBDeviceHID
@@ -156,6 +157,42 @@ struct DeviceHIDRetentionTests {
     } catch { Issue.record("Unexpected error: \(error)") }
     #expect(fixture.events.count("acquire") == 1)
     #expect(fixture.events.count("start") == 1)
+    #expect(fixture.events.count("end") == 1)
+  }
+
+  @Test func touchSharesTapAdmissionAndQuarantine() async throws {
+    let device = Self.makeInertDevice()
+    let fixture = DeviceHIDFixture(block: "position", fail: "end")
+    defer { fixture.gate.open() }
+    let sequence = try DeviceHIDTouchSequence([.down(x: 1, y: 1), .move(x: 2, y: 2), .up(x: 2, y: 2)])
+    let command = DeviceHIDCommands(
+      device: device,
+      prepare: { _, _, _, duration in DeviceHIDFixture.prepared(duration: duration) },
+      checkRuntime: {},
+      makeTransport: { _ in fixture.transport },
+      prepareTouch: { _, _ in
+        DeviceHIDPreparedTouch(start: DeviceHIDFixture.prepared(), positions: [DeviceHIDPosition(point: CGPoint(x: 0.5, y: 0.5), delay: 0)])
+      })
+    let task = Task { try await command.touch(sequence) }
+    try await fixture.events.waitFor("position")
+    for touch in [false, true] {
+      do {
+        if touch { try await command.touch(sequence) } else { try await command.tap(x: 1, y: 1, duration: nil) }
+        Issue.record("Overlapping input was accepted")
+      } catch DeviceHIDError.busy {
+      } catch { Issue.record("Unexpected error: \(error)") }
+    }
+    fixture.gate.open()
+    await #expect(throws: (any Error).self) { try await task.value }
+    for touch in [false, true] {
+      do {
+        if touch { try await command.touch(sequence) } else { try await command.tap(x: 1, y: 1, duration: nil) }
+        Issue.record("Quarantined input was accepted")
+      } catch DeviceHIDError.uncertainState {
+      } catch { Issue.record("Unexpected error: \(error)") }
+    }
+    #expect(fixture.events.count("acquire") == 1)
+    #expect(fixture.events.count("position") == 1)
     #expect(fixture.events.count("end") == 1)
   }
 

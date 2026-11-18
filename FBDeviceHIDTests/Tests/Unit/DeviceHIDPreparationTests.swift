@@ -13,6 +13,19 @@ import Testing
 
 @Suite
 struct DeviceHIDPreparationTests {
+  @Test func normalizesEveryTouchPositionFromOneSnapshot() throws {
+    let (details, displays) = try metadata()
+    let sequence = try DeviceHIDTouchSequence([.down(x: 100, y: 200), .delay(0.1), .move(x: 300, y: 400), .up(x: 300, y: 400)])
+    let prepared = try DeviceHIDPreparation.decodeTouch(details: details, displays: displays, udid: "test-phone", sequence: sequence)
+    #expect(abs(prepared.start.point.x - 100.0 / 393) < 1e-12)
+    #expect(abs(prepared.positions[0].point.x - 300.0 / 393) < 1e-12)
+    #expect(abs(prepared.positions[0].point.y - 400.0 / 852) < 1e-12)
+    let outside = try DeviceHIDTouchSequence([.down(x: 100, y: 200), .move(x: 393, y: 400), .up(x: 393, y: 400)])
+    #expect(throws: DeviceHIDError.self) {
+      try DeviceHIDPreparation.decodeTouch(details: details, displays: displays, udid: "test-phone", sequence: outside)
+    }
+  }
+
   @Test(arguments: ["portrait", "faceUp"])
   func normalizesDisplayPoints(orientation: String) throws {
     let (details, displays) = try metadata(orientation: orientation)

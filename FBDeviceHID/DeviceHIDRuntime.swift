@@ -128,6 +128,7 @@ enum DeviceHIDRuntime {
         "$s10CoreDevice13DigitizerEdgeOMa",
         "$s10CoreDevice15DigitizerTargetOMa",
         "$s10CoreDevice18DigitizerEventTypeO5startyA2CmFWC",
+        "$s10CoreDevice18DigitizerEventTypeO8positionyA2CmFWC",
         "$s10CoreDevice18DigitizerEventTypeO3endyA2CmFWC",
         "$s10CoreDevice13DigitizerEdgeO4noneyA2CmFWC",
         "$s10CoreDevice15DigitizerTargetO10mainScreenyA2CmFWC",

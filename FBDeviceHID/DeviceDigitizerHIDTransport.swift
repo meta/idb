@@ -147,6 +147,7 @@ final class DeviceDigitizerHIDTransport: Sendable {
           let event: DigitizerEventType
           switch phase {
           case .start: event = .start
+          case .position: event = .position
           case .end: event = .end
           }
           try digitizer.send(pointOne: point, pointTwo: nil, eventType: event, edge: .none, target: .mainScreen)

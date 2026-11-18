@@ -102,6 +102,7 @@ final class DeviceHIDFixture: Sendable {
         self.state.sync { $0.points.append(point) }
         switch phase {
         case .start: try self.call("start")
+        case .position: try self.call("position")
         case .end: try self.call("end")
         }
       },
@@ -268,7 +269,7 @@ struct DeviceHIDOperationTests {
     #expect(fixture.events.count("releaseReturned") == 1)
   }
 
-  @Test(arguments: ["start", "end", "barrier"])
+  @Test(arguments: ["start", "position", "end", "barrier"])
   func cancellationJoinsBlockedNativeInput(_ phase: String) async throws {
     let fixture = DeviceHIDFixture(block: phase)
     let outcome = try await cancelThenJoinBlockedInput(fixture, phase: phase)
@@ -291,6 +292,7 @@ struct DeviceHIDOperationTests {
     defer { fixture.gate.open() }
     let operation = DeviceHIDOperation(
       transport: fixture.transport, prepared: DeviceHIDFixture.prepared(),
+      positions: [DeviceHIDPosition(point: CGPoint(x: 0.5, y: 0.5), delay: 0)],
       operationSeconds: 3, cleanupReserve: 0,
       quarantine: { fixture.state.sync { $0.quarantined = true } })
     let task = Task { await operation.run() }
@@ -574,7 +576,7 @@ struct DeviceHIDOperationTests {
     return (outcome, latched)
   }
 
-  @Test(arguments: ["acquire", "observe", "factory", "start", "end", "barrier", "release"])
+  @Test(arguments: ["acquire", "observe", "factory", "start", "position", "end", "barrier", "release"])
   func lateReturnsFailEvenWhenTimersCannotRun(_ phase: String) async throws {
     let fixture = DeviceHIDFixture(block: phase)
     let outcome = try await completePastDeadline(fixture, phase: phase)
@@ -608,6 +610,7 @@ struct DeviceHIDOperationTests {
     let operation = DeviceHIDOperation(
       transport: fixture.transport,
       prepared: DeviceHIDFixture.prepared(),
+      positions: phase == "position" ? [DeviceHIDPosition(point: CGPoint(x: 0.5, y: 0.5), delay: 0)] : [],
       operationSeconds: 1,
       cleanupReserve: 0.1,
       timerQueue: timers,

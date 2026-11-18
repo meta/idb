@@ -74,6 +74,7 @@ exports:
       - '_$s10CoreDevice15DigitizerTargetOMa'
       - '_$s10CoreDevice15DigitizerTargetOMn'
       - '_$s10CoreDevice18DigitizerEventTypeO5startyA2CmFWC'
+      - '_$s10CoreDevice18DigitizerEventTypeO8positionyA2CmFWC'
       - '_$s10CoreDevice18DigitizerEventTypeO3endyA2CmFWC'
       - '_$s10CoreDevice13DigitizerEdgeO4noneyA2CmFWC'
       - '_$s10CoreDevice15DigitizerTargetO10mainScreenyA2CmFWC'

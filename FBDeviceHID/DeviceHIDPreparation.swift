@@ -22,6 +22,25 @@ enum DeviceHIDPreparation {
     queryTimeout: TimeInterval = 10,
     temporaryRoot: URL = FileManager.default.temporaryDirectory
   ) async throws -> DeviceHIDPreparedTap {
+    let snapshot = try await snapshot(udid: udid, on: launcher, queryTimeout: queryTimeout, temporaryRoot: temporaryRoot)
+    let prepared = try decode(details: snapshot.details, displays: snapshot.displays, udid: udid, x: x, y: y, duration: duration)
+    try Task.checkCancellation()
+    return prepared
+  }
+
+  static func prepare(udid: String, sequence: DeviceHIDTouchSequence) async throws -> DeviceHIDPreparedTouch {
+    let snapshot = try await snapshot(udid: udid, on: HostSubprocessLauncher(), queryTimeout: 10, temporaryRoot: FileManager.default.temporaryDirectory)
+    let prepared = try decodeTouch(details: snapshot.details, displays: snapshot.displays, udid: udid, sequence: sequence)
+    try Task.checkCancellation()
+    return prepared
+  }
+
+  private struct Snapshot {
+    let details: Data
+    let displays: Data
+  }
+
+  private static func snapshot(udid: String, on launcher: any SubprocessLauncher, queryTimeout: TimeInterval, temporaryRoot: URL) async throws -> Snapshot {
     try Task.checkCancellation()
     guard queryTimeout.isFinite, queryTimeout >= 0 else {
       throw DeviceHIDError.preparationFailed("Metadata query timeout must be finite and nonnegative")
@@ -31,11 +50,11 @@ enum DeviceHIDPreparation {
       try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: false, attributes: [.posixPermissions: 0o700])
       return directory
     }
-    let prepared: DeviceHIDPreparedTap
+    let snapshot: Snapshot
     do {
       async let details = metadata("details", udid: udid, directory: directory, on: launcher, timeout: queryTimeout)
       async let displays = metadata("displays", udid: udid, directory: directory, on: launcher, timeout: queryTimeout)
-      prepared = try await decode(details: details, displays: displays, udid: udid, x: x, y: y, duration: duration)
+      snapshot = try await Snapshot(details: details, displays: displays)
     } catch let failure {
       do {
         try await fileIO { try FileManager.default.removeItem(at: directory) }
@@ -46,7 +65,7 @@ enum DeviceHIDPreparation {
     }
     try await fileIO { try FileManager.default.removeItem(at: directory) }
     try Task.checkCancellation()
-    return prepared
+    return snapshot
   }
 
   private static func metadata(
@@ -119,6 +138,39 @@ enum DeviceHIDPreparation {
     details: Data, displays: Data, udid: String, x: Double, y: Double,
     duration: TimeInterval?
   ) throws -> DeviceHIDPreparedTap {
+    let geometry = try decodeGeometry(details: details, displays: displays, udid: udid)
+    if let duration, !duration.isFinite || duration < 0 {
+      throw DeviceHIDError.preparationFailed("Tap duration must be finite and nonnegative")
+    }
+    return DeviceHIDPreparedTap(deviceIdentifier: geometry.identifier, point: try geometry.normalize(CGPoint(x: x, y: y)), duration: duration)
+  }
+
+  static func decodeTouch(details: Data, displays: Data, udid: String, sequence: DeviceHIDTouchSequence) throws -> DeviceHIDPreparedTouch {
+    let geometry = try decodeGeometry(details: details, displays: displays, udid: udid)
+    let positions = try sequence.positions.map { DeviceHIDPosition(point: try geometry.normalize($0.point), delay: $0.delay) }
+    guard let first = positions.first else { throw DeviceHIDError.preparationFailed("A touch sequence must contain a down") }
+    return DeviceHIDPreparedTouch(
+      start: DeviceHIDPreparedTap(deviceIdentifier: geometry.identifier, point: first.point, duration: first.delay),
+      positions: Array(positions.dropFirst()))
+  }
+
+  private struct Geometry {
+    let identifier: UUID
+    let width: Double
+    let height: Double
+    let scale: Double
+
+    func normalize(_ point: CGPoint) throws -> CGPoint {
+      let x = Double(point.x)
+      let y = Double(point.y)
+      guard x.isFinite, y.isFinite, x >= 0, y >= 0, x * scale < width, y * scale < height else {
+        throw DeviceHIDError.preparationFailed("Tap coordinates must be inside the display's point bounds")
+      }
+      return CGPoint(x: x * scale / width, y: y * scale / height)
+    }
+  }
+
+  private static func decodeGeometry(details: Data, displays: Data, udid: String) throws -> Geometry {
     let decoder = JSONDecoder()
     let details = try decoder.decode(Details.self, from: details)
     let displays = try decoder.decode(Displays.self, from: displays)
@@ -162,16 +214,7 @@ enum DeviceHIDPreparation {
     else {
       throw DeviceHIDError.preparationFailed("Expected matching pixel bounds/native size and a positive point scale")
     }
-    guard x.isFinite, y.isFinite, x >= 0, y >= 0, x * scale < width, y * scale < height else {
-      throw DeviceHIDError.preparationFailed("Tap coordinates must be inside the display's point bounds")
-    }
-    if let duration, !duration.isFinite || duration < 0 {
-      throw DeviceHIDError.preparationFailed("Tap duration must be finite and nonnegative")
-    }
-    return DeviceHIDPreparedTap(
-      deviceIdentifier: identifier,
-      point: CGPoint(x: x * scale / width, y: y * scale / height),
-      duration: duration)
+    return Geometry(identifier: identifier, width: width, height: height, scale: scale)
   }
 
   private struct Info: Decodable {

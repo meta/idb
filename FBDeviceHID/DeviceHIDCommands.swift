@@ -28,6 +28,7 @@ public final class DeviceHIDCommands: Sendable {
   private let prepare: @Sendable (String, Double, Double, TimeInterval?) async throws -> DeviceHIDPreparedTap
   private let checkRuntime: @Sendable () async throws -> Void
   private let makeTransport: @Sendable (UUID) -> DeviceDigitizerHIDTransport
+  private let prepareTouch: @Sendable (String, DeviceHIDTouchSequence) async throws -> DeviceHIDPreparedTouch
 
   init(
     device: Device,
@@ -35,12 +36,14 @@ public final class DeviceHIDCommands: Sendable {
       try await DeviceHIDPreparation.prepare(udid: $0, x: $1, y: $2, duration: $3)
     },
     checkRuntime: @escaping @Sendable () async throws -> Void = { try await DeviceHIDRuntime.checkAsync() },
-    makeTransport: @escaping @Sendable (UUID) -> DeviceDigitizerHIDTransport = { DeviceDigitizerHIDTransport(deviceIdentifier: $0) }
+    makeTransport: @escaping @Sendable (UUID) -> DeviceDigitizerHIDTransport = { DeviceDigitizerHIDTransport(deviceIdentifier: $0) },
+    prepareTouch: @escaping @Sendable (String, DeviceHIDTouchSequence) async throws -> DeviceHIDPreparedTouch = { try await DeviceHIDPreparation.prepare(udid: $0, sequence: $1) }
   ) {
     state = Atomic(wrappedValue: State(device: device))
     self.prepare = prepare
     self.checkRuntime = checkRuntime
     self.makeTransport = makeTransport
+    self.prepareTouch = prepareTouch
   }
 
   /// Coordinates are display points. A nil or zero duration adds no intentional hold.
@@ -49,6 +52,17 @@ public final class DeviceHIDCommands: Sendable {
     guard x.isFinite, y.isFinite, x >= 0, y >= 0,
       duration.map({ $0.isFinite && $0 >= 0 }) ?? true
     else { throw DeviceHIDError.preparationFailed("Coordinates and duration must be finite and nonnegative") }
+    try await perform { udid in
+      DeviceHIDPreparedTouch(start: try await self.prepare(udid, x, y, duration), positions: [])
+    }
+  }
+
+  /// Sends a complete, bounded down/move/up recipe; it never leaves a contact held for a later call.
+  public func touch(_ sequence: DeviceHIDTouchSequence) async throws {
+    try await perform { udid in try await self.prepareTouch(udid, sequence) }
+  }
+
+  private func perform(_ prepare: @Sendable (String) async throws -> DeviceHIDPreparedTouch) async throws {
     let id = UUID()
     let udid: String = try {
       let device = try state.sync { state -> Device in
@@ -74,14 +88,15 @@ public final class DeviceHIDCommands: Sendable {
     }
     try await withTaskCancellationHandler {
       try Task.checkCancellation()
-      let prepared = try await prepare(udid, x, y, duration)
+      let prepared = try await prepare(udid)
       try state.sync { try $0.checkAdmission(id) }
       try await checkRuntime()
       try Task.checkCancellation()
       try state.sync { try $0.checkAdmission(id) }
       let operation = DeviceHIDOperation(
-        transport: makeTransport(prepared.deviceIdentifier),
-        prepared: prepared,
+        transport: makeTransport(prepared.start.deviceIdentifier),
+        prepared: prepared.start,
+        positions: prepared.positions,
         quarantine: { [weak self] in
           let active = self?.state.sync { state in
             state.uncertain = true
