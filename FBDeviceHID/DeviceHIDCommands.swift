@@ -27,8 +27,10 @@ public final class DeviceHIDCommands: Sendable {
   private let state: Atomic<State>
   private let prepare: @Sendable (String, Double, Double, TimeInterval?) async throws -> DeviceHIDPreparedTap
   private let checkRuntime: @Sendable () async throws -> Void
-  private let makeTransport: @Sendable (UUID) -> DeviceDigitizerHIDTransport
+  private let makeTransport: @Sendable (UUID) -> DeviceHIDTransport
   private let prepareTouch: @Sendable (String, DeviceHIDTouchSequence) async throws -> DeviceHIDPreparedTouch
+  private let prepareButton: @Sendable (String, DeviceHIDButton, TimeInterval?) async throws -> DeviceHIDPreparedButton
+  private let makeButtonTransport: @Sendable (UUID) -> DeviceHIDTransport
 
   init(
     device: Device,
@@ -36,14 +38,18 @@ public final class DeviceHIDCommands: Sendable {
       try await DeviceHIDPreparation.prepare(udid: $0, x: $1, y: $2, duration: $3)
     },
     checkRuntime: @escaping @Sendable () async throws -> Void = { try await DeviceHIDRuntime.checkAsync() },
-    makeTransport: @escaping @Sendable (UUID) -> DeviceDigitizerHIDTransport = { DeviceDigitizerHIDTransport(deviceIdentifier: $0) },
-    prepareTouch: @escaping @Sendable (String, DeviceHIDTouchSequence) async throws -> DeviceHIDPreparedTouch = { try await DeviceHIDPreparation.prepare(udid: $0, sequence: $1) }
+    makeTransport: @escaping @Sendable (UUID) -> DeviceHIDTransport = { DeviceHIDTransport(deviceIdentifier: $0) },
+    prepareTouch: @escaping @Sendable (String, DeviceHIDTouchSequence) async throws -> DeviceHIDPreparedTouch = { try await DeviceHIDPreparation.prepare(udid: $0, sequence: $1) },
+    prepareButton: @escaping @Sendable (String, DeviceHIDButton, TimeInterval?) async throws -> DeviceHIDPreparedButton = { try await DeviceHIDPreparation.prepare(udid: $0, button: $1, duration: $2) },
+    makeButtonTransport: @escaping @Sendable (UUID) -> DeviceHIDTransport = { DeviceHIDTransport(deviceIdentifier: $0, kind: .button) }
   ) {
     state = Atomic(wrappedValue: State(device: device))
     self.prepare = prepare
     self.checkRuntime = checkRuntime
     self.makeTransport = makeTransport
     self.prepareTouch = prepareTouch
+    self.prepareButton = prepareButton
+    self.makeButtonTransport = makeButtonTransport
   }
 
   /// Coordinates are display points. A nil or zero duration adds no intentional hold.
@@ -53,16 +59,24 @@ public final class DeviceHIDCommands: Sendable {
       duration.map({ $0.isFinite && $0 >= 0 }) ?? true
     else { throw DeviceHIDError.preparationFailed("Coordinates and duration must be finite and nonnegative") }
     try await perform { udid in
-      DeviceHIDPreparedTouch(start: try await self.prepare(udid, x, y, duration), positions: [])
+      .touch(DeviceHIDPreparedTouch(start: try await self.prepare(udid, x, y, duration), positions: []))
     }
   }
 
   /// Sends a complete, bounded down/move/up recipe; it never leaves a contact held for a later call.
   public func touch(_ sequence: DeviceHIDTouchSequence) async throws {
-    try await perform { udid in try await self.prepareTouch(udid, sequence) }
+    try await perform { udid in .touch(try await self.prepareTouch(udid, sequence)) }
   }
 
-  private func perform(_ prepare: @Sendable (String) async throws -> DeviceHIDPreparedTouch) async throws {
+  /// Sends one down/optional-hold/up button press, not an idempotent system action.
+  public func button(_ button: DeviceHIDButton, duration: TimeInterval? = nil) async throws {
+    guard duration.map({ $0.isFinite && $0 >= 0 && $0 < 5 }) ?? true else {
+      throw DeviceHIDError.preparationFailed("Button hold must be finite, nonnegative, and less than five seconds")
+    }
+    try await perform { udid in .button(try await self.prepareButton(udid, button, duration)) }
+  }
+
+  private func perform(_ prepare: @Sendable (String) async throws -> DeviceHIDPreparedInput) async throws {
     let id = UUID()
     let udid: String = try {
       let device = try state.sync { state -> Device in
@@ -93,10 +107,14 @@ public final class DeviceHIDCommands: Sendable {
       try await checkRuntime()
       try Task.checkCancellation()
       try state.sync { try $0.checkAdmission(id) }
+      let transport: DeviceHIDTransport
+      switch prepared {
+      case .touch: transport = makeTransport(prepared.deviceIdentifier)
+      case .button: transport = makeButtonTransport(prepared.deviceIdentifier)
+      }
       let operation = DeviceHIDOperation(
-        transport: makeTransport(prepared.start.deviceIdentifier),
-        prepared: prepared.start,
-        positions: prepared.positions,
+        transport: transport,
+        input: prepared,
         quarantine: { [weak self] in
           let active = self?.state.sync { state in
             state.uncertain = true

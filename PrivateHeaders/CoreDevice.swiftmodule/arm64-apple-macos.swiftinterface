@@ -111,3 +111,49 @@ public class RemoteDevice {
   final public func acquireDeviceUsageAssertion(withReason: Swift.String, requirements: CoreDevice.UsageAssertionRequirements, invokingCompletionHandlerOn: Dispatch.DispatchQueue?, completionHandler: @escaping @Sendable (Swift.Result<CoreDevice.DeviceUsageAssertion, Swift.Error>) -> Swift.Void) -> Foundation.Progress
   public func getImplementation<CapabilityType>(for capability: CoreDevice.CapabilityStaticMember<CapabilityType>) async throws -> CapabilityType.ProtocolType where CapabilityType: CoreDevice.DeviceCapability
 }
+
+public struct ButtonHIDCapability: CoreDevice.DeviceCapability {
+  public typealias ProtocolType = any CoreDevice.HIDButton
+  public typealias ImplType = any CoreDevice.HIDButton
+  public static var capability: CoreDevice.Capability { get }
+}
+
+public struct HIDUsageStaticMember<Member> {
+}
+
+public protocol HIDUsageCodeProtocol {
+}
+
+public protocol HIDUsagePageProtocol {
+  associatedtype Code: CoreDevice.HIDUsageCodeProtocol
+  static var usagePage: Swift.UInt16 { get }
+}
+
+public struct ConsumerPage: CoreDevice.HIDUsagePageProtocol {
+  public typealias Code = CoreDevice.HIDUsageCode<CoreDevice.ConsumerPage>
+  public static var usagePage: Swift.UInt16 { get }
+}
+
+public struct HIDUsageCode<Page>: CoreDevice.HIDUsageCodeProtocol where Page: CoreDevice.HIDUsagePageProtocol {
+}
+
+extension CoreDevice.HIDUsageStaticMember where Member: CoreDevice.HIDUsagePageProtocol {
+  public static var consumer: CoreDevice.HIDUsageStaticMember<CoreDevice.ConsumerPage> { get }
+}
+
+extension CoreDevice.HIDUsageCode where Page == CoreDevice.ConsumerPage {
+  public static var home: CoreDevice.HIDUsageCode<CoreDevice.ConsumerPage> { get }
+  public static var volumeIncrement: CoreDevice.HIDUsageCode<CoreDevice.ConsumerPage> { get }
+  public static var volumeDecrement: CoreDevice.HIDUsageCode<CoreDevice.ConsumerPage> { get }
+}
+
+public enum HIDButtonState {
+  case down
+  case up
+}
+
+public protocol HIDButton: CoreDevice.DeviceCapabilityProtocol {
+  func sendButton<Page>(page: CoreDevice.HIDUsageStaticMember<Page>, code: CoreDevice.HIDUsageCode<Page>, state: CoreDevice.HIDButtonState) throws where Page: CoreDevice.HIDUsagePageProtocol
+  func sendCustomButton(usagePage: Swift.Int, usageCode: Swift.Int, state: CoreDevice.HIDButtonState) throws
+  func sendBarrier()
+}

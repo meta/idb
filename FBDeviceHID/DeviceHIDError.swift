@@ -29,7 +29,7 @@ public enum DeviceHIDError: Error, LocalizedError, Sendable {
     case .uncertainState:
       return "The previous physical input has an uncertain outcome; further input is refused"
     case .preparationFailed(let message):
-      return "Physical tap preparation failed: \(message)"
+      return "Physical input preparation failed: \(message)"
     case .unsupportedRuntime(let message):
       return "Physical input is unavailable on this runtime: \(message)"
     case .deviceMatchFailed(let identifier, let count):
@@ -37,7 +37,7 @@ public enum DeviceHIDError: Error, LocalizedError, Sendable {
     case .deadlineExceeded:
       return "The physical input could not finish within its execution budget"
     case .assertionInvalidated:
-      return "The physical tap's owned usage assertion was invalidated"
+      return "The physical input's owned usage assertion was invalidated"
     case .unexpectedCompletion:
       return "A physical input operation delivered an unexpected completion"
     case .nativeFailure(let operation, let domain, let code, let message):

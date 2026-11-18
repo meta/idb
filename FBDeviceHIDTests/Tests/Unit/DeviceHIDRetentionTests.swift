@@ -160,6 +160,83 @@ struct DeviceHIDRetentionTests {
     #expect(fixture.events.count("end") == 1)
   }
 
+  @Test func buttonUsesTheSameAdmissionAndQuarantine() async throws {
+    let device = Self.makeInertDevice()
+    let fixture = DeviceHIDFixture(block: "start", fail: "end")
+    defer { fixture.gate.open() }
+    let unexpectedPreparations = Atomic(wrappedValue: 0)
+    let command = DeviceHIDCommands(
+      device: device,
+      prepare: { _, _, _, _ in
+        unexpectedPreparations.sync { $0 += 1 }
+        throw DeviceHIDError.preparationFailed("Tap preparation must not run during rejection")
+      },
+      checkRuntime: {},
+      makeTransport: { _ in
+        Issue.record("Rejected touch input constructed a transport")
+        return fixture.transport
+      },
+      prepareTouch: { _, _ in
+        unexpectedPreparations.sync { $0 += 1 }
+        throw DeviceHIDError.preparationFailed("Touch preparation must not run during rejection")
+      },
+      prepareButton: { _, button, duration in
+        DeviceHIDPreparedButton(deviceIdentifier: UUID(), button: button, duration: duration)
+      },
+      makeButtonTransport: { _ in fixture.transport })
+    let sequence = try DeviceHIDTouchSequence([.down(x: 1, y: 1), .up(x: 1, y: 1)])
+    let task = Task { try await command.button(.home) }
+    try await fixture.events.waitFor("start")
+    for kind in 0...2 {
+      do {
+        switch kind {
+        case 0: try await command.button(.volumeUp)
+        case 1: try await command.tap(x: 1, y: 1, duration: nil)
+        default: try await command.touch(sequence)
+        }
+        Issue.record("Overlapping input accepted")
+      } catch DeviceHIDError.busy {
+      } catch { Issue.record("Unexpected error: \(error)") }
+    }
+    fixture.gate.open()
+    await #expect(throws: (any Error).self) { try await task.value }
+    for kind in 0...2 {
+      do {
+        switch kind {
+        case 0: try await command.button(.volumeDown)
+        case 1: try await command.tap(x: 1, y: 1, duration: nil)
+        default: try await command.touch(sequence)
+        }
+        Issue.record("Quarantined input accepted")
+      } catch DeviceHIDError.uncertainState {
+      } catch { Issue.record("Unexpected error: \(error)") }
+    }
+    #expect(unexpectedPreparations.wrappedValue == 0)
+    #expect(fixture.state.sync { $0.buttons } == [.home, .home])
+    #expect(fixture.events.count("acquire") == 1)
+  }
+
+  @Test func buttonCannotConstructPrivateTransportBeforePreflight() async {
+    let device = Self.makeInertDevice()
+    let constructions = Atomic(wrappedValue: 0)
+    let command = DeviceHIDCommands(
+      device: device,
+      checkRuntime: { throw DeviceHIDError.unsupportedRuntime("test mismatch") },
+      prepareButton: { _, button, duration in
+        DeviceHIDPreparedButton(deviceIdentifier: UUID(), button: button, duration: duration)
+      },
+      makeButtonTransport: { _ in
+        constructions.sync { $0 += 1 }
+        return DeviceHIDFixture().transport
+      })
+    do {
+      try await command.button(.home)
+      Issue.record("Failed runtime preflight was ignored")
+    } catch DeviceHIDError.unsupportedRuntime {
+    } catch { Issue.record("Unexpected error: \(error)") }
+    #expect(constructions.wrappedValue == 0)
+  }
+
   @Test func touchSharesTapAdmissionAndQuarantine() async throws {
     let device = Self.makeInertDevice()
     let fixture = DeviceHIDFixture(block: "position", fail: "end")
@@ -244,28 +321,31 @@ struct DeviceHIDRetentionTests {
     withExtendedLifetime(device) {}
   }
 
-  @Test func lateQuarantineRevokesTheNextTapWhileItIsPreparing() async throws {
+  @Test(arguments: [false, true])
+  func lateQuarantineRevokesTheNextInputWhileItIsPreparing(_ button: Bool) async throws {
     let device = Self.makeInertDevice()
     let firstFixture = DeviceHIDFixture(retainAcquisition: true)
     let secondFixture = DeviceHIDFixture()
     let preparationCount = Atomic(wrappedValue: 0)
     let constructions = Atomic(wrappedValue: 0)
+    let buttonConstructions = Atomic(wrappedValue: 0)
     let entered = AsyncStream<Void>.makeStream()
     let resume = AsyncStream<Void>.makeStream()
+    let prepare: @Sendable (TimeInterval?) async -> DeviceHIDPreparedTap = { duration in
+      let index = preparationCount.sync { count in
+        count += 1
+        return count
+      }
+      if index == 2 {
+        entered.continuation.yield(())
+        for await _ in resume.stream { break }
+      }
+      return DeviceHIDFixture.prepared(duration: duration)
+    }
     let command = device.commandCache.resolve {
       DeviceHIDCommands(
         device: device,
-        prepare: { _, _, _, duration in
-          let index = preparationCount.sync { count in
-            count += 1
-            return count
-          }
-          if index == 2 {
-            entered.continuation.yield(())
-            for await _ in resume.stream { break }
-          }
-          return DeviceHIDFixture.prepared(duration: duration)
-        },
+        prepare: { _, _, _, duration in await prepare(duration) },
         checkRuntime: {},
         makeTransport: { _ in
           let index = constructions.sync { count in
@@ -273,10 +353,20 @@ struct DeviceHIDRetentionTests {
             return count
           }
           return index == 1 ? firstFixture.transport : secondFixture.transport
+        },
+        prepareButton: { _, button, duration in
+          let prepared = await prepare(duration)
+          return DeviceHIDPreparedButton(deviceIdentifier: prepared.deviceIdentifier, button: button, duration: duration)
+        },
+        makeButtonTransport: { _ in
+          buttonConstructions.sync { $0 += 1 }
+          return secondFixture.transport
         })
     }
     try await command.tap(x: 1, y: 1, duration: nil)
-    let second = Task { try await command.tap(x: 2, y: 2, duration: nil) }
+    let second = Task {
+      if button { try await command.button(.home) } else { try await command.tap(x: 2, y: 2, duration: nil) }
+    }
     for await _ in entered.stream { break }
     firstFixture.completeAcquisition()
     resume.continuation.finish()
@@ -287,6 +377,7 @@ struct DeviceHIDRetentionTests {
     } catch DeviceHIDError.uncertainState {
     } catch { Issue.record("Unexpected error: \(error)") }
     #expect(constructions.wrappedValue == 1)
+    #expect(buttonConstructions.wrappedValue == 0)
     #expect(firstFixture.events.count("start") == 1)
     #expect(firstFixture.events.count("release") == 1)
     #expect(secondFixture.events.count("acquire") == 0)

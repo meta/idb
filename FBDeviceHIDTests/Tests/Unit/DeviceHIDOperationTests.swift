@@ -12,6 +12,14 @@ import Foundation
 import IDBConcurrency
 import Testing
 
+// MARK: - Touch test adapter
+
+extension DeviceHIDOperation {
+  convenience init(transport: DeviceHIDTransport, prepared: DeviceHIDPreparedTap, positions: [DeviceHIDPosition] = [], operationSeconds: TimeInterval = 10, cleanupReserve: TimeInterval = 5, timerQueue: DispatchQueue = .global(), quarantine: @escaping @Sendable () -> Void) {
+    self.init(transport: transport, input: .touch(DeviceHIDPreparedTouch(start: prepared, positions: positions)), operationSeconds: operationSeconds, cleanupReserve: cleanupReserve, timerQueue: timerQueue, quarantine: quarantine)
+  }
+}
+
 enum DeviceHIDTestError: Error { case nativeFailure }
 
 final class DeviceHIDTestLifetime: Sendable {
@@ -31,6 +39,7 @@ struct DeviceHIDReentrantError: LocalizedError, Sendable {
 final class DeviceHIDFixture: Sendable {
   struct State {
     var points: [CGPoint] = []
+    var buttons: [DeviceHIDButton] = []
     var acquisition: (@Sendable (Result<DeviceHIDAssertion, any Error>) -> Void)?
     var factory: (@Sendable (Result<Void, any Error>) -> Void)?
     var invalidated: (@Sendable () -> Void)?
@@ -72,9 +81,9 @@ final class DeviceHIDFixture: Sendable {
       })
   }
 
-  var transport: DeviceDigitizerHIDTransport {
+  var transport: DeviceHIDTransport {
     let lifetime = DeviceHIDTestLifetime { self.events.record("transportRetired") }
-    return DeviceDigitizerHIDTransport(
+    return DeviceHIDTransport(
       acquire: { completion in
         try self.call("acquire")
         if self.lateAcquisition || self.retainAcquisition {
@@ -87,7 +96,7 @@ final class DeviceHIDFixture: Sendable {
         }
         return { try self.call("cancelAcquisition") }
       },
-      makeDigitizer: { completion in
+      makeCapability: { completion in
         try self.call("factory")
         if self.lateFactory {
           self.state.sync { $0.factory = completion }
@@ -97,9 +106,14 @@ final class DeviceHIDFixture: Sendable {
         }
         return { try self.call("cancelFactory") }
       },
-      send: { phase, point in
+      send: { phase, contact in
         defer { withExtendedLifetime(lifetime) {} }
-        self.state.sync { $0.points.append(point) }
+        self.state.sync { state in
+          switch contact {
+          case let .touch(point): state.points.append(point)
+          case let .button(button): state.buttons.append(button)
+          }
+        }
         switch phase {
         case .start: try self.call("start")
         case .position: try self.call("position")
@@ -423,8 +437,8 @@ struct DeviceHIDOperationTests {
     let fixture = DeviceHIDFixture(block: "start", fail: "release")
     defer { fixture.gate.open() }
     let base = fixture.transport
-    let transport = DeviceDigitizerHIDTransport(
-      acquire: base.acquire, makeDigitizer: base.makeDigitizer,
+    let transport = DeviceHIDTransport(
+      acquire: base.acquire, makeCapability: base.makeCapability,
       send: { phase, contact in
         try base.send(phase, contact)
         if case .end = phase { throw DeviceHIDTestError.nativeFailure }
@@ -477,7 +491,7 @@ struct DeviceHIDOperationTests {
       fixture.events.record("description")
       active.wrappedValue?.cancel()
     }
-    let transport = DeviceDigitizerHIDTransport(
+    let transport = DeviceHIDTransport(
       acquire: { completion in
         if phase == "acquire" {
           completion(.failure(error))
@@ -485,12 +499,12 @@ struct DeviceHIDOperationTests {
         }
         return try base.acquire(completion)
       },
-      makeDigitizer: { completion in
+      makeCapability: { completion in
         if phase == "factory" {
           completion(.failure(error))
           return {}
         }
-        return try base.makeDigitizer(completion)
+        return try base.makeCapability(completion)
       },
       send: { contact, point in
         try base.send(contact, point)
@@ -512,7 +526,7 @@ struct DeviceHIDOperationTests {
     let fixture = DeviceHIDFixture()
     let base = fixture.transport
     let active = Atomic<DeviceHIDOperation?>(wrappedValue: nil)
-    let transport = DeviceDigitizerHIDTransport(
+    let transport = DeviceHIDTransport(
       acquire: { completion in
         let cancel = try base.acquire(completion)
         let lifetime = DeviceHIDTestLifetime {
@@ -521,7 +535,7 @@ struct DeviceHIDOperationTests {
         }
         return { try withExtendedLifetime(lifetime) { try cancel() } }
       },
-      makeDigitizer: base.makeDigitizer,
+      makeCapability: base.makeCapability,
       send: base.send,
       barrier: base.barrier,
       discard: base.discard)

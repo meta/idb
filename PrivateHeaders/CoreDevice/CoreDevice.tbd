@@ -54,6 +54,24 @@ exports:
       - '_$s10CoreDevice0B18CapabilityProtocolP10identifierSSvgZTq'
       - '_$s10CoreDevice0B18CapabilityProtocolP16identifierSuffixSSvgZTq'
       - '_$s10CoreDevice0B18CapabilityProtocolP8prioritySivgZTq'
+      - '_$s10CoreDevice19ButtonHIDCapabilityVMa'
+      - '_$s10CoreDevice19ButtonHIDCapabilityVMn'
+      - '_$s10CoreDevice19ButtonHIDCapabilityVAA0B10CapabilityAAWP'
+      - '_$s10CoreDevice9HIDButtonMp'
+      - '_$s10CoreDevice20HIDUsageStaticMemberVMa'
+      - '_$s10CoreDevice20HIDUsageStaticMemberVMn'
+      - '_$s10CoreDevice12ConsumerPageVMa'
+      - '_$s10CoreDevice12ConsumerPageVMn'
+      - '_$s10CoreDevice12ConsumerPageVAA08HIDUsageD8ProtocolAAWP'
+      - '_$s10CoreDevice12ConsumerPageVAA08HIDUsageD8ProtocolAAMc'
+      - '_$s10CoreDevice12HIDUsageCodeVMa'
+      - '_$s10CoreDevice12HIDUsageCodeVMn'
+      - '_$s10CoreDevice20HIDUsageStaticMemberVA2A0C12PageProtocolRzlE8consumerACyAA08ConsumerF0VGvgZ'
+      - '_$s10CoreDevice12HIDUsageCodeVA2A12ConsumerPageVRszrlE4homeACyAEGvgZ'
+      - '_$s10CoreDevice12HIDUsageCodeVA2A12ConsumerPageVRszrlE15volumeIncrementACyAEGvgZ'
+      - '_$s10CoreDevice12HIDUsageCodeVA2A12ConsumerPageVRszrlE15volumeDecrementACyAEGvgZ'
+      - '_$s10CoreDevice9HIDButtonP10sendButton4page4code5stateyAA20HIDUsageStaticMemberVyqd__G_AA0I4CodeVyqd__GAA0C5StateOtKAA0I12PageProtocolRd__lFTj'
+      - '_$s10CoreDevice9HIDButtonP11sendBarrieryyFTj'
 --- !tapi-tbd
 tbd-version: 4
 targets: [ arm64-macos ]
@@ -78,4 +96,7 @@ exports:
       - '_$s10CoreDevice18DigitizerEventTypeO3endyA2CmFWC'
       - '_$s10CoreDevice13DigitizerEdgeO4noneyA2CmFWC'
       - '_$s10CoreDevice15DigitizerTargetO10mainScreenyA2CmFWC'
+      - '_$s10CoreDevice14HIDButtonStateOMa'
+      - '_$s10CoreDevice14HIDButtonStateO4downyA2CmFWC'
+      - '_$s10CoreDevice14HIDButtonStateO2upyA2CmFWC'
 ...

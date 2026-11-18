@@ -36,6 +36,9 @@ static `capability`. `DeviceCapabilityProtocol` has the four static getters
 base conformance, `send` and `sendBarrier` requirements. Native dispatch thunks
 use witness offsets `0x10` and `0x18` for the latter two.
 
+For `ButtonHIDCapability`, the associated-type record at `0x5db980` names both
+aliases at `0x5ae87e`; the symbolic reference leads through `0x64e858` to the
+`HIDButton` descriptor at `0x5c76f4`. Both aliases are `any HIDButton`.
 
 The generic factory symbol only says that its return type is `C.ProtocolType`.
 It cannot establish the concrete associated type. Its method descriptor at

@@ -85,7 +85,7 @@ final class DeviceHIDOperation: Sendable {
     var holdUntil: ContinuousClock.Instant?
     var positionIndex = 0
     var positionScheduled = false
-    var lastAdmittedPoint: CGPoint?
+    var lastAdmittedContact: DeviceHIDContact?
     var endScheduled = false
     var endClaimed = false
     var endReturned = false
@@ -134,8 +134,8 @@ final class DeviceHIDOperation: Sendable {
     case finish(CheckedContinuation<DeviceHIDOutcome, Never>, Atomic<[Cancellation]>)
   }
 
-  private let transport: DeviceDigitizerHIDTransport
-  private let point: CGPoint
+  private let transport: DeviceHIDTransport
+  private let contact: DeviceHIDContact
   private let duration: TimeInterval
   private let positions: [DeviceHIDPosition]
   private let totalDuration: TimeInterval
@@ -148,12 +148,12 @@ final class DeviceHIDOperation: Sendable {
   private let cancellationQueue = DispatchQueue(label: "com.facebook.idb.device-hid.cancel", attributes: .concurrent)
   private let operationTimer: any DispatchSourceTimer
 
-  init(transport: DeviceDigitizerHIDTransport, prepared: DeviceHIDPreparedTap, positions: [DeviceHIDPosition] = [], operationSeconds: TimeInterval = 10, cleanupReserve: TimeInterval = 5, timerQueue: DispatchQueue = .global(), quarantine: @escaping @Sendable () -> Void) {
+  init(transport: DeviceHIDTransport, input: DeviceHIDPreparedInput, operationSeconds: TimeInterval = 10, cleanupReserve: TimeInterval = 5, timerQueue: DispatchQueue = .global(), quarantine: @escaping @Sendable () -> Void) {
     self.transport = transport
-    point = prepared.point
-    duration = prepared.duration ?? 0
-    self.positions = positions
-    totalDuration = positions.reduce(prepared.duration ?? 0) { $0 + $1.delay }
+    contact = input.contact
+    duration = input.duration ?? 0
+    positions = input.positions
+    totalDuration = input.positions.reduce(input.duration ?? 0) { $0 + $1.delay }
     deadline = ContinuousClock.now.advanced(by: .seconds(operationSeconds))
     self.cleanupReserve = cleanupReserve
     self.quarantine = quarantine
@@ -190,7 +190,11 @@ final class DeviceHIDOperation: Sendable {
           return
         }
         do {
-          try Self.validate(point: point, duration: duration)
+          switch contact {
+          case let .touch(point): try Self.validate(point: point, duration: duration)
+          case .button:
+            guard duration.isFinite, duration >= 0 else { throw DeviceHIDError.preparationFailed("The hold duration must be finite and nonnegative") }
+          }
           guard positions.count < DeviceHIDTouchSequence.maximumEvents, totalDuration.isFinite else {
             throw DeviceHIDError.preparationFailed("The contact plan exceeds its count or duration bound")
           }
@@ -312,7 +316,7 @@ final class DeviceHIDOperation: Sendable {
     case .observe(let assertion):
       transportQueue.async { self.observe(assertion) }
     case .factory:
-      transportQueue.async { self.makeDigitizer() }
+      transportQueue.async { self.makeCapability() }
     case .input(let call):
       transportQueue.async { self.input(call) }
     case .cancel(let index, let cancel):
@@ -446,7 +450,7 @@ final class DeviceHIDOperation: Sendable {
     advance()
   }
 
-  private func makeDigitizer() {
+  private func makeCapability() {
     guard state.sync(execute: { !$0.finishing && !$0.finished && $0.error == nil && ContinuousClock.now < deadline }) else {
       state.sync {
         $0.factoryInvoking = false
@@ -456,8 +460,8 @@ final class DeviceHIDOperation: Sendable {
       return
     }
     do {
-      let cancel = try transport.makeDigitizer { result in
-        let result = result.mapError { DeviceHIDError.native($0, operation: "digitizer construction") }
+      let cancel = try transport.makeCapability { result in
+        let result = result.mapError { DeviceHIDError.native($0, operation: "HID capability construction") }
         let changes = withExtendedLifetime(result) {
           self.state.sync { state -> (Bool, Bool) in
             let first = !state.factoryCompleted
@@ -481,7 +485,7 @@ final class DeviceHIDOperation: Sendable {
       install(cancel, for: .factory)
     } catch {
       state.sync { $0.factoryCompleted = true }
-      stop(DeviceHIDError.native(error, operation: "digitizer construction"))
+      stop(DeviceHIDError.native(error, operation: "HID capability construction"))
     }
     state.sync { $0.factoryInvoking = false }
     advance()
@@ -504,7 +508,7 @@ final class DeviceHIDOperation: Sendable {
   private func input(_ call: InputCall) {
     var refusal: (any Error)?
     var clockExpired = false
-    var inputPoint = point
+    var inputContact = contact
     var hold: TimeInterval = 0
     let admitted = state.sync { state -> Bool in
       clockExpired = state.reconcile(deadline: deadline)
@@ -520,19 +524,19 @@ final class DeviceHIDOperation: Sendable {
           return false
         }
         state.startAdmitted = true
-        state.lastAdmittedPoint = point
+        state.lastAdmittedContact = contact
         hold = duration
       case .position:
         state.positionScheduled = false
         guard state.error == nil, state.startReturned, !state.endScheduled, positions.indices.contains(state.positionIndex) else { return false }
         let position = positions[state.positionIndex]
-        inputPoint = position.point
+        inputContact = .touch(position.point)
         hold = position.delay
-        state.lastAdmittedPoint = inputPoint
+        state.lastAdmittedContact = inputContact
       case .end:
         guard state.startAdmitted, state.startReturned, !state.endClaimed else { return false }
         state.endClaimed = true
-        inputPoint = state.lastAdmittedPoint ?? point
+        inputContact = state.lastAdmittedContact ?? contact
       case .barrier:
         guard state.needsBarrier, !state.startAdmitted || state.endReturned else { return false }
       }
@@ -549,9 +553,9 @@ final class DeviceHIDOperation: Sendable {
     var failure: (any Error)?
     do {
       switch call {
-      case .start: try transport.send(.start, inputPoint)
-      case .position: try transport.send(.position, inputPoint)
-      case .end: try transport.send(.end, inputPoint)
+      case .start: try transport.send(.start, inputContact)
+      case .position: try transport.send(.position, inputContact)
+      case .end: try transport.send(.end, inputContact)
       case .barrier: try transport.barrier()
       }
     } catch { failure = error }

@@ -16,11 +16,13 @@ internal import IDBConcurrency
 @_weakLinked internal import CoreDevice
 #endif
 
-/// The one physical transport. The operation supplies the thread and contact ordering.
-final class DeviceDigitizerHIDTransport: Sendable {
+/// The operation supplies the thread, concrete payload, and contact ordering.
+final class DeviceHIDTransport: Sendable {
+  enum Kind: Sendable { case digitizer, button }
+
   let acquire: @Sendable (@escaping @Sendable (Result<DeviceHIDAssertion, any Error>) -> Void) throws -> DeviceHIDCancellation
-  let makeDigitizer: @Sendable (@escaping @Sendable (Result<Void, any Error>) -> Void) throws -> DeviceHIDCancellation
-  let send: @Sendable (DeviceHIDContactPhase, CGPoint) throws -> Void
+  let makeCapability: @Sendable (@escaping @Sendable (Result<Void, any Error>) -> Void) throws -> DeviceHIDCancellation
+  let send: @Sendable (DeviceHIDContactPhase, DeviceHIDContact) throws -> Void
   let barrier: @Sendable () throws -> Void
   let discard: @Sendable () -> Void
 
@@ -33,6 +35,7 @@ final class DeviceDigitizerHIDTransport: Sendable {
   private struct State {
     var device: RemoteDevice?
     var digitizer: (any HIDDigitizer)?
+    var button: (any HIDButton)?
     var assertions: [UUID: Assertion] = [:]
     var assertionKeys: [ObjectIdentifier: UUID] = [:]
     var retired = false
@@ -55,7 +58,7 @@ final class DeviceDigitizerHIDTransport: Sendable {
   }
 
   /// Called only after DeviceHIDRuntime.check has returned successfully.
-  convenience init(deviceIdentifier: UUID) {
+  convenience init(deviceIdentifier: UUID, kind: Kind = .digitizer) {
     let state = Atomic(wrappedValue: State())
     self.init(
       acquire: { completion in
@@ -74,7 +77,7 @@ final class DeviceDigitizerHIDTransport: Sendable {
         }
         let progress = try FBObjCExceptionGuard.guarded {
           device.acquireDeviceUsageAssertion(
-            withReason: "idb physical tap",
+            withReason: "idb physical input",
             requirements: UsageAssertionRequirements(deviceStates: [], capabilities: []),
             invokingCompletionHandlerOn: .global()
           ) { result in
@@ -118,7 +121,7 @@ final class DeviceDigitizerHIDTransport: Sendable {
         }
         return { try FBObjCExceptionGuard.guarded { progress.cancel() } }
       },
-      makeDigitizer: { completion in
+      makeCapability: { completion in
         let task = Task.detached {
           do {
             let device = try state.sync { state -> RemoteDevice in
@@ -126,11 +129,22 @@ final class DeviceDigitizerHIDTransport: Sendable {
               return device
             }
             // A synchronous Objective-C exception guard cannot span this async Swift call.
-            let digitizer = try await Self.checkedImplementation(for: CapabilityStaticMember<DigitizerHIDCapability>(), on: device, as: (any HIDDigitizer).self)
-            try withExtendedLifetime(digitizer) {
-              try state.sync { state in
-                guard !state.retired else { throw CancellationError() }
-                state.digitizer = digitizer
+            switch kind {
+            case .digitizer:
+              let digitizer = try await Self.checkedImplementation(for: CapabilityStaticMember<DigitizerHIDCapability>(), on: device, as: (any HIDDigitizer).self)
+              try withExtendedLifetime(digitizer) {
+                try state.sync { state in
+                  guard !state.retired else { throw CancellationError() }
+                  state.digitizer = digitizer
+                }
+              }
+            case .button:
+              let button = try await Self.checkedImplementation(for: CapabilityStaticMember<ButtonHIDCapability>(), on: device, as: (any HIDButton).self)
+              try withExtendedLifetime(button) {
+                try state.sync { state in
+                  guard !state.retired else { throw CancellationError() }
+                  state.button = button
+                }
               }
             }
             completion(.success(()))
@@ -138,33 +152,66 @@ final class DeviceDigitizerHIDTransport: Sendable {
         }
         return { task.cancel() }
       },
-      send: { phase, point in
-        let digitizer = try state.sync { state -> any HIDDigitizer in
-          guard !state.retired, let digitizer = state.digitizer else { throw CancellationError() }
-          return digitizer
-        }
-        try FBObjCExceptionGuard.guarded {
-          let event: DigitizerEventType
-          switch phase {
-          case .start: event = .start
-          case .position: event = .position
-          case .end: event = .end
+      send: { phase, contact in
+        switch contact {
+        case let .touch(point):
+          let digitizer = try state.sync { state -> any HIDDigitizer in
+            guard !state.retired, let digitizer = state.digitizer else { throw CancellationError() }
+            return digitizer
           }
-          try digitizer.send(pointOne: point, pointTwo: nil, eventType: event, edge: .none, target: .mainScreen)
+          try FBObjCExceptionGuard.guarded {
+            let event: DigitizerEventType
+            switch phase {
+            case .start: event = .start
+            case .position: event = .position
+            case .end: event = .end
+            }
+            try digitizer.send(pointOne: point, pointTwo: nil, eventType: event, edge: .none, target: .mainScreen)
+          }
+        case let .button(selected):
+          let button = try state.sync { state -> any HIDButton in
+            guard !state.retired, let button = state.button else { throw CancellationError() }
+            return button
+          }
+          try FBObjCExceptionGuard.guarded {
+            let code: HIDUsageCode<ConsumerPage>
+            switch selected {
+            case .home: code = .home
+            case .volumeUp: code = .volumeIncrement
+            case .volumeDown: code = .volumeDecrement
+            }
+            let buttonState: HIDButtonState
+            switch phase {
+            case .start: buttonState = .down
+            case .end: buttonState = .up
+            case .position: throw DeviceHIDError.preparationFailed("A button contact cannot move")
+            }
+            try button.sendButton(page: .consumer, code: code, state: buttonState)
+          }
         }
       },
       barrier: {
-        let digitizer = try state.sync { state -> any HIDDigitizer in
-          guard !state.retired, let digitizer = state.digitizer else { throw CancellationError() }
-          return digitizer
+        switch kind {
+        case .digitizer:
+          let digitizer = try state.sync { state -> any HIDDigitizer in
+            guard !state.retired, let digitizer = state.digitizer else { throw CancellationError() }
+            return digitizer
+          }
+          try FBObjCExceptionGuard.guarded { digitizer.sendBarrier() }
+        case .button:
+          let button = try state.sync { state -> any HIDButton in
+            guard !state.retired, let button = state.button else { throw CancellationError() }
+            return button
+          }
+          try FBObjCExceptionGuard.guarded { button.sendBarrier() }
         }
-        try FBObjCExceptionGuard.guarded { digitizer.sendBarrier() }
       },
       discard: {
         let retired = state.sync { state in
-          let retired = (state.digitizer, state.device)
+          let retired = (state.digitizer, state.button, state.device)
           state.retired = true
           state.digitizer = nil
+          state.button = nil
           state.device = nil
           return retired
         }
@@ -172,10 +219,10 @@ final class DeviceDigitizerHIDTransport: Sendable {
       })
   }
   #else
-  convenience init(deviceIdentifier: UUID) {
+  convenience init(deviceIdentifier: UUID, kind: Kind = .digitizer) {
     self.init(
       acquire: { _ in throw DeviceHIDError.unsupportedRuntime("Native arm64 is required") },
-      makeDigitizer: { _ in throw DeviceHIDError.unsupportedRuntime("Native arm64 is required") },
+      makeCapability: { _ in throw DeviceHIDError.unsupportedRuntime("Native arm64 is required") },
       send: { _, _ in throw DeviceHIDError.unsupportedRuntime("Native arm64 is required") },
       barrier: { throw DeviceHIDError.unsupportedRuntime("Native arm64 is required") },
       discard: {})
@@ -184,13 +231,13 @@ final class DeviceDigitizerHIDTransport: Sendable {
 
   init(
     acquire: @escaping @Sendable (@escaping @Sendable (Result<DeviceHIDAssertion, any Error>) -> Void) throws -> DeviceHIDCancellation,
-    makeDigitizer: @escaping @Sendable (@escaping @Sendable (Result<Void, any Error>) -> Void) throws -> DeviceHIDCancellation,
-    send: @escaping @Sendable (DeviceHIDContactPhase, CGPoint) throws -> Void,
+    makeCapability: @escaping @Sendable (@escaping @Sendable (Result<Void, any Error>) -> Void) throws -> DeviceHIDCancellation,
+    send: @escaping @Sendable (DeviceHIDContactPhase, DeviceHIDContact) throws -> Void,
     barrier: @escaping @Sendable () throws -> Void,
     discard: @escaping @Sendable () -> Void
   ) {
     self.acquire = acquire
-    self.makeDigitizer = makeDigitizer
+    self.makeCapability = makeCapability
     self.send = send
     self.barrier = barrier
     self.discard = discard

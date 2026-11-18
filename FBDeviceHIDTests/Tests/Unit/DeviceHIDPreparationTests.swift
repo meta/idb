@@ -13,6 +13,37 @@ import Testing
 
 @Suite
 struct DeviceHIDPreparationTests {
+  @Test(arguments: ["642.15", "651.13.5", "652.0.0"])
+  func preparesButtonIdentityWithoutDisplayQuery(version: String) async throws {
+    let (details, displays) = try metadata(orientation: "landscapeLeft", version: version)
+    try await withTemporaryRoot { root in
+      let launcher = MetadataLauncher(result: .success, details: details, displays: displays, includeDisplays: false)
+      let prepared = try await DeviceHIDPreparation.prepare(udid: "test-phone", button: .home, duration: 0.15, on: launcher, temporaryRoot: root)
+      #expect(prepared.deviceIdentifier.uuidString == "00000000-0000-0000-0000-000000000001")
+      #expect(prepared.button == .home)
+      #expect(prepared.duration == 0.15)
+      let (paths, pids) = await launcher.requests()
+      #expect(paths.count == 1)
+      try await checkCleanup(root: root, paths: paths, pids: pids)
+    }
+  }
+
+  @Test func rejectsButtonIdentityAndTimingSkew() throws {
+    let (details, _) = try metadata()
+    #expect(throws: DeviceHIDError.self) {
+      try DeviceHIDPreparation.decodeButton(details: details, udid: "other-phone", button: .home, duration: nil)
+    }
+    for duration in [-1.0, Double.nan, .infinity, 5] {
+      #expect(throws: DeviceHIDError.self) {
+        try DeviceHIDPreparation.decodeButton(details: details, udid: "test-phone", button: .home, duration: duration)
+      }
+    }
+    let (missingProducer, _) = try metadata(version: "")
+    #expect(throws: DeviceHIDError.self) {
+      try DeviceHIDPreparation.decodeButton(details: missingProducer, udid: "test-phone", button: .home, duration: nil)
+    }
+  }
+
   @Test func normalizesEveryTouchPositionFromOneSnapshot() throws {
     let (details, displays) = try metadata()
     let sequence = try DeviceHIDTouchSequence([.down(x: 100, y: 200), .delay(0.1), .move(x: 300, y: 400), .up(x: 300, y: 400)])
@@ -254,15 +285,17 @@ struct DeviceHIDPreparationTests {
     private let displays: Data
     private let controlled: Bool
     private let failingOperation: String?
+    private let includeDisplays: Bool
     private var paths: [URL] = []
     private var pids: [pid_t] = []
 
-    init(result: QueryResult, details: Data, displays: Data, controlled: Bool = false, failingOperation: String? = nil) {
+    init(result: QueryResult, details: Data, displays: Data, controlled: Bool = false, failingOperation: String? = nil, includeDisplays: Bool = true) {
       self.result = result
       self.details = details
       self.displays = displays
       self.controlled = controlled
       self.failingOperation = failingOperation
+      self.includeDisplays = includeDisplays
     }
 
     func requests() -> ([URL], [pid_t]) { (paths, pids) }
@@ -293,8 +326,10 @@ struct DeviceHIDPreparationTests {
       }
       paths.append(path)
       events.record("requested-\(operation)")
-      let sibling = operation == "details" ? "displays" : "details"
-      try await events.waitFor("requested-\(sibling)")
+      if includeDisplays {
+        let sibling = operation == "details" ? "displays" : "details"
+        try await events.waitFor("requested-\(sibling)")
+      }
       let command: Subprocess
       switch result {
       case .success:

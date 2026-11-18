@@ -23,24 +23,45 @@ enum DeviceHIDPreparation {
     temporaryRoot: URL = FileManager.default.temporaryDirectory
   ) async throws -> DeviceHIDPreparedTap {
     let snapshot = try await snapshot(udid: udid, on: launcher, queryTimeout: queryTimeout, temporaryRoot: temporaryRoot)
-    let prepared = try decode(details: snapshot.details, displays: snapshot.displays, udid: udid, x: x, y: y, duration: duration)
+    let prepared = try decode(details: snapshot.details, displays: snapshot.requiredDisplays(), udid: udid, x: x, y: y, duration: duration)
     try Task.checkCancellation()
     return prepared
   }
 
   static func prepare(udid: String, sequence: DeviceHIDTouchSequence) async throws -> DeviceHIDPreparedTouch {
     let snapshot = try await snapshot(udid: udid, on: HostSubprocessLauncher(), queryTimeout: 10, temporaryRoot: FileManager.default.temporaryDirectory)
-    let prepared = try decodeTouch(details: snapshot.details, displays: snapshot.displays, udid: udid, sequence: sequence)
+    let prepared = try decodeTouch(details: snapshot.details, displays: snapshot.requiredDisplays(), udid: udid, sequence: sequence)
     try Task.checkCancellation()
     return prepared
   }
 
-  private struct Snapshot {
-    let details: Data
-    let displays: Data
+  static func prepare(udid: String, button: DeviceHIDButton, duration: TimeInterval?, on launcher: any SubprocessLauncher = HostSubprocessLauncher(), queryTimeout: TimeInterval = 10, temporaryRoot: URL = FileManager.default.temporaryDirectory) async throws -> DeviceHIDPreparedButton {
+    let snapshot = try await snapshot(udid: udid, on: launcher, queryTimeout: queryTimeout, temporaryRoot: temporaryRoot, includeDisplays: false)
+    let prepared = try decodeButton(details: snapshot.details, udid: udid, button: button, duration: duration)
+    try Task.checkCancellation()
+    return prepared
   }
 
-  private static func snapshot(udid: String, on launcher: any SubprocessLauncher, queryTimeout: TimeInterval, temporaryRoot: URL) async throws -> Snapshot {
+  static func decodeButton(details: Data, udid: String, button: DeviceHIDButton, duration: TimeInterval?) throws -> DeviceHIDPreparedButton {
+    guard duration.map({ $0.isFinite && $0 >= 0 && $0 < 5 }) ?? true else {
+      throw DeviceHIDError.preparationFailed("Button hold must be finite, nonnegative, and less than five seconds")
+    }
+    let details = try JSONDecoder().decode(Details.self, from: details)
+    let identifier = try validate(details: details, udid: udid)
+    return DeviceHIDPreparedButton(deviceIdentifier: identifier, button: button, duration: duration)
+  }
+
+  private struct Snapshot {
+    let details: Data
+    let displays: Data?
+
+    func requiredDisplays() throws -> Data {
+      guard let displays else { throw DeviceHIDError.preparationFailed("Touch preparation requires display metadata") }
+      return displays
+    }
+  }
+
+  private static func snapshot(udid: String, on launcher: any SubprocessLauncher, queryTimeout: TimeInterval, temporaryRoot: URL, includeDisplays: Bool = true) async throws -> Snapshot {
     try Task.checkCancellation()
     guard queryTimeout.isFinite, queryTimeout >= 0 else {
       throw DeviceHIDError.preparationFailed("Metadata query timeout must be finite and nonnegative")
@@ -53,7 +74,7 @@ enum DeviceHIDPreparation {
     let snapshot: Snapshot
     do {
       async let details = metadata("details", udid: udid, directory: directory, on: launcher, timeout: queryTimeout)
-      async let displays = metadata("displays", udid: udid, directory: directory, on: launcher, timeout: queryTimeout)
+      async let displays: Data? = includeDisplays ? metadata("displays", udid: udid, directory: directory, on: launcher, timeout: queryTimeout) : nil
       snapshot = try await Snapshot(details: details, displays: displays)
     } catch let failure {
       do {
@@ -174,16 +195,8 @@ enum DeviceHIDPreparation {
     let decoder = JSONDecoder()
     let details = try decoder.decode(Details.self, from: details)
     let displays = try decoder.decode(Displays.self, from: displays)
-    guard !udid.isEmpty, details.result.properties.hardware.udid == udid else {
-      throw DeviceHIDError.preparationFailed("Metadata does not match the selected device UDID")
-    }
-    let identifier = details.result.identifier
-    try details.info.validate(command: "details", udid: udid, identifier: identifier)
+    let identifier = try validate(details: details, udid: udid)
     try displays.info.validate(command: "displays", udid: udid, identifier: identifier)
-    let hardware = details.result.properties.hardware
-    guard hardware.reality == "physical", hardware.deviceType == "iPhone", hardware.platform == "iOS" else {
-      throw DeviceHIDError.preparationFailed("Input requires metadata for a physical iPhone")
-    }
     let candidates = displays.result.displays
     let primary = candidates.filter(\.primary)
     guard candidates.count <= 64, Set(candidates.map(\.displayId)).count == candidates.count,
@@ -215,6 +228,19 @@ enum DeviceHIDPreparation {
       throw DeviceHIDError.preparationFailed("Expected matching pixel bounds/native size and a positive point scale")
     }
     return Geometry(identifier: identifier, width: width, height: height, scale: scale)
+  }
+
+  private static func validate(details: Details, udid: String) throws -> UUID {
+    guard !udid.isEmpty, details.result.properties.hardware.udid == udid else {
+      throw DeviceHIDError.preparationFailed("Metadata does not match the selected device UDID")
+    }
+    let identifier = details.result.identifier
+    try details.info.validate(command: "details", udid: udid, identifier: identifier)
+    let hardware = details.result.properties.hardware
+    guard hardware.reality == "physical", hardware.deviceType == "iPhone", hardware.platform == "iOS" else {
+      throw DeviceHIDError.preparationFailed("Input requires metadata for a physical iPhone")
+    }
+    return identifier
   }
 
   private struct Info: Decodable {
