@@ -6,6 +6,8 @@
 
 ## Structure
 
+The companion buffers the existing HID stream through successful EOF before selecting an operation. A legacy single-tap shape still uses `DeviceTapRequest` and `tap`. Repeated wire DOWN events become position updates in a complete touch recipe. One existing swipe message produces the constant-speed simulator recipe, including its duplicate endpoint and delay distribution; this does not promise the simulator's scrolling inertia on a phone. Oversized swipes are rejected rather than truncated. No protocol or Python CLI changes are needed. Accessibility `ui scroll` is a separate semantic action and is not replaced with a coordinate gesture; wheel/vendor events, buttons and multi-contact gestures remain unsupported here.
+
 The lateral library follows the simulator command / operation / transport split. `DeviceHIDCommands` is cached on the concrete `Device`, holds it weakly, and owns local busy and uncertain state. `DeviceHIDOperation` owns one contact plan and its cleanup. `DeviceDigitizerHIDTransport` contains the typed private calls. Unlike the simulator transport, it does not reconnect, reset a cached connection, or expose generic disconnect.
 
 Preparation resolves the selected device's exact UUID and normalizes display-point coordinates without private CoreDevice calls. It requires matching device and display metadata, rejects ambiguous identity or unsupported geometry and orientation, and preserves an absent or zero hold duration without adding a delay. Both queries must return successful JSONv5 with the expected command and device selector. The producer version is required diagnostic metadata, not a release allowlist; the loaded frameworks are validated separately.

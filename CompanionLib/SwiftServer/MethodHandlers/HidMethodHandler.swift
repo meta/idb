@@ -32,8 +32,12 @@ struct HidMethodHandler {
     let deviceHID = (target as? Device)?.hid
     try await withRPCCancellation(context.cancellation) {
       if let deviceHID {
-        let tap = try await DeviceTapRequest.read(from: requestStream)
-        try await deviceHID.tap(x: tap.x, y: tap.y, duration: tap.duration)
+        switch try await DeviceHIDRequest.read(from: requestStream) {
+        case let .tap(tap):
+          try await deviceHID.tap(x: tap.x, y: tap.y, duration: tap.duration)
+        case let .touch(sequence):
+          try await deviceHID.touch(sequence)
+        }
         return
       }
       try await commandExecutor.hid(
