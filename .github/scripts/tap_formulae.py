@@ -34,6 +34,7 @@ FORMULAE = ("idb-companion.rb", "idb-cli.rb", "idb.rb")
 PACKAGE = "Package.swift"
 # Everything a full render writes into the tap.
 RENDERED = (*FORMULAE, PACKAGE)
+ALLOWED_OUTPUTS = RENDERED
 XCFRAMEWORK_ZIP_SUFFIX = ".xcframework.zip"
 
 TAG_RE = re.compile(r"^v\d+\.\d+\.\d+(?:\.(?:a|b|rc)\d+)?$")
@@ -145,12 +146,88 @@ def manifest_text(manifest):
     return json.dumps(manifest, indent=2, sort_keys=True) + "\n"
 
 
+def rendered_paths(manifest):
+    outputs = manifest.get("outputs") or {}
+    unknown = set(outputs) - set(ALLOWED_OUTPUTS)
+    if unknown:
+        raise FormulaError(f"unexpected rendered output paths: {sorted(unknown)}")
+    swiftpm = manifest.get("swiftpm") or {}
+    products = swiftpm.get("products") or {}
+    if set(FORMULAE).issubset(outputs) and products and PACKAGE not in outputs:
+        raise FormulaError(
+            "the full render declares libraries but has no Package.swift"
+        )
+    return tuple(outputs)
+
+
+def verify_rendered(outputs, manifest):
+    expected = rendered_paths(manifest)
+    if set(outputs) != set(expected):
+        raise FormulaError("rendered files do not match the manifest output paths")
+    for name in expected:
+        if sha256_of_text(outputs[name]) != manifest["outputs"][name]:
+            raise FormulaError(f"{name} does not match its own manifest")
+
+
+def _file_destination(root, name):
+    path = root / name
+    current = path
+    while current != root:
+        if current.is_symlink():
+            raise FormulaError(f"rendered output path is a symlink: {current}")
+        if current.exists():
+            valid = current.is_file() if current == path else current.is_dir()
+            if not valid:
+                raise FormulaError(
+                    f"invalid file or directory at output path: {current}"
+                )
+        current = current.parent
+    for parent in (root, *root.parents):
+        if parent.exists() and not parent.is_dir():
+            raise FormulaError(f"output parent is not a directory: {parent}")
+    return path
+
+
+def _output_path(root, name):
+    if name not in ALLOWED_OUTPUTS:
+        raise FormulaError(f"unexpected rendered output path: {name}")
+    return _file_destination(root, name)
+
+
+def read_rendered(directory, manifest):
+    root = Path(directory)
+    outputs = {}
+    for name in rendered_paths(manifest):
+        path = _output_path(root, name)
+        if not path.is_file():
+            raise FormulaError(f"missing rendered output: {name}")
+        try:
+            outputs[name] = path.read_bytes().decode("utf-8")
+        except UnicodeDecodeError as error:
+            raise FormulaError(f"rendered output is not valid UTF-8: {name}") from error
+    verify_rendered(outputs, manifest)
+    return outputs
+
+
+def write_outputs(directory, outputs, *, manifest=None, release=False):
+    root = Path(directory)
+    paths = {name: _output_path(root, name) for name in outputs}
+    texts = dict(outputs)
+    if manifest is not None:
+        verify_rendered(outputs, manifest)
+        name = RELEASE_MANIFEST if release else MANIFEST
+        paths[name] = _file_destination(root, name)
+        texts[name] = manifest_text(manifest)
+    root.mkdir(parents=True, exist_ok=True)
+    for name, path in paths.items():
+        if path.is_file() and path.read_bytes() == texts[name].encode():
+            continue
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(texts[name])
+
+
 def write_rendered(out_dir, outputs, manifest):
-    out = Path(out_dir)
-    out.mkdir(parents=True, exist_ok=True)
-    for name, text in outputs.items():
-        (out / name).write_text(text)
-    (out / MANIFEST).write_text(manifest_text(manifest))
+    write_outputs(out_dir, outputs, manifest=manifest)
 
 
 TEMPLATE_SUFFIX = ".in"
@@ -331,6 +408,7 @@ def render_from_manifest(manifest, templates_dir=None, only=None):
     formulae defaults to the ones the manifest recorded, so a manifest from a
     partial render (the bottle job's, which has no companion digest) re-renders
     the same partial set."""
+    rendered_paths(manifest)
     if only is None:
         recorded = manifest.get("outputs") or {}
         only = tuple(name for name in FORMULAE if name in recorded) or None
