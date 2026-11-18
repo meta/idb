@@ -43,6 +43,16 @@ enum DeviceHIDRequest {
       if messages.count == 1, case .swipe(let swipe)? = messages.first?.event {
         return .touch(try DeviceHIDTouchSequence(swipeEvents(swipe)))
       }
+      if messages.count == 1, case .pinch(let pinch)? = messages.first?.event {
+        guard pinch.hasCenter, pinch.duration.isFinite, pinch.duration >= 0, pinch.radius.isFinite, pinch.radius >= 0 else {
+          throw RPCError(code: .invalidArgument, message: "Pinch requires a center and finite, nonnegative duration and radius")
+        }
+        return .touch(
+          try .pinch(
+            x: pinch.center.x, y: pinch.center.y, scale: pinch.scale,
+            duration: pinch.duration == 0 ? 0.5 : pinch.duration,
+            radius: pinch.radius == 0 ? 100 : pinch.radius))
+      }
       var activeContact = false
       let events = try messages.map { message -> DeviceHIDTouchEvent in
         switch message.event {
@@ -62,7 +72,7 @@ enum DeviceHIDRequest {
           }
         case let .delay(delay): return .delay(delay.duration)
         case .swipe, .pinch, .orientation, .shake, .hinge:
-          throw RPCError(code: .unimplemented, message: "Physical HID requires one touch recipe or one swipe; other events are unsupported")
+          throw RPCError(code: .unimplemented, message: "Physical HID requires one touch recipe, swipe or pinch; mixed and other events are unsupported")
         case .none:
           throw RPCError(code: .invalidArgument, message: "Missing physical HID event")
         }

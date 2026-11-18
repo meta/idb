@@ -190,6 +190,85 @@ struct DeviceHIDRequestTests {
     await #expect(throws: CancellationError.self) { try await task.value }
   }
 
+  @Test func existingPinchMessageCompilesOnePairedRecipe() async throws {
+    let request = try await DeviceHIDRequest.read(from: stream([pinch()]))
+    guard case let .touch(sequence) = request else {
+      Issue.record("Pinch did not compile as a bounded recipe")
+      return
+    }
+    #expect(sequence.contacts.count == 1)
+    let positions = sequence.contacts[0].positions
+    #expect(positions.map { $0.point.x } == [150, 140, 130, 120, 110, 100, 100])
+    #expect(positions.map { $0.secondPoint?.x } == [250, 260, 270, 280, 290, 300, 300])
+    #expect(positions.allSatisfy { $0.delay == 0.4 / 7 })
+  }
+
+  @Test func zeroPinchScalarsRetainWireDefaults() async throws {
+    let request = try await DeviceHIDRequest.read(from: stream([pinch(scale: 1, duration: 0, radius: 0)]))
+    guard case let .touch(sequence) = request else {
+      Issue.record("Missing defaulted pinch")
+      return
+    }
+    #expect(sequence.duration == 0.5)
+    let first = try #require(sequence.contacts[0].positions.first)
+    let second = try #require(first.secondPoint)
+    #expect(first.point.x == 100)
+    #expect(second.x == 300)
+    #expect(first.delay == 0.125)
+  }
+
+  @Test func malformedOrOversizedPinchIsRejectedBeforeInput() async {
+    var nonFiniteCenter = pinch()
+    nonFiniteCenter.pinch.center.x = .nan
+    var negativeCenter = pinch()
+    negativeCenter.pinch.center.y = -1
+    let invalid = [
+      Idb_HIDEvent.with { $0.pinch.scale = 2 }, nonFiniteCenter, negativeCenter,
+      pinch(scale: 0), pinch(scale: -1), pinch(scale: .nan), pinch(scale: .infinity),
+      pinch(scale: 1e20), pinch(duration: -1), pinch(duration: .nan), pinch(duration: .infinity), pinch(duration: 5),
+      pinch(radius: -1), pinch(radius: .nan), pinch(radius: .infinity), pinch(radius: .greatestFiniteMagnitude),
+    ]
+    for event in invalid {
+      await #expect { try await DeviceHIDRequest.read(from: stream([event])) } throws: { error in
+        (error as? RPCError)?.code == .invalidArgument
+      }
+    }
+  }
+
+  @Test func pinchCannotBeMixedOrRepeatedInOneRequest() async {
+    let event = pinch()
+    for events in [
+      [event, event], [event, delay(0)], [delay(0), event],
+      [touch(.down, 1, 2), touch(.up, 1, 2), event],
+      [event, touch(.down, 1, 2), touch(.up, 1, 2)],
+    ] {
+      await #expect { try await DeviceHIDRequest.read(from: stream(events)) } throws: { error in
+        (error as? RPCError)?.code == .unimplemented
+      }
+    }
+  }
+
+  @Test func pinchMustReachSuccessfulUncancelledEOF() async {
+    let requests = AsyncThrowingStream<Idb_HIDEvent, any Error> { continuation in
+      continuation.yield(pinch())
+      continuation.finish(throwing: StreamFailure.failed)
+    }
+    await #expect(throws: StreamFailure.self) { try await DeviceHIDRequest.read(from: requests) }
+    let event = pinch()
+    let task = Task { try await DeviceHIDRequest.read(from: CancelAtEOF(events: [event])) }
+    await #expect(throws: CancellationError.self) { try await task.value }
+  }
+
+  private func pinch(scale: Double = 2, duration: Double = 0.4, radius: Double = 50) -> Idb_HIDEvent {
+    Idb_HIDEvent.with {
+      $0.pinch.center.x = 200
+      $0.pinch.center.y = 200
+      $0.pinch.scale = scale
+      $0.pinch.duration = duration
+      $0.pinch.radius = radius
+    }
+  }
+
   private struct CancelAtEOF: AsyncSequence {
     typealias Element = Idb_HIDEvent
     let events: [Idb_HIDEvent]
