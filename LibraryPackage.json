@@ -78,12 +78,20 @@
         "libFBDeviceHID.a",
         "libFBControlCore.a",
         "libFBControlCoreObjC.a",
-        "libIDBConcurrency.a"
+        "libIDBConcurrency.a",
+        "libFBDeviceControl.a",
+        "libFBVideoCore.a",
+        "libFBXCTestCore.a"
       ],
       "frameworks": [
+        "AVFoundation.framework",
         "Cocoa.framework",
         "CoreGraphics.framework",
+        "CoreMedia.framework",
+        "CoreMediaIO.framework",
+        "CoreVideo.framework",
         "Foundation.framework",
+        "IOKit.framework",
         "ServiceManagement.framework",
         "UniformTypeIdentifiers.framework"
       ],
@@ -92,7 +100,9 @@
         "PrivateHeaders/CoreDevice/CoreDevice.tbd"
       ],
       "resources": [],
-      "search_paths": [],
+      "search_paths": [
+        "PrivateHeaders"
+      ],
       "weak_stub_frameworks": [
         "CoreDevice"
       ]

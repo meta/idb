@@ -1,8 +1,10 @@
-# Physical-device HID operation
+# Physical-device HID
 
-One operation owns a physical contact plan and its cleanup. It consumes a prepared normalized point and optional hold duration through a concrete typed digitizer transport. This layer has no cached device command or companion dispatch.
+`device.hid.tap(x:y:duration:)` sends one physical-device tap. Coordinates are display points. An absent or zero duration adds no intentional hold; a positive duration holds after the start call returns. Other input shapes are not supported.
 
-## Preparation and transport
+## Structure
+
+The lateral library follows the simulator command / operation / transport split. `DeviceHIDCommands` is cached on the concrete `Device`, holds it weakly, and owns local busy and uncertain state. `DeviceHIDOperation` owns one contact plan and its cleanup. `DeviceDigitizerHIDTransport` contains the typed private calls. Unlike the simulator transport, it does not reconnect, reset a cached connection, or expose generic disconnect.
 
 Preparation resolves the selected device's exact UUID and normalizes display-point coordinates without private CoreDevice calls. It requires matching device and display metadata, rejects ambiguous identity or unsupported geometry and orientation, and preserves an absent or zero hold duration without adding a delay. Both queries must return successful JSONv5 with the expected command and device selector. The producer version is required diagnostic metadata, not a release allowlist; the loaded frameworks are validated separately.
 
@@ -20,9 +22,11 @@ The input operation has a ten-second execution budget and a five-second cleanup 
 
 Monotonic deadlines are checked at admission, return processing, and final publication; timers only wake the operation. Error summaries are materialized outside state locks, and removed native references and cancellation captures remain retained until after lock exit. The operation joins expected native calls, acquisition and factory callbacks, observation, and claimed cancellation requests. It completes the owned end attempt and barrier before releasing only its own assertions and discarding its caller-side capability reference. Publication waits for owned release and discard to return. Clean late setup or cancellation does not itself quarantine; actual send or cleanup failures, unexpected completions, and assertion invalidation after input do. The first typed error or cancellation is preserved, with secondary cleanup failures carried in `DeviceHIDError.cleanupFailed(cause:failures:)`. Late acquisition results are released, and late factory results cannot reopen the operation.
 
-The runtime preflight has a separate ten-second wait bound. Every uncertain final outcome invokes the caller's quarantine callback before publication. The caller is responsible for refusing subsequent input after uncertainty. Caller authorization and selection of a benign UI belong outside this library.
+The runtime preflight has a separate ten-second wait bound; cancellation or timeout cannot proceed from it into private input construction.
 
-Neither `Progress.cancel`, task cancellation, nor the execution deadline terminates blocked SDK work. The operation remains pending until that work and its owned cleanup return; a blocked start receives one matching end only after start returns, and an attempted end is never replayed. An owned, supervised process is required when a hard local lifetime bound is needed. Dropping the caller's digitizer reference does not close the implementation cached by `RemoteDevice`. Process exit is not a remote cleanup acknowledgment.
+A native send/cleanup error, unexpected completion, or assertion invalidation after input admission quarantines subsequent input on this cached command, including an admitted request still in metadata or runtime preparation. Every uncertain final result synchronously applies quarantine before it is published. There is no reset/retry API. The state is local to this `Device`, not a cross-process input-ownership mechanism. Caller authorization and selection of a benign UI belong outside this library.
+
+Neither `Progress.cancel`, task cancellation, nor the execution deadline terminates blocked SDK work. The operation remains pending until that work and its owned cleanup return; a blocked start receives one matching end only after start returns, and an attempted end is never replayed. Admission stays busy while that work is unfinished. An owned, supervised process is required when a hard local lifetime bound is needed. Dropping the caller's digitizer reference does not close the implementation cached by `RemoteDevice`. Process exit is not a remote cleanup acknowledgment.
 
 Success means that local start, end, barrier, and owned release calls returned. It does not prove remote delivery, released physical contact, or a visible UI effect.
 
@@ -34,4 +38,4 @@ The private Swift implementation and import are compiled only for arm64; other a
 
 The symbol catalogue covers named weak references in the linked binary, not every descriptor or witness reached through those references. A feature adds a newly referenced symbol alongside its first use. The binary regression compares that catalogue with the test bundle's private weak imports.
 
-Unit tests exercise production image and metadata validation and the operation through initializer-injected native calls: admission reserve, timestamp-free prepared points, fixed payloads, contact races, joined late completions and blocked calls, typed cleanup failures, owned cleanup, and quarantine-before-publication. These tests do not constitute physical input or UI verification.
+Unit tests exercise production image and metadata validation and the command and operation through initializer-injected native calls: admission reserve, timestamp-free prepared points, fixed payloads, contact races, joined late completions and blocked calls, typed cleanup failures, owned cleanup, quarantine-before-publication, and real `Device` cache retention. These tests do not constitute physical input or UI verification.
