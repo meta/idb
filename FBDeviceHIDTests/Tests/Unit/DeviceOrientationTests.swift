@@ -240,6 +240,102 @@ struct DeviceOrientationTests {
     }
   }
 
+  @Test(arguments: [false, true])
+  func lateHIDQuarantineStopsOrientationAtTheMutationBoundary(_ setAdmitted: Bool) async throws {
+    try await withFixture { root, launcher in
+      let phase = setAdmitted ? "set" : "get"
+      await launcher.configure(fault: .late, phase: phase)
+      defer { launcher.gate.open() }
+      let device = DeviceHIDRetentionTests.makeInertDevice()
+      let fixture = DeviceHIDFixture(retainAcquisition: true)
+      let input = DeviceHIDCommands(
+        device: device,
+        prepare: { _, _, _, duration in DeviceHIDFixture.prepared(duration: duration) },
+        checkRuntime: {}, makeTransport: { _ in fixture.transport },
+        orientationTool: DeviceOrientationTool(launcher: launcher, temporaryRoot: root))
+      try await input.tap(x: 1, y: 1, duration: nil)
+      let orientation = DeviceOrientationCommands(input: input)
+      let task = Task { try await orientation.set(.landscapeLeft) }
+      try await launcher.events.waitFor(phase)
+      fixture.completeAcquisition()
+      launcher.gate.open()
+      do {
+        _ = try await task.value
+        Issue.record("Orientation survived prior HID quarantine")
+      } catch DeviceHIDError.orientationMayHaveApplied {
+        #expect(setAdmitted)
+      } catch DeviceHIDError.uncertainState {
+        #expect(!setAdmitted)
+      }
+      await assertQuarantined(input)
+      #expect(await launcher.operations() == (setAdmitted ? ["details", "get", "set"] : ["details", "get"]))
+      #expect(fixture.events.count("start") == 1)
+      #expect(fixture.events.count("end") == 1)
+      try await checkCleanup(root, launcher)
+    }
+  }
+
+  @Test(.enabled(if: geteuid() != 0, "Root bypasses directory write permissions"))
+  func successfulSetWithCleanupFailurePreservesSuccess() async throws {
+    try await withFixture { root, launcher in
+      await launcher.configure(fault: .cleanupFailure, phase: "set")
+      let device = DeviceHIDRetentionTests.makeInertDevice()
+      let input = command(device, launcher, root)
+      try await DeviceOrientationCommands(input: input).set(.landscapeLeft)
+      #expect(await launcher.operations() == ["details", "get", "set"])
+      #expect(await launcher.writtenOrientation() == "landscapeLeft")
+      try await restorePermissions(root)
+      await launcher.configure(fault: Fault.none)
+      #expect(try await input.orientation(nil) == .faceUp)
+      try await checkCleanup(root, launcher)
+    }
+  }
+
+  @Test(.enabled(if: geteuid() != 0, "Root bypasses directory write permissions"))
+  func cleanupFailurePreservesOrientationLocked() async throws {
+    try await withFixture { root, launcher in
+      await launcher.configure(locked: true, fault: .cleanupFailure, phase: "get")
+      let device = DeviceHIDRetentionTests.makeInertDevice()
+      let input = command(device, launcher, root)
+      do {
+        _ = try await input.orientation(.landscapeLeft)
+        Issue.record("Locked orientation was accepted")
+      } catch DeviceHIDError.orientationLocked {}
+      #expect(await launcher.operations() == ["details", "get"])
+      try await restorePermissions(root)
+      await launcher.configure(fault: Fault.none)
+      #expect(try await input.orientation(nil) == .faceUp)
+      try await checkCleanup(root, launcher)
+    }
+  }
+
+  @Test(.enabled(if: geteuid() != 0, "Root bypasses directory write permissions"))
+  func cleanupFailurePreservesCancellationBeforeSet() async throws {
+    try await withFixture { root, launcher in
+      await launcher.configure(fault: .blockedCleanupFailure, phase: "get")
+      let device = DeviceHIDRetentionTests.makeInertDevice()
+      let input = command(device, launcher, root)
+      let task = Task { try await input.orientation(.landscapeLeft) }
+      try await launcher.events.waitFor("get")
+      task.cancel()
+      await #expect(throws: CancellationError.self) { try await task.value }
+      #expect(await launcher.operations() == ["details", "get"])
+      try await restorePermissions(root)
+      await launcher.configure(fault: Fault.none)
+      #expect(try await input.orientation(nil) == .faceUp)
+      try await checkCleanup(root, launcher)
+    }
+  }
+
+  private func restorePermissions(_ root: URL) async throws {
+    try await DeviceHIDPreparation.fileIO {
+      try FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: root.path)
+      for directory in try FileManager.default.contentsOfDirectory(at: root, includingPropertiesForKeys: nil) where directory.lastPathComponent != "sentinel" {
+        try FileManager.default.removeItem(at: directory)
+      }
+    }
+  }
+
   @Test func orientationFacadeDoesNotRetainDevice() async throws {
     var facade: DeviceOrientationCommands?
     weak var weakDevice: Device?
@@ -282,11 +378,12 @@ struct DeviceOrientationTests {
   }
 
   private func assertQuarantined(_ input: DeviceHIDCommands) async {
+    let orientation = DeviceOrientationCommands(input: input)
     for operation in 0..<4 {
       do {
         switch operation {
-        case 0: _ = try await input.orientation(nil)
-        case 1: _ = try await input.orientation(.portrait)
+        case 0: _ = try await orientation.current()
+        case 1: try await orientation.set(.portrait)
         case 2: try await input.tap(x: 1, y: 1, duration: nil)
         default: try await input.button(.home)
         }
@@ -307,7 +404,10 @@ struct DeviceOrientationTests {
       try await body(root, OrientationLauncher())
       result = .success(())
     } catch { result = .failure(error) }
-    try await DeviceHIDPreparation.fileIO { try FileManager.default.removeItem(at: root) }
+    try await DeviceHIDPreparation.fileIO {
+      try FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: root.path)
+      try FileManager.default.removeItem(at: root)
+    }
     try result.get()
   }
 
@@ -327,7 +427,7 @@ struct DeviceOrientationTests {
 
   enum Fault: Sendable {
     case none, wrongTarget, wrongSelector, duplicateSelector, wrongCommand, wrongVersion, malformedVersion
-    case failedOutcome, missingProducer, missing, malformed, oversized, nonzero, unknownOrientation, wrongState, blocked, late
+    case failedOutcome, missingProducer, missing, malformed, oversized, nonzero, unknownOrientation, wrongState, blocked, late, cleanupFailure, blockedCleanupFailure
 
     static let invalidReceipts: [Self] = [.wrongTarget, .wrongSelector, .duplicateSelector, .wrongCommand, .wrongVersion, .malformedVersion, .failedOutcome, .missingProducer, .missing, .malformed, .oversized, .nonzero, .unknownOrientation]
   }
@@ -377,14 +477,21 @@ struct DeviceOrientationTests {
       switch fault {
       case .missing: fixture = Subprocess(executable: "/usr/bin/true")
       case .nonzero: fixture = Subprocess(executable: "/bin/sh", arguments: ["-c", "printf 'discarded-prefix%0512d\\377diagnostic-tail' 0 >&2; exit 7"])
-      case .blocked:
+      case .blocked, .blockedCleanupFailure:
         let fifo = path.appendingPathExtension("fifo")
         try await DeviceHIDPreparation.fileIO {
           guard mkfifo(fifo.path, 0o600) == 0 else { throw POSIXError(.EIO) }
+          if fault == .blockedCleanupFailure {
+            try FileManager.default.setAttributes([.posixPermissions: 0o500], ofItemAtPath: path.deletingLastPathComponent().deletingLastPathComponent().path)
+          }
         }
         fixture = Subprocess(executable: "/bin/cat", arguments: [fifo.path])
       case .oversized:
         fixture = Subprocess(executable: "/bin/sh", arguments: ["-c", "printf '%1048577s' ' ' > \"$1\"", "orientation-fixture", path.path])
+      case .cleanupFailure:
+        fixture = Subprocess(
+          executable: "/bin/sh",
+          arguments: ["-c", "printf '%s' \"$1\" > \"$2\" && /bin/chmod 500 \"$3\"", "orientation-fixture", String(decoding: data, as: UTF8.self), path.path, path.deletingLastPathComponent().deletingLastPathComponent().path])
       case .none, .wrongTarget, .wrongSelector, .duplicateSelector, .wrongCommand, .wrongVersion, .malformedVersion,
         .failedOutcome, .missingProducer, .malformed, .unknownOrientation, .wrongState, .late:
         fixture = Subprocess(executable: "/bin/sh", arguments: ["-c", "printf '%s' \"$1\" > \"$2\"", "orientation-fixture", fault == .malformed ? "not json" : String(decoding: data, as: UTF8.self), path.path])
@@ -429,7 +536,7 @@ struct DeviceOrientationTests {
       case .missingProducer: info.removeValue(forKey: "version")
       case .unknownOrientation: result["deviceOrientation"] = "futureOrientation"
       case .wrongState: result["deviceOrientation"] = "portrait"
-      case .none, .missing, .malformed, .oversized, .nonzero, .blocked, .late: break
+      case .none, .missing, .malformed, .oversized, .nonzero, .blocked, .late, .cleanupFailure, .blockedCleanupFailure: break
       }
       return try JSONSerialization.data(withJSONObject: ["info": info, "result": result])
     }
