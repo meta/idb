@@ -175,7 +175,30 @@ enum DeviceHIDPreparation {
       positions: first.positions, pause: first.pause, subsequent: Array(contacts.dropFirst()))
   }
 
-  private struct Geometry {
+  static func prepareLive(
+    udid: String,
+    on launcher: any SubprocessLauncher = HostSubprocessLauncher(),
+    queryTimeout: TimeInterval = 10,
+    temporaryRoot: URL = FileManager.default.temporaryDirectory
+  ) async throws -> DeviceHIDLivePreparation {
+    let snapshot = try await snapshot(udid: udid, on: launcher, queryTimeout: queryTimeout, temporaryRoot: temporaryRoot)
+    let prepared = try decodeLive(details: snapshot.details, displays: snapshot.requiredDisplays(), udid: udid)
+    try Task.checkCancellation()
+    return prepared
+  }
+
+  static func decodeLive(details: Data, displays: Data, udid: String) throws -> DeviceHIDLivePreparation {
+    let geometry = try decodeGeometry(details: details, displays: displays, udid: udid)
+    return DeviceHIDLivePreparation(deviceIdentifier: geometry.identifier, displaySnapshot: geometry.snapshot) { point in
+      do {
+        return try geometry.normalize(point)
+      } catch DeviceHIDError.preparationFailed(let reason) {
+        throw DeviceHIDError.liveProtocol(reason)
+      }
+    }
+  }
+
+  private struct Geometry: Sendable {
     let identifier: UUID
     let snapshot: DeviceHIDDisplaySnapshot
     let width: Double

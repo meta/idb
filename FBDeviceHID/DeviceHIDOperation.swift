@@ -27,9 +27,10 @@ struct DeviceHIDAssertion: Sendable {
 struct DeviceHIDOutcome: Sendable {
   let error: (any Error)?
   let uncertain: Bool
+  var uncertaintyCause: DeviceHIDError?
 }
 
-/// One assertion and one fixed contact plan. Native work never runs under the state mutex.
+/// One assertion and one bounded plan or live contact. Native work never runs under the state mutex.
 final class DeviceHIDOperation: Sendable {
   private struct Lease {
     let assertion: DeviceHIDAssertion
@@ -57,7 +58,24 @@ final class DeviceHIDOperation: Sendable {
     case barrier
   }
 
+  enum Mode: Sendable {
+    case bounded(DeviceHIDPreparedInput)
+    case live(DeviceHIDLivePreparation)
+  }
+
+  private struct LiveInput {
+    let call: InputCall
+    let point: CGPoint
+    let continuation: CheckedContinuation<Void, any Error>
+  }
+
   private struct State {
+    var live = false
+    var liveReady = false
+    var liveReadyWaiter: CheckedContinuation<Void, any Error>?
+    var liveInput: LiveInput?
+    var nativeUntil: ContinuousClock.Instant?
+    var uncertaintyCause: DeviceHIDError?
     var continuation: CheckedContinuation<DeviceHIDOutcome, Never>?
     var running = false
     var finishing = false
@@ -122,6 +140,7 @@ final class DeviceHIDOperation: Sendable {
     mutating func fail(_ error: any Error, uncertain: Bool, cleanup: Bool = false) -> (Bool, Bool) {
       let newlyUncertain = uncertain && !self.uncertain
       self.uncertain = self.uncertain || uncertain
+      if uncertain, uncertaintyCause == nil { uncertaintyCause = error as? DeviceHIDError }
       guard !finished else { return (false, newlyUncertain) }
       let first = self.error == nil
       if first {
@@ -132,8 +151,12 @@ final class DeviceHIDOperation: Sendable {
       return (first, newlyUncertain)
     }
 
-    mutating func reconcile(deadline: ContinuousClock.Instant) -> Bool {
-      guard !finished, error == nil, ContinuousClock.now >= deadline else { return false }
+    func activeDeadline(_ setupDeadline: ContinuousClock.Instant) -> ContinuousClock.Instant? {
+      live && liveReady ? nativeUntil : setupDeadline
+    }
+
+    mutating func reconcile(deadline: ContinuousClock.Instant, now: ContinuousClock.Instant) -> Bool {
+      guard !finished, error == nil, let active = activeDeadline(deadline), now >= active else { return false }
       error = DeviceHIDError.deadlineExceeded
       return true
     }
@@ -156,37 +179,58 @@ final class DeviceHIDOperation: Sendable {
     case release(DeviceHIDAssertion)
     case discard
     case deadline
+    case ready(CheckedContinuation<Void, any Error>)
     case finish(CheckedContinuation<DeviceHIDOutcome, Never>, Atomic<[Cancellation]>)
   }
 
   private let transport: DeviceHIDTransport
+  private let live: DeviceHIDLivePreparation?
   private let expectedDisplay: DeviceHIDDisplaySnapshot?
   private let contacts: [DeviceHIDContactPlan]
   private let totalDuration: TimeInterval
   private let deadline: ContinuousClock.Instant
   private let cleanupReserve: TimeInterval
+  private let callSeconds: TimeInterval
+  private let clock: @Sendable () -> ContinuousClock.Instant
   private let quarantine: @Sendable () -> Void
-  private let state = Atomic(wrappedValue: State())
+  private let state: Atomic<State>
   private let transportQueue = DispatchQueue(label: "com.facebook.idb.device-hid.transport")
   private let cleanupQueue = DispatchQueue(label: "com.facebook.idb.device-hid.cleanup", attributes: .concurrent)
   private let cancellationQueue = DispatchQueue(label: "com.facebook.idb.device-hid.cancel", attributes: .concurrent)
   private let operationTimer: any DispatchSourceTimer
 
-  init(transport: DeviceHIDTransport, input: DeviceHIDPreparedInput, operationSeconds: TimeInterval = 10, cleanupReserve: TimeInterval = 5, timerQueue: DispatchQueue = .global(), quarantine: @escaping @Sendable () -> Void) {
+  convenience init(transport: DeviceHIDTransport, input: DeviceHIDPreparedInput, operationSeconds: TimeInterval = 10, cleanupReserve: TimeInterval = 5, timerQueue: DispatchQueue = .global(), quarantine: @escaping @Sendable () -> Void) {
+    self.init(transport: transport, mode: .bounded(input), operationSeconds: operationSeconds, cleanupReserve: cleanupReserve, timerQueue: timerQueue, quarantine: quarantine)
+  }
+
+  init(transport: DeviceHIDTransport, mode: Mode, operationSeconds: TimeInterval = 10, cleanupReserve: TimeInterval = 5, timerQueue: DispatchQueue = .global(), clock: @escaping @Sendable () -> ContinuousClock.Instant = { .now }, quarantine: @escaping @Sendable () -> Void) {
     self.transport = transport
-    let first = DeviceHIDContactPlan(contact: input.contact, duration: input.duration ?? 0, positions: input.positions)
+    self.clock = clock
+    callSeconds = operationSeconds
+    let live: DeviceHIDLivePreparation?
     let contacts: [DeviceHIDContactPlan]
-    switch input {
-    case let .touch(touch):
-      expectedDisplay = touch.start.displaySnapshot
-      contacts = [DeviceHIDContactPlan(contact: first.contact, duration: first.duration, positions: first.positions, pause: touch.pause)] + touch.subsequent
-    case .button:
-      expectedDisplay = nil
-      contacts = [first]
+    switch mode {
+    case .live(let prepared):
+      live = prepared
+      expectedDisplay = prepared.displaySnapshot
+      contacts = []
+    case .bounded(let input):
+      live = nil
+      let first = DeviceHIDContactPlan(contact: input.contact, duration: input.duration ?? 0, positions: input.positions)
+      switch input {
+      case .touch(let touch):
+        expectedDisplay = touch.start.displaySnapshot
+        contacts = [DeviceHIDContactPlan(contact: first.contact, duration: first.duration, positions: first.positions, pause: touch.pause)] + touch.subsequent
+      case .button:
+        expectedDisplay = nil
+        contacts = [first]
+      }
     }
+    self.live = live
     self.contacts = contacts
+    state = Atomic(wrappedValue: State(live: live != nil))
     totalDuration = contacts.reduce(0) { $0 + $1.totalDuration }
-    deadline = ContinuousClock.now.advanced(by: .seconds(operationSeconds))
+    deadline = clock().advanced(by: .seconds(operationSeconds))
     self.cleanupReserve = cleanupReserve
     self.quarantine = quarantine
     operationTimer = DispatchSource.makeTimerSource(queue: timerQueue)
@@ -226,8 +270,10 @@ final class DeviceHIDOperation: Sendable {
           return
         }
         do {
-          guard contacts.reduce(0, { $0 + $1.positions.count + 2 }) <= DeviceHIDTouchSequence.maximumEvents,
-            totalDuration.isFinite, contacts.last?.pause == 0
+          guard
+            live != nil
+              || (contacts.reduce(0, { $0 + $1.positions.count + 2 }) <= DeviceHIDTouchSequence.maximumEvents
+                && totalDuration.isFinite && contacts.last?.pause == 0)
           else { throw DeviceHIDError.preparationFailed("The contact plan exceeds its count or duration bound") }
           for plan in contacts {
             guard plan.pause.isFinite, plan.pause >= 0 else { throw DeviceHIDError.preparationFailed("Contact pauses must be finite and nonnegative") }
@@ -255,9 +301,68 @@ final class DeviceHIDOperation: Sendable {
     }
   }
 
+  func waitUntilReady() async throws {
+    try await withTaskCancellationHandler {
+      try await withCheckedThrowingContinuation { continuation in
+        let result: Result<Void, any Error>? = state.sync { state in
+          guard state.live, state.liveReadyWaiter == nil else { return .failure(DeviceHIDError.unexpectedCompletion) }
+          if let error = state.error { return .failure(error) }
+          guard !state.finishing, !state.finished else { return .failure(CancellationError()) }
+          if state.liveReady { return .success(()) }
+          state.liveReadyWaiter = continuation
+          return nil
+        }
+        if let result { continuation.resume(with: result) }
+      }
+    } onCancel: {
+      self.cancel()
+    }
+  }
+
+  func sendLive(_ event: DeviceHIDLiveEvent) async throws {
+    guard let live else { throw DeviceHIDError.unexpectedCompletion }
+    let call: InputCall
+    let point: CGPoint
+    switch event {
+    case let .down(x, y): (call, point) = (.start, CGPoint(x: x, y: y))
+    case let .move(x, y): (call, point) = (.position, CGPoint(x: x, y: y))
+    case let .up(x, y): (call, point) = (.end, CGPoint(x: x, y: y))
+    }
+    let normalized = try live.normalize(point)
+    try Self.validate(point: normalized, duration: nil)
+    try await withTaskCancellationHandler {
+      try Task.checkCancellation()
+      try await withCheckedThrowingContinuation { continuation in
+        let error: (any Error)? = state.sync { state in
+          if let error = state.error { return error }
+          guard state.liveReady, !state.finishing, !state.finished else { return DeviceHIDError.unexpectedCompletion }
+          guard state.liveInput == nil, state.inputInFlight == nil else { return DeviceHIDError.busy }
+          switch call {
+          case .start:
+            guard !state.startScheduled else { return DeviceHIDError.liveProtocol("One DOWN is allowed per live contact") }
+          case .position:
+            guard state.startReturned, !state.endScheduled else { return DeviceHIDError.liveProtocol("MOVE requires an active contact") }
+          case .end:
+            guard state.startReturned, !state.endScheduled,
+              case .touch(let last, nil)? = state.lastAdmittedContact, last == normalized
+            else { return DeviceHIDError.liveProtocol("UP must match the last admitted point") }
+          case .barrier: return DeviceHIDError.unexpectedCompletion
+          }
+          state.liveInput = LiveInput(call: call, point: normalized, continuation: continuation)
+          state.nativeUntil = self.clock().advanced(by: .seconds(callSeconds))
+          return nil
+        }
+        if let error { continuation.resume(throwing: error) }
+        advance()
+      }
+    } onCancel: {
+      self.cancel()
+    }
+  }
+
   func cancel() { stop(CancellationError()) }
 
-  private func stop(_ error: any Error, uncertain: Bool = false, cleanup: Bool = false) {
+  func stop(_ error: any Error, uncertain: Bool = false, cleanup: Bool = false) {
     let summary: any Error = error is CancellationError ? CancellationError() : DeviceHIDError.native(error, operation: "operation")
     let changes = withExtendedLifetime(error) {
       state.sync { $0.fail(summary, uncertain: uncertain, cleanup: cleanup) }
@@ -267,11 +372,24 @@ final class DeviceHIDOperation: Sendable {
     advance()
   }
 
-  private func advance() {
+  private func scheduleWatchdog() {
+    state.sync { state in
+      guard state.live, state.running, !state.finished, state.error == nil else { return }
+      guard !state.finishing, let until = state.activeDeadline(deadline) else {
+        operationTimer.schedule(deadline: .distantFuture)
+        return
+      }
+      let remaining = self.clock().duration(to: until).components
+      let seconds = Double(remaining.seconds) + Double(remaining.attoseconds) / 1e18
+      operationTimer.schedule(deadline: .now() + max(0, seconds))
+    }
+  }
+
+  func advance() {
     let actions = state.sync { state -> [Action] in
       guard state.running, !state.finishing, !state.finished else { return [] }
       var actions: [Action] = []
-      if state.reconcile(deadline: deadline) { actions.append(.deadline) }
+      if state.reconcile(deadline: deadline, now: self.clock()) { actions.append(.deadline) }
       let stopped = state.error != nil
       if !stopped, !state.acquisitionStarted {
         state.acquisitionStarted = true
@@ -295,12 +413,21 @@ final class DeviceHIDOperation: Sendable {
           actions.append(.factory)
         }
       }
-      if !stopped, state.endSucceeded, state.inputInFlight == nil,
-        state.contactIndex + 1 < contacts.count, state.holdUntil.map({ ContinuousClock.now >= $0 }) == true
+      if !stopped, !state.live, state.endSucceeded, state.inputInFlight == nil,
+        state.contactIndex + 1 < contacts.count, state.holdUntil.map({ self.clock() >= $0 }) == true
       {
         state.nextContact()
       }
-      if !stopped, state.factoryReady, !state.factoryInvoking, !state.startScheduled {
+      if !stopped, state.live, state.factoryReady, !state.factoryInvoking, !state.liveReady {
+        state.liveReady = true
+        if let waiter = state.liveReadyWaiter {
+          state.liveReadyWaiter = nil
+          actions.append(.ready(waiter))
+        }
+      }
+      if !stopped, state.factoryReady, !state.factoryInvoking, !state.startScheduled,
+        !state.live || state.liveInput?.call == .start
+      {
         state.startScheduled = true
         actions.append(.input(.start))
       }
@@ -308,7 +435,15 @@ final class DeviceHIDOperation: Sendable {
         if stopped {
           state.endScheduled = true
           actions.append(.input(.end))
-        } else if state.holdUntil.map({ ContinuousClock.now >= $0 }) == true {
+        } else if state.live {
+          if state.liveInput?.call == .position, !state.positionScheduled {
+            state.positionScheduled = true
+            actions.append(.input(.position))
+          } else if state.liveInput?.call == .end {
+            state.endScheduled = true
+            actions.append(.input(.end))
+          }
+        } else if state.holdUntil.map({ self.clock() >= $0 }) == true {
           if state.positionIndex < contacts[state.contactIndex].positions.count {
             if !state.positionScheduled {
               state.positionScheduled = true
@@ -322,7 +457,7 @@ final class DeviceHIDOperation: Sendable {
       }
       let contactEnded = !state.startAdmitted || state.endReturned
       if state.needsBarrier, state.inputInFlight == nil, !state.barrierScheduled,
-        stopped ? contactEnded : (state.endReturned && state.contactIndex == contacts.count - 1)
+        stopped ? contactEnded : (state.endReturned && (state.live || state.contactIndex == contacts.count - 1))
       {
         state.barrierScheduled = true
         actions.append(.input(.barrier))
@@ -365,6 +500,7 @@ final class DeviceHIDOperation: Sendable {
       }
       return actions
     }
+    scheduleWatchdog()
     for action in actions { perform(action) }
   }
 
@@ -402,17 +538,27 @@ final class DeviceHIDOperation: Sendable {
       }
     case .deadline:
       operationTimer.cancel()
+    case .ready(let continuation):
+      continuation.resume()
     case .finish(let continuation, let retired):
-      let outcome = state.sync { state in
-        _ = state.reconcile(deadline: deadline)
+      let (outcome, ready, input) = state.sync { state in
+        _ = state.reconcile(deadline: deadline, now: self.clock())
         state.finished = true
         let error = state.error.map { cause -> any Error in
           state.cleanupFailures.isEmpty ? cause : DeviceHIDError.cleanupFailed(cause: cause, failures: state.cleanupFailures)
         }
-        return DeviceHIDOutcome(error: error, uncertain: state.uncertain)
+        let ready = state.liveReadyWaiter
+        let input = state.liveInput
+        state.liveReadyWaiter = nil
+        state.liveInput = nil
+        return (DeviceHIDOutcome(error: error, uncertain: state.uncertain, uncertaintyCause: state.uncertaintyCause), ready, input)
       }
       if outcome.uncertain { quarantine() }
       operationTimer.cancel()
+      ready?.resume(throwing: outcome.error ?? DeviceHIDError.unexpectedCompletion)
+      if let input {
+        if let error = outcome.error { input.continuation.resume(throwing: error) } else if input.call == .end { input.continuation.resume() } else { input.continuation.resume(throwing: DeviceHIDError.unexpectedCompletion) }
+      }
       continuation.resume(returning: outcome)
       cleanupQueue.async {
         let values = retired.sync { values in
@@ -426,7 +572,7 @@ final class DeviceHIDOperation: Sendable {
   }
 
   private func acquire() {
-    guard state.sync(execute: { !$0.finishing && !$0.finished && $0.error == nil && ContinuousClock.now < deadline }) else {
+    guard state.sync(execute: { !$0.finishing && !$0.finished && $0.error == nil && self.clock() < deadline }) else {
       state.sync {
         $0.acquisitionInvoking = false
         $0.acquisitionCompleted = true
@@ -486,7 +632,7 @@ final class DeviceHIDOperation: Sendable {
 
   private func observe(_ assertion: DeviceHIDAssertion) {
     do {
-      if state.sync(execute: { !$0.finishing && !$0.finished && $0.error == nil && ContinuousClock.now < deadline }) {
+      if state.sync(execute: { !$0.finishing && !$0.finished && $0.error == nil && self.clock() < deadline }) {
         let id = assertion.identifier
         try assertion.observe { [weak self] in self?.invalidated(id) }
       }
@@ -512,7 +658,7 @@ final class DeviceHIDOperation: Sendable {
   }
 
   private func observeDisplays() {
-    guard state.sync(execute: { !$0.finishing && !$0.finished && $0.error == nil && ContinuousClock.now < deadline }) else {
+    guard state.sync(execute: { !$0.finishing && !$0.finished && $0.error == nil && self.clock() < deadline }) else {
       state.sync {
         $0.displayInvoking = false
         $0.displayCompleted = true
@@ -549,7 +695,7 @@ final class DeviceHIDOperation: Sendable {
       }
       let changes = state.sync { state -> (retry: Bool, cancelTimer: Bool) in
         guard !state.finishing, !state.finished, !state.displayCompleted, !state.displayStopRequested else { return (false, false) }
-        let expired = state.reconcile(deadline: deadline)
+        let expired = state.reconcile(deadline: deadline, now: self.clock())
         guard state.error == nil else { return (false, expired) }
         // The baseline can only transition from nil to one immutable full frame.
         if baseline == nil, state.displayBaseline != nil { return (true, false) }
@@ -592,7 +738,7 @@ final class DeviceHIDOperation: Sendable {
   }
 
   private func makeCapability() {
-    guard state.sync(execute: { !$0.finishing && !$0.finished && $0.error == nil && ContinuousClock.now < deadline }) else {
+    guard state.sync(execute: { !$0.finishing && !$0.finished && $0.error == nil && self.clock() < deadline }) else {
       state.sync {
         $0.factoryInvoking = false
         $0.factoryCompleted = true
@@ -649,48 +795,60 @@ final class DeviceHIDOperation: Sendable {
   private func input(_ call: InputCall) {
     var refusal: (any Error)?
     var clockExpired = false
-    var inputContact = contacts[0].contact
+    var inputContact: DeviceHIDContact?
     var hold: TimeInterval = 0
     let admitted = state.sync { state -> Bool in
-      clockExpired = state.reconcile(deadline: deadline)
+      clockExpired = state.reconcile(deadline: deadline, now: self.clock())
       guard !state.finishing, !state.finished, state.inputInFlight == nil else { return false }
-      let now = ContinuousClock.now
-      let plan = contacts[state.contactIndex]
+      let now = self.clock()
+      let plan = contacts.indices.contains(state.contactIndex) ? contacts[state.contactIndex] : nil
       switch call {
       case .start:
         guard state.error == nil else { return false }
-        let remaining = now.duration(to: deadline).components
-        let seconds = Double(remaining.seconds) + Double(remaining.attoseconds) / 1e18
-        let remainingDuration = contacts[state.contactIndex...].reduce(0) { $0 + $1.totalDuration }
-        guard remainingDuration < seconds - cleanupReserve else {
-          refusal =
-            state.anyStartAdmitted
-            ? DeviceHIDError.deadlineExceeded
-            : DeviceHIDError.preparationFailed("Insufficient input budget: \(seconds)s remaining, \(remainingDuration)s hold, \(cleanupReserve)s reserved for contact cleanup")
-          return false
+        if state.live {
+          guard let input = state.liveInput, input.call == .start else { return false }
+          inputContact = .touch(input.point, secondPoint: nil)
+        } else {
+          let remaining = now.duration(to: deadline).components
+          let seconds = Double(remaining.seconds) + Double(remaining.attoseconds) / 1e18
+          let remainingDuration = contacts[state.contactIndex...].reduce(0) { $0 + $1.totalDuration }
+          guard let plan, remainingDuration < seconds - cleanupReserve else {
+            refusal =
+              state.anyStartAdmitted
+              ? DeviceHIDError.deadlineExceeded
+              : DeviceHIDError.preparationFailed("Insufficient input budget: \(seconds)s remaining, \(remainingDuration)s hold, \(cleanupReserve)s reserved for contact cleanup")
+            return false
+          }
+          inputContact = plan.contact
+          hold = plan.duration
         }
         state.anyStartAdmitted = true
         state.startAdmitted = true
-        inputContact = plan.contact
         state.lastAdmittedContact = inputContact
-        hold = plan.duration
       case .position:
         state.positionScheduled = false
-        guard state.error == nil, state.startReturned, !state.endScheduled, plan.positions.indices.contains(state.positionIndex) else { return false }
-        let position = plan.positions[state.positionIndex]
-        inputContact = .touch(position.point, secondPoint: position.secondPoint)
-        hold = position.delay
+        guard state.error == nil, state.startReturned, !state.endScheduled else { return false }
+        if state.live {
+          guard let input = state.liveInput, input.call == .position else { return false }
+          inputContact = .touch(input.point, secondPoint: nil)
+        } else {
+          guard let plan, plan.positions.indices.contains(state.positionIndex) else { return false }
+          let position = plan.positions[state.positionIndex]
+          inputContact = .touch(position.point, secondPoint: position.secondPoint)
+          hold = position.delay
+        }
         state.lastAdmittedContact = inputContact
       case .end:
         guard state.startAdmitted, state.startReturned, !state.endClaimed else { return false }
         state.endClaimed = true
-        inputContact = state.lastAdmittedContact ?? plan.contact
-        hold = plan.pause
+        inputContact = state.lastAdmittedContact
+        hold = plan?.pause ?? 0
       case .barrier:
         guard state.needsBarrier, !state.startAdmitted || state.endReturned else { return false }
       }
       if call != .barrier { state.needsBarrier = true }
       state.inputInFlight = call
+      if state.live, state.nativeUntil == nil { state.nativeUntil = now.advanced(by: .seconds(callSeconds)) }
       return true
     }
     if clockExpired { operationTimer.cancel() }
@@ -699,31 +857,39 @@ final class DeviceHIDOperation: Sendable {
       advance()
       return
     }
+    scheduleWatchdog()
     var failure: (any Error)?
     do {
       switch call {
-      case .start: try transport.send(.start, inputContact)
-      case .position: try transport.send(.position, inputContact)
-      case .end: try transport.send(.end, inputContact)
+      case .start, .position, .end:
+        guard let inputContact else { throw DeviceHIDError.unexpectedCompletion }
+        let phase: DeviceHIDContactPhase
+        switch call {
+        case .start: phase = .start
+        case .position: phase = .position
+        case .end, .barrier: phase = .end
+        }
+        try transport.send(phase, inputContact)
       case .barrier: try transport.barrier()
       }
     } catch { failure = error }
     let summary = failure.map { DeviceHIDError.native($0, operation: call.rawValue) }
+    var reply: (CheckedContinuation<Void, any Error>, Result<Void, any Error>)?
     let changes = withExtendedLifetime(failure) {
       state.sync { state -> (Bool, Bool) in
-        var changes = (state.reconcile(deadline: deadline), false)
+        var changes = (state.reconcile(deadline: deadline, now: self.clock()), false)
         state.inputInFlight = nil
         switch call {
         case .start:
           state.startReturned = true
-          state.holdUntil = ContinuousClock.now.advanced(by: .seconds(hold))
+          state.holdUntil = self.clock().advanced(by: .seconds(hold))
         case .position:
-          state.positionIndex += 1
-          state.holdUntil = ContinuousClock.now.advanced(by: .seconds(hold))
+          if !state.live { state.positionIndex += 1 }
+          state.holdUntil = self.clock().advanced(by: .seconds(hold))
         case .end:
           state.endReturned = true
           state.endSucceeded = summary == nil
-          state.holdUntil = ContinuousClock.now.advanced(by: .seconds(hold))
+          state.holdUntil = self.clock().advanced(by: .seconds(hold))
         case .barrier:
           state.barrierReturned = true
           state.needsBarrier = false
@@ -732,11 +898,17 @@ final class DeviceHIDOperation: Sendable {
           let failure = state.fail(summary, uncertain: true, cleanup: true)
           changes = (changes.0 || failure.0, changes.1 || failure.1)
         }
+        state.nativeUntil = nil
+        if let input = state.liveInput, input.call == call, call != .end {
+          state.liveInput = nil
+          reply = (input.continuation, state.error.map { .failure($0) } ?? .success(()))
+        }
         return changes
       }
     }
     if changes.1 { quarantine() }
     if changes.0 { operationTimer.cancel() }
+    if let (continuation, result) = reply { continuation.resume(with: result) }
     if hold > 0 {
       cleanupQueue.asyncAfter(deadline: .now() + hold) { [weak self] in self?.advance() }
     }

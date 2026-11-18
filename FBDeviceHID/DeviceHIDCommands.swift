@@ -32,6 +32,7 @@ public final class DeviceHIDCommands: Sendable {
   private let prepareButton: @Sendable (String, DeviceHIDButton, TimeInterval?) async throws -> DeviceHIDPreparedButton
   private let makeButtonTransport: @Sendable (UUID) -> DeviceHIDTransport
   private let orientationTool: DeviceOrientationTool
+  private let prepareLive: @Sendable (String) async throws -> DeviceHIDLivePreparation
 
   init(
     device: Device,
@@ -40,7 +41,8 @@ public final class DeviceHIDCommands: Sendable {
     prepareTouch: @escaping @Sendable (String, DeviceHIDTouchSequence) async throws -> DeviceHIDPreparedTouch = { try await DeviceHIDPreparation.prepare(udid: $0, sequence: $1) },
     prepareButton: @escaping @Sendable (String, DeviceHIDButton, TimeInterval?) async throws -> DeviceHIDPreparedButton = { try await DeviceHIDPreparation.prepare(udid: $0, button: $1, duration: $2) },
     makeButtonTransport: @escaping @Sendable (UUID) -> DeviceHIDTransport = { DeviceHIDTransport(deviceIdentifier: $0, kind: .button) },
-    orientationTool: DeviceOrientationTool = DeviceOrientationTool()
+    orientationTool: DeviceOrientationTool = DeviceOrientationTool(),
+    prepareLive: @escaping @Sendable (String) async throws -> DeviceHIDLivePreparation = { try await DeviceHIDPreparation.prepareLive(udid: $0) }
   ) {
     state = Atomic(wrappedValue: State(device: device))
     self.checkRuntime = checkRuntime
@@ -49,6 +51,7 @@ public final class DeviceHIDCommands: Sendable {
     self.prepareButton = prepareButton
     self.makeButtonTransport = makeButtonTransport
     self.orientationTool = orientationTool
+    self.prepareLive = prepareLive
   }
 
   /// Sends a complete, bounded down/move/up recipe; it never leaves a contact held for a later call.
@@ -62,6 +65,70 @@ public final class DeviceHIDCommands: Sendable {
       throw DeviceHIDError.preparationFailed("Button hold must be finite, nonnegative, and less than five seconds")
     }
     try await perform { udid in .button(try await self.prepareButton(udid, button, duration)) }
+  }
+
+  /// Pulling the next sample acknowledges the previous local send. UP joins retirement.
+  /// Healthy contact age and sample count are unbounded; no result is a remote UP acknowledgment.
+  public func liveTouch<S: AsyncSequence & Sendable>(events: S) async throws where S.Element == DeviceHIDLiveEvent {
+    let (id, udid) = try admit()
+    defer { retire(id) }
+    try await withTaskCancellationHandler {
+      try Task.checkCancellation()
+      try await checkRuntime()
+      try state.sync { try $0.checkAdmission(id) }
+      let prepared = try await prepareLive(udid)
+      try Task.checkCancellation()
+      try state.sync { try $0.checkAdmission(id) }
+      let operation = DeviceHIDOperation(
+        transport: makeTransport(prepared.deviceIdentifier), mode: .live(prepared),
+        quarantine: { [weak self] in self?.quarantine() })
+      let refusal: (any Error)? = state.sync { state in
+        do { try state.checkAdmission(id) } catch { return error }
+        state.operation = operation
+        return nil
+      }
+      if let refusal { operation.stop(refusal) }
+      let outcome = await withTaskGroup(of: DeviceHIDOutcome?.self) { group in
+        group.addTask { await operation.run() }
+        group.addTask {
+          do {
+            try await operation.waitUntilReady()
+            for try await event in events {
+              try Task.checkCancellation()
+              try await operation.sendLive(event)
+              if case .up = event { return nil }
+            }
+            operation.stop(DeviceHIDError.liveProtocol("The producer ended before UP"))
+          } catch {
+            operation.stop(error)
+          }
+          return nil
+        }
+        var outcome: DeviceHIDOutcome?
+        while let result = await group.next() {
+          if let result {
+            outcome = result
+            group.cancelAll()
+          }
+        }
+        return outcome ?? DeviceHIDOutcome(error: DeviceHIDError.unexpectedCompletion, uncertain: true)
+      }
+      if outcome.uncertain {
+        throw DeviceHIDError.liveUncertain(cause: outcome.error ?? DeviceHIDError.unexpectedCompletion, uncertainty: outcome.uncertaintyCause)
+      }
+      if let error = outcome.error { throw error }
+    } onCancel: {
+      self.cancel(id)
+    }
+  }
+
+  private func quarantine() {
+    let active = state.sync { state in
+      state.uncertain = true
+      if state.operationID != nil { state.cancelled = true }
+      return state.operation
+    }
+    active?.cancel()
   }
 
   func orientation(_ setting: DeviceOrientation?) async throws -> DeviceOrientation {
@@ -148,14 +215,7 @@ public final class DeviceHIDCommands: Sendable {
       let operation = DeviceHIDOperation(
         transport: transport,
         input: prepared,
-        quarantine: { [weak self] in
-          let active = self?.state.sync { state in
-            state.uncertain = true
-            if state.operationID != nil { state.cancelled = true }
-            return state.operation
-          }
-          active?.cancel()
-        })
+        quarantine: { [weak self] in self?.quarantine() })
       try withExtendedLifetime(operation) {
         try state.sync { state in
           try state.checkAdmission(id)

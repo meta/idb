@@ -22,6 +22,8 @@ public enum DeviceHIDError: Error, LocalizedError, Sendable {
   case cleanupFailed(cause: any Error, failures: [any Error])
   case orientationLocked
   case orientationMayHaveApplied(String)
+  case liveProtocol(String)
+  case liveUncertain(cause: any Error, uncertainty: any Error?)
 
   public var errorDescription: String? {
     switch self {
@@ -53,6 +55,11 @@ public enum DeviceHIDError: Error, LocalizedError, Sendable {
       return "Physical device orientation is locked; no orientation change was requested"
     case .orientationMayHaveApplied(let message):
       return "Physical orientation may have changed; further input is refused: \(message)"
+    case .liveProtocol(let message):
+      return "Invalid live physical touch: \(message)"
+    case .liveUncertain(let cause, let uncertainty):
+      let detail = uncertainty.map { "; uncertainty: \($0.localizedDescription)" } ?? ""
+      return "Live physical input has an uncertain outcome; further input is refused: \(cause.localizedDescription)\(detail)"
     }
   }
 
