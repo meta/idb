@@ -179,9 +179,9 @@ final class LiveHIDFixture: Sendable {
     DeviceHIDLivePreparation(deviceIdentifier: native.identifier, displaySnapshot: snapshot, normalize: normalize)
   }
 
-  func operation(prepared: DeviceHIDLivePreparation? = nil, timerQueue: DispatchQueue = .global()) -> DeviceHIDOperation {
+  func operation(prepared: DeviceHIDLivePreparation? = nil, timerQueue: DispatchQueue = .global(), retirementSeconds: TimeInterval = 5) -> DeviceHIDOperation {
     DeviceHIDOperation(
-      transport: transport, mode: .live(prepared ?? preparation()), timerQueue: timerQueue,
+      transport: transport, mode: .live(prepared ?? preparation()), retirementSeconds: retirementSeconds, timerQueue: timerQueue,
       clock: { self.clock.now() }, quarantine: { self.native.state.sync { $0.quarantined = true } })
   }
 
@@ -358,7 +358,7 @@ struct DeviceHIDLiveTests {
       }
       fixture.clock.advance(11)
       operation.advance()
-      fixture.clock.advance(365 * 24 * 60 * 60)
+      fixture.clock.advance(1)
       operation.advance()
       #expect(fixture.events.count("moveReturned") == 0)
       #expect(fixture.events.count("operationReturned") == 0)
@@ -384,9 +384,9 @@ struct DeviceHIDLiveTests {
   }
 
   @Test(arguments: ["start", "position", "end", "barrier"], [false, true])
-  func overdueNativeCallsJoinWithoutTimeOnlyQuarantine(_ stage: String, _ timerFirst: Bool) async throws {
+  func overdueNativeCallsJoinWithinRetirementGrace(_ stage: String, _ timerFirst: Bool) async throws {
     let fixture = LiveHIDFixture(held: [stage])
-    let operation = fixture.operation()
+    let operation = fixture.operation(retirementSeconds: 20)
     try await fixture.withOperation(operation) { run in
       try await operation.waitUntilReady()
       if stage != "start" { try await operation.sendLive(.down(x: 0.1, y: 0.2)) }
@@ -398,7 +398,7 @@ struct DeviceHIDLiveTests {
         operation.advance()
       }
       operation.cancel()
-      fixture.clock.advance(1000)
+      fixture.clock.advance(1)
       operation.advance()
       #expect(fixture.events.count("sampleReturned") == 0)
       #expect(fixture.events.count("operationReturned") == 0)
@@ -468,7 +468,7 @@ struct DeviceHIDLiveTests {
       try await fixture.events.waitFor("gate.displayCompletion")
       try await fixture.events.waitFor("gate.displayCancelReturn")
       #expect(fixture.events.count("barrierReturned") == 1)
-      fixture.clock.advance(365 * 24 * 60 * 60)
+      fixture.clock.advance(1)
       operation.advance()
       #expect(fixture.events.count("upReturned") == 0)
       #expect(fixture.events.count("operationReturned") == 0)
@@ -565,7 +565,7 @@ struct DeviceHIDLiveTests {
       #expect(fixture.events.count("operationReturned") == 0)
       if stage == "acquisition" { native.completeAcquisition() } else { native.completeFactory() }
       #expect(fixture.events.count("release") == 0)
-      fixture.clock.advance(1000)
+      fixture.clock.advance(1)
       operation.advance()
       #expect(!native.state.wrappedValue.quarantined)
       fixture.open(cancellation)
@@ -794,7 +794,11 @@ struct DeviceHIDLiveTests {
       }
       fixture.finish()
       await #expect { try await run.value } throws: { error in
-        if case DeviceHIDError.displayObservationFailed = error { return true }
+        if case DeviceHIDError.inputMayHaveApplied(let cause) = error,
+          case DeviceHIDError.displayObservationFailed = cause
+        {
+          return true
+        }
         return false
       }
       try await fixture.events.waitFor("producerStopped")
@@ -883,7 +887,11 @@ struct DeviceHIDLiveTests {
     let run = fixture.task("public") { try await command.liveTouch(events: samples) }
     try await fixture.withTask(run) {
       await #expect { try await run.value } throws: { error in
-        if case DeviceHIDError.liveProtocol = error { return true }
+        if case DeviceHIDError.inputMayHaveApplied(let cause) = error,
+          case DeviceHIDError.liveProtocol = cause
+        {
+          return true
+        }
         return false
       }
       #expect(samples.pulls.wrappedValue == 2)
@@ -956,8 +964,8 @@ struct DeviceHIDLiveTests {
           return false
         }
       } else {
-        guard case .displayObservationFailed? = error else {
-          Issue.record("Observer completion error was wrapped as uncertainty")
+        guard case .inputMayHaveApplied(let cause)? = error, case DeviceHIDError.displayObservationFailed = cause else {
+          Issue.record("Observer completion error lost its retry-unsafe cause")
           return
         }
         try await command.liveTouch(events: LiveSamples(events: samples.events))

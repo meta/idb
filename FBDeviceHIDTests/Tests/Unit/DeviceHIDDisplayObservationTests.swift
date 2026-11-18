@@ -102,7 +102,7 @@ struct DeviceHIDDisplayObservationTests {
       #expect(fixture.events.count("factory") == 0)
       #expect(fixture.events.count("start") == 0)
       #expect(!fixture.native.state.wrappedValue.quarantined)
-      fixture.clock.advance(1000)
+      fixture.clock.advance(1)
       fixture.open("displayCompletion")
       let outcome = await run.value
       guard case .deadlineExceeded? = outcome.error as? DeviceHIDError else {
@@ -407,7 +407,7 @@ struct DeviceHIDDisplayObservationTests {
       operation.cancel()
       try await fixture.events.waitFor("gate.displayCompletion")
       try await fixture.events.waitFor("gate.displayCancelReturn")
-      fixture.clock.advance(1000)
+      fixture.clock.advance(1)
       operation.advance()
       let first = completionFirst ? "displayCompletion" : "displayCancelReturn"
       fixture.open(first)
@@ -432,7 +432,7 @@ struct DeviceHIDDisplayObservationTests {
       fixture.clock.advance(11)
       operation.advance()
       fixture.emit(Self.baseline)
-      fixture.clock.advance(1000)
+      fixture.clock.advance(1)
       operation.advance()
       #expect(fixture.events.count("operationReturned") == 0)
       #expect(fixture.events.count("factory") == 0)

@@ -28,6 +28,17 @@ struct DeviceHIDOutcome: Sendable {
   let error: (any Error)?
   let uncertain: Bool
   var uncertaintyCause: DeviceHIDError?
+  var inputAdmitted = false
+
+  func get() throws {
+    if uncertain {
+      throw DeviceHIDError.liveUncertain(cause: error ?? DeviceHIDError.unexpectedCompletion, uncertainty: uncertaintyCause)
+    }
+    if let error {
+      if inputAdmitted { throw DeviceHIDError.inputMayHaveApplied(cause: error) }
+      throw error
+    }
+  }
 }
 
 /// One assertion and one bounded plan or live contact. Native work never runs under the state mutex.
@@ -77,6 +88,8 @@ final class DeviceHIDOperation: Sendable {
     var nativeUntil: ContinuousClock.Instant?
     var uncertaintyCause: DeviceHIDError?
     var continuation: CheckedContinuation<DeviceHIDOutcome, Never>?
+    var retirementUntil: ContinuousClock.Instant?
+    var lifetime: DeviceHIDOperation?
     var running = false
     var finishing = false
     var finished = false
@@ -141,7 +154,7 @@ final class DeviceHIDOperation: Sendable {
       let newlyUncertain = uncertain && !self.uncertain
       self.uncertain = self.uncertain || uncertain
       if uncertain, uncertaintyCause == nil { uncertaintyCause = error as? DeviceHIDError }
-      guard !finished else { return (false, newlyUncertain) }
+      guard !finished, !finishing || uncertain else { return (false, newlyUncertain) }
       let first = self.error == nil
       if first {
         self.error = error
@@ -161,6 +174,21 @@ final class DeviceHIDOperation: Sendable {
       return true
     }
 
+    mutating func publication() -> Publication? {
+      guard let continuation else { return nil }
+      let error = error.map { cause -> any Error in
+        cleanupFailures.isEmpty ? cause : DeviceHIDError.cleanupFailed(cause: cause, failures: cleanupFailures)
+      }
+      let result = Publication(
+        continuation: continuation,
+        outcome: DeviceHIDOutcome(error: error, uncertain: uncertain, uncertaintyCause: uncertaintyCause, inputAdmitted: anyStartAdmitted),
+        ready: liveReadyWaiter, input: liveInput)
+      self.continuation = nil
+      liveReadyWaiter = nil
+      liveInput = nil
+      return result
+    }
+
     var pending: Bool {
       acquisitionInvoking || (acquisitionStarted && !acquisitionCompleted)
         || observationPending || factoryInvoking || (factoryStarted && !factoryCompleted)
@@ -175,12 +203,21 @@ final class DeviceHIDOperation: Sendable {
     case display
     case factory
     case input(InputCall)
-    case cancel(Int, DeviceHIDCancellation)
+    case cancel(Int)
     case release(DeviceHIDAssertion)
     case discard
     case deadline
     case ready(CheckedContinuation<Void, any Error>)
-    case finish(CheckedContinuation<DeviceHIDOutcome, Never>, Atomic<[Cancellation]>)
+    case retirementDeadline
+    case publish(Publication)
+    case finish(Atomic<[Cancellation]>)
+  }
+
+  private struct Publication {
+    let continuation: CheckedContinuation<DeviceHIDOutcome, Never>
+    let outcome: DeviceHIDOutcome
+    let ready: CheckedContinuation<Void, any Error>?
+    let input: LiveInput?
   }
 
   private let transport: DeviceHIDTransport
@@ -190,6 +227,8 @@ final class DeviceHIDOperation: Sendable {
   private let totalDuration: TimeInterval
   private let deadline: ContinuousClock.Instant
   private let cleanupReserve: TimeInterval
+  private let retirementSeconds: TimeInterval
+  private let retired: @Sendable () -> Void
   private let callSeconds: TimeInterval
   private let clock: @Sendable () -> ContinuousClock.Instant
   private let quarantine: @Sendable () -> Void
@@ -199,12 +238,14 @@ final class DeviceHIDOperation: Sendable {
   private let cancellationQueue = DispatchQueue(label: "com.facebook.idb.device-hid.cancel", attributes: .concurrent)
   private let operationTimer: any DispatchSourceTimer
 
-  convenience init(transport: DeviceHIDTransport, input: DeviceHIDPreparedInput, operationSeconds: TimeInterval = 10, cleanupReserve: TimeInterval = 5, timerQueue: DispatchQueue = .global(), quarantine: @escaping @Sendable () -> Void) {
-    self.init(transport: transport, mode: .bounded(input), operationSeconds: operationSeconds, cleanupReserve: cleanupReserve, timerQueue: timerQueue, quarantine: quarantine)
+  convenience init(transport: DeviceHIDTransport, input: DeviceHIDPreparedInput, operationSeconds: TimeInterval = 10, cleanupReserve: TimeInterval = 5, retirementSeconds: TimeInterval = 5, timerQueue: DispatchQueue = .global(), retired: @escaping @Sendable () -> Void = {}, quarantine: @escaping @Sendable () -> Void) {
+    self.init(transport: transport, mode: .bounded(input), operationSeconds: operationSeconds, cleanupReserve: cleanupReserve, retirementSeconds: retirementSeconds, timerQueue: timerQueue, retired: retired, quarantine: quarantine)
   }
 
-  init(transport: DeviceHIDTransport, mode: Mode, operationSeconds: TimeInterval = 10, cleanupReserve: TimeInterval = 5, timerQueue: DispatchQueue = .global(), clock: @escaping @Sendable () -> ContinuousClock.Instant = { .now }, quarantine: @escaping @Sendable () -> Void) {
+  init(transport: DeviceHIDTransport, mode: Mode, operationSeconds: TimeInterval = 10, cleanupReserve: TimeInterval = 5, retirementSeconds: TimeInterval = 5, timerQueue: DispatchQueue = .global(), clock: @escaping @Sendable () -> ContinuousClock.Instant = { .now }, retired: @escaping @Sendable () -> Void = {}, quarantine: @escaping @Sendable () -> Void) {
     self.transport = transport
+    self.retirementSeconds = retirementSeconds
+    self.retired = retired
     self.clock = clock
     callSeconds = operationSeconds
     let live: DeviceHIDLivePreparation?
@@ -262,6 +303,7 @@ final class DeviceHIDOperation: Sendable {
         let installed = state.sync { state in
           guard !state.running else { return false }
           state.running = true
+          state.lifetime = self
           state.continuation = continuation
           return true
         }
@@ -387,8 +429,13 @@ final class DeviceHIDOperation: Sendable {
 
   func advance() {
     let actions = state.sync { state -> [Action] in
-      guard state.running, !state.finishing, !state.finished else { return [] }
+      guard state.running, !state.finished else { return [] }
       var actions: [Action] = []
+      if let until = state.retirementUntil, self.clock() >= until, state.continuation != nil {
+        _ = state.fail(DeviceHIDError.deadlineExceeded, uncertain: true)
+        if let publication = state.publication() { actions.append(.publish(publication)) }
+      }
+      guard !state.finishing else { return actions }
       if state.reconcile(deadline: deadline, now: self.clock()) { actions.append(.deadline) }
       let stopped = state.error != nil
       if !stopped, !state.acquisitionStarted {
@@ -472,8 +519,13 @@ final class DeviceHIDOperation: Sendable {
         }
         if pending, !state.cancellations[index].claimed {
           state.cancellations[index].claimed = true
-          actions.append(.cancel(index, state.cancellations[index].call))
+          actions.append(.cancel(index))
         }
+      }
+      let terminating = stopped || (state.endScheduled && (state.live || state.contactIndex == contacts.count - 1))
+      if terminating, state.retirementUntil == nil {
+        state.retirementUntil = self.clock().advanced(by: .seconds(retirementSeconds))
+        actions.append(.retirementDeadline)
       }
       let inputDrained = contactEnded && !state.needsBarrier
       let releaseEligible = !state.pending && (stopped ? inputDrained : state.barrierReturned)
@@ -491,12 +543,11 @@ final class DeviceHIDOperation: Sendable {
         }
       }
       let cleanupReturned = state.discardReturned && state.assertions.values.allSatisfy(\.releaseReturned)
-      if releaseEligible && cleanupReturned, let continuation = state.continuation {
+      if releaseEligible && cleanupReturned {
         state.finishing = true
-        state.continuation = nil
         let retired = Atomic(wrappedValue: state.cancellations)
         state.cancellations = []
-        actions.append(.finish(continuation, retired))
+        actions.append(.finish(retired))
       }
       return actions
     }
@@ -516,9 +567,9 @@ final class DeviceHIDOperation: Sendable {
       transportQueue.async { self.makeCapability() }
     case .input(let call):
       transportQueue.async { self.input(call) }
-    case .cancel(let index, let cancel):
+    case .cancel(let index):
       cancellationQueue.async {
-        do { try cancel() } catch { self.stop(DeviceHIDError.native(error, operation: "cancellation request"), uncertain: true, cleanup: true) }
+        self.requestCancellation(index)
         self.state.sync { state in
           if state.cancellations.indices.contains(index) { state.cancellations[index].returned = true }
         }
@@ -540,35 +591,59 @@ final class DeviceHIDOperation: Sendable {
       operationTimer.cancel()
     case .ready(let continuation):
       continuation.resume()
-    case .finish(let continuation, let retired):
-      let (outcome, ready, input) = state.sync { state in
-        _ = state.reconcile(deadline: deadline, now: self.clock())
-        state.finished = true
-        let error = state.error.map { cause -> any Error in
-          state.cleanupFailures.isEmpty ? cause : DeviceHIDError.cleanupFailed(cause: cause, failures: state.cleanupFailures)
-        }
-        let ready = state.liveReadyWaiter
-        let input = state.liveInput
-        state.liveReadyWaiter = nil
-        state.liveInput = nil
-        return (DeviceHIDOutcome(error: error, uncertain: state.uncertain, uncertaintyCause: state.uncertaintyCause), ready, input)
-      }
-      if outcome.uncertain { quarantine() }
-      operationTimer.cancel()
-      ready?.resume(throwing: outcome.error ?? DeviceHIDError.unexpectedCompletion)
-      if let input {
-        if let error = outcome.error { input.continuation.resume(throwing: error) } else if input.call == .end { input.continuation.resume() } else { input.continuation.resume(throwing: DeviceHIDError.unexpectedCompletion) }
-      }
-      continuation.resume(returning: outcome)
+    case .retirementDeadline:
+      cleanupQueue.asyncAfter(deadline: .now() + retirementSeconds) { [weak self] in self?.advance() }
+    case .publish(let publication):
+      publish(publication)
+    case .finish(let captures):
       cleanupQueue.async {
-        let values = retired.sync { values in
-          let removed = values
-          values = []
-          return removed
+        self.releaseCaptures(captures)
+        let (publication, lifetime, uncertain) = self.state.sync { state in
+          _ = state.reconcile(deadline: self.deadline, now: self.clock())
+          if let until = state.retirementUntil, self.clock() >= until {
+            _ = state.fail(DeviceHIDError.deadlineExceeded, uncertain: true)
+          }
+          state.finished = true
+          let lifetime = state.lifetime
+          state.lifetime = nil
+          return (state.publication(), lifetime, state.uncertain)
         }
-        withExtendedLifetime(values) {}
+        if uncertain { self.quarantine() }
+        self.retired()
+        self.operationTimer.cancel()
+        if let publication { self.publish(publication) }
+        withExtendedLifetime(lifetime) {}
       }
     }
+  }
+
+  private func requestCancellation(_ index: Int) {
+    let cancel = state.sync { state in state.cancellations.indices.contains(index) ? state.cancellations[index].call : nil }
+    guard let cancel else {
+      stop(DeviceHIDError.unexpectedCompletion, uncertain: true)
+      return
+    }
+    do { try cancel() } catch { stop(DeviceHIDError.native(error, operation: "cancellation request"), uncertain: true, cleanup: true) }
+  }
+
+  private func releaseCaptures(_ captures: Atomic<[Cancellation]>) {
+    let values = captures.sync { values in
+      let removed = values
+      values = []
+      return removed
+    }
+    withExtendedLifetime(values) {}
+  }
+
+  private func publish(_ publication: Publication) {
+    let outcome = publication.outcome
+    if outcome.uncertain { quarantine() }
+    operationTimer.cancel()
+    publication.ready?.resume(throwing: outcome.error ?? DeviceHIDError.unexpectedCompletion)
+    if let input = publication.input {
+      if let error = outcome.error { input.continuation.resume(throwing: error) } else if input.call == .end { input.continuation.resume() } else { input.continuation.resume(throwing: DeviceHIDError.unexpectedCompletion) }
+    }
+    publication.continuation.resume(returning: outcome)
   }
 
   private func acquire() {

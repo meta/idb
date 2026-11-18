@@ -1165,7 +1165,11 @@ struct DeviceHIDDisplayTests {
       #expect(fixture.events.count("release") == 0)
       fixture.finish()
       await #expect { try await first.value } throws: { error in
-        if case DeviceHIDError.displayObservationFailed = error { return true }
+        if case DeviceHIDError.inputMayHaveApplied(let cause) = error,
+          case DeviceHIDError.displayObservationFailed = cause
+        {
+          return true
+        }
         return false
       }
       #expect(!native.state.wrappedValue.quarantined)

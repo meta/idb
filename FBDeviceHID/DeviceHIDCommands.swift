@@ -18,6 +18,7 @@ public final class DeviceHIDCommands: Sendable {
     var cancelled = false
     var uncertain = false
     var orientationSetAdmitted = false
+    var retirementWaiters: [CheckedContinuation<Void, Never>] = []
 
     func checkAdmission(_ id: UUID) throws {
       guard !uncertain else { throw DeviceHIDError.uncertainState }
@@ -25,6 +26,14 @@ public final class DeviceHIDCommands: Sendable {
     }
   }
 
+  private struct Admission {
+    let id: UUID
+    let state: Atomic<State>
+  }
+
+  // Active ownership and quarantine survive replacing a Device or its command cache.
+  private static let admissions = Atomic(wrappedValue: [String: Admission]())
+  private let admissionKey: String
   private let state: Atomic<State>
   private let checkRuntime: @Sendable () async throws -> Void
   private let makeTransport: @Sendable (UUID) -> DeviceHIDTransport
@@ -45,6 +54,7 @@ public final class DeviceHIDCommands: Sendable {
     prepareLive: @escaping @Sendable (String) async throws -> DeviceHIDLivePreparation = { try await DeviceHIDPreparation.prepareLive(udid: $0) }
   ) {
     state = Atomic(wrappedValue: State(device: device))
+    admissionKey = device.udid.lowercased()
     self.checkRuntime = checkRuntime
     self.makeTransport = makeTransport
     self.prepareTouch = prepareTouch
@@ -67,6 +77,22 @@ public final class DeviceHIDCommands: Sendable {
     try await perform { udid in .button(try await self.prepareButton(udid, button, duration)) }
   }
 
+  /// Joins the currently admitted owner for this UDID without cancelling it or clearing quarantine.
+  /// Ignores caller cancellation; hosts must stop admitting input before using this for shutdown.
+  public func waitForRetirement() async {
+    await withCheckedContinuation { continuation in
+      let waiting = Self.admissions.sync { admissions in
+        guard let entry = admissions[admissionKey] else { return false }
+        return entry.state.sync { state in
+          guard state.operationID != nil else { return false }
+          state.retirementWaiters.append(continuation)
+          return true
+        }
+      }
+      if !waiting { continuation.resume() }
+    }
+  }
+
   /// Pulling the next sample acknowledges the previous local send. UP joins retirement.
   /// Healthy contact age and sample count are unbounded; no result is a remote UP acknowledgment.
   public func liveTouch<S: AsyncSequence & Sendable>(events: S) async throws where S.Element == DeviceHIDLiveEvent {
@@ -81,7 +107,8 @@ public final class DeviceHIDCommands: Sendable {
       try state.sync { try $0.checkAdmission(id) }
       let operation = DeviceHIDOperation(
         transport: makeTransport(prepared.deviceIdentifier), mode: .live(prepared),
-        quarantine: { [weak self] in self?.quarantine() })
+        retired: { [state, admissionKey] in Self.retire(id, key: admissionKey, state: state, nativeRetired: true) },
+        quarantine: { [state, admissionKey] in Self.quarantine(key: admissionKey, state: state) })
       let refusal: (any Error)? = state.sync { state in
         do { try state.checkAdmission(id) } catch { return error }
         state.operation = operation
@@ -113,20 +140,22 @@ public final class DeviceHIDCommands: Sendable {
         }
         return outcome ?? DeviceHIDOutcome(error: DeviceHIDError.unexpectedCompletion, uncertain: true)
       }
-      if outcome.uncertain {
-        throw DeviceHIDError.liveUncertain(cause: outcome.error ?? DeviceHIDError.unexpectedCompletion, uncertainty: outcome.uncertaintyCause)
-      }
-      if let error = outcome.error { throw error }
+      try outcome.get()
     } onCancel: {
       self.cancel(id)
     }
   }
 
-  private func quarantine() {
-    let active = state.sync { state in
-      state.uncertain = true
-      if state.operationID != nil { state.cancelled = true }
-      return state.operation
+  private static func quarantine(key: String, state: Atomic<State>) {
+    let active = admissions.sync { admissions -> DeviceHIDOperation? in
+      state.sync { $0.uncertain = true }
+      let entry = admissions[key] ?? Admission(id: UUID(), state: state)
+      admissions[key] = entry
+      return entry.state.sync { state in
+        state.uncertain = true
+        if state.operationID != nil { state.cancelled = true }
+        return state.operation
+      }
     }
     active?.cancel()
   }
@@ -153,7 +182,10 @@ public final class DeviceHIDCommands: Sendable {
           state.uncertain = true
           return true
         }
-        if uncertain { throw DeviceHIDError.orientationMayHaveApplied(error.localizedDescription) }
+        if uncertain {
+          Self.quarantine(key: admissionKey, state: state)
+          throw DeviceHIDError.orientationMayHaveApplied(error.localizedDescription)
+        }
         throw error
       }
     } onCancel: {
@@ -163,29 +195,45 @@ public final class DeviceHIDCommands: Sendable {
 
   private func admit() throws -> (UUID, String) {
     let id = UUID()
-    let device = try state.sync { state -> Device in
-      guard !state.uncertain else { throw DeviceHIDError.uncertainState }
-      guard state.operationID == nil else { throw DeviceHIDError.busy }
-      guard let device = state.device else { throw DeviceHIDError.deviceUnavailable }
-      state.operationID = id
-      state.cancelled = false
-      state.orientationSetAdmitted = false
+    let device = try Self.admissions.sync { admissions -> Device in
+      if let entry = admissions[admissionKey] {
+        throw entry.state.sync { $0.uncertain ? DeviceHIDError.uncertainState : DeviceHIDError.busy }
+      }
+      let device = try state.sync { state -> Device in
+        guard !state.uncertain else { throw DeviceHIDError.uncertainState }
+        guard state.operationID == nil else { throw DeviceHIDError.busy }
+        guard let device = state.device else { throw DeviceHIDError.deviceUnavailable }
+        state.operationID = id
+        state.cancelled = false
+        state.orientationSetAdmitted = false
+        return device
+      }
+      admissions[admissionKey] = Admission(id: id, state: state)
       return device
     }
     return (id, device.udid)
   }
 
   private func retire(_ id: UUID) {
-    let retired = state.sync { state -> DeviceHIDOperation? in
-      guard state.operationID == id else { return nil }
-      let retired = state.operation
-      state.operation = nil
-      state.operationID = nil
-      state.cancelled = false
-      state.orientationSetAdmitted = false
-      return retired
+    Self.retire(id, key: admissionKey, state: state, nativeRetired: false)
+  }
+
+  private static func retire(_ id: UUID, key: String, state: Atomic<State>, nativeRetired: Bool) {
+    let retired = admissions.sync { admissions -> (DeviceHIDOperation?, [CheckedContinuation<Void, Never>]) in
+      state.sync { state in
+        guard state.operationID == id, nativeRetired || state.operation == nil else { return (nil, []) }
+        let retired = (state.operation, state.retirementWaiters)
+        state.operation = nil
+        state.retirementWaiters = []
+        state.operationID = nil
+        state.cancelled = false
+        state.orientationSetAdmitted = false
+        if !state.uncertain, admissions[key]?.id == id { admissions[key] = nil }
+        return retired
+      }
     }
-    withExtendedLifetime(retired) {}
+    for waiter in retired.1 { waiter.resume() }
+    withExtendedLifetime(retired.0) {}
   }
 
   private func cancel(_ id: UUID) {
@@ -215,7 +263,8 @@ public final class DeviceHIDCommands: Sendable {
       let operation = DeviceHIDOperation(
         transport: transport,
         input: prepared,
-        quarantine: { [weak self] in self?.quarantine() })
+        retired: { [state, admissionKey] in Self.retire(id, key: admissionKey, state: state, nativeRetired: true) },
+        quarantine: { [state, admissionKey] in Self.quarantine(key: admissionKey, state: state) })
       try withExtendedLifetime(operation) {
         try state.sync { state in
           try state.checkAdmission(id)
@@ -223,7 +272,7 @@ public final class DeviceHIDCommands: Sendable {
         }
       }
       let outcome = await operation.run()
-      if let error = outcome.error { throw error }
+      try outcome.get()
     } onCancel: {
       self.cancel(id)
     }

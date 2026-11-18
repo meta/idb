@@ -160,6 +160,12 @@ struct DeviceHIDMultiTouchTests {
       return
     }
     #expect(!outcome.uncertain)
+    #expect { try outcome.get() } throws: { error in
+      guard case DeviceHIDError.inputMayHaveApplied(let cause) = error,
+        case DeviceHIDError.deadlineExceeded = cause
+      else { return false }
+      return true
+    }
     #expect(fixture.events.count("start") == 1)
     #expect(fixture.events.count("end") == 1)
     #expect(fixture.events.count("barrier") == 1)

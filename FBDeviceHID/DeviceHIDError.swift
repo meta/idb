@@ -23,7 +23,8 @@ public enum DeviceHIDError: Error, LocalizedError, Sendable {
   case orientationLocked
   case orientationMayHaveApplied(String)
   case liveProtocol(String)
-  case liveUncertain(cause: any Error, uncertainty: any Error?)
+  case inputMayHaveApplied(cause: any Error)
+  case liveUncertain(cause: any Error, uncertainty: (any Error)?)
 
   public var errorDescription: String? {
     switch self {
@@ -40,7 +41,7 @@ public enum DeviceHIDError: Error, LocalizedError, Sendable {
     case .deviceMatchFailed(let identifier, let count):
       return "Expected one current CoreDevice match for \(identifier), found \(count)"
     case .deadlineExceeded:
-      return "The physical input could not finish within its execution budget"
+      return "The physical input could not finish within its execution or retirement budget"
     case .assertionInvalidated:
       return "The physical input's owned usage assertion was invalidated"
     case .displayObservationFailed(let message):
@@ -57,9 +58,11 @@ public enum DeviceHIDError: Error, LocalizedError, Sendable {
       return "Physical orientation may have changed; further input is refused: \(message)"
     case .liveProtocol(let message):
       return "Invalid live physical touch: \(message)"
+    case .inputMayHaveApplied(let cause):
+      return "Physical input may have been partially applied; do not replay it: \(cause.localizedDescription)"
     case .liveUncertain(let cause, let uncertainty):
       let detail = uncertainty.map { "; uncertainty: \($0.localizedDescription)" } ?? ""
-      return "Live physical input has an uncertain outcome; further input is refused: \(cause.localizedDescription)\(detail)"
+      return "Physical input has an uncertain outcome; do not replay it; further input is refused. Owned cleanup may still be running and requires this process to remain alive: \(cause.localizedDescription)\(detail)"
     }
   }
 
