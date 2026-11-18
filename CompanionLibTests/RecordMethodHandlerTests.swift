@@ -211,6 +211,37 @@ struct RecordMethodHandlerTests {
     #expect(recording.stops == 1)
   }
 
+  /// Two calls record at once, each with its own recording. Cancelling one, as a killed client does,
+  /// stops that call's recording and leaves the other's running until its own call reaches its stop.
+  @Test
+  func cancellingOneCallLeavesTheOtherCallsRecordingRunning() async throws {
+    let cancelled = CountingRecording()
+    let running = CountingRecording()
+    let (stopArrives, stop) = AsyncStream.makeStream(of: Void.self)
+    let cancelledCall = Task {
+      try await RecordMethodHandler.stoppingOnFailure(cancelled, logger: RecordingLogger()) {
+        try await Task.sleep(for: .seconds(3600))
+      }
+    }
+    let runningCall = Task {
+      try await RecordMethodHandler.stoppingOnFailure(running, logger: RecordingLogger()) {
+        for await _ in stopArrives { return }
+      }
+    }
+
+    cancelledCall.cancel()
+    await #expect(throws: CancellationError.self) {
+      try await cancelledCall.value
+    }
+    #expect(cancelled.stops == 1)
+    #expect(running.stops == 0)
+
+    stop.yield()
+    try await runningCall.value
+    #expect(running.stops == 0, "a call that reaches its stop leaves its recording to the stop")
+    #expect(cancelled.stops == 1)
+  }
+
   /// Once the call has failed nothing reaches the client, so a recording that will not stop is
   /// reported where it can still be seen.
   @Test

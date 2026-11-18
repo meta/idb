@@ -383,13 +383,24 @@ public actor SimulatorVideoStream: VideoStreamOperation {
     guard case .starting = lifecycle else {
       return // mounted synchronously — already streaming
     }
-    try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
-      guard case .starting(let session, var awaiters) = lifecycle else {
-        continuation.resume()
-        return
+    // A start still waiting for a surface ends when its task is cancelled, so a caller that went
+    // away does not hold the framebuffer, or a recording's place, until a surface arrives.
+    try await withTaskCancellationHandler {
+      try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+        if Task.isCancelled {
+          failPendingStart(with: CancellationError())
+          continuation.resume(throwing: CancellationError())
+          return
+        }
+        guard case .starting(let session, var awaiters) = lifecycle else {
+          continuation.resume()
+          return
+        }
+        awaiters.append(continuation)
+        lifecycle = .starting(session, startAwaiters: awaiters)
       }
-      awaiters.append(continuation)
-      lifecycle = .starting(session, startAwaiters: awaiters)
+    } onCancel: { [attachment] in
+      Task { await self.failPendingStart(of: attachment, with: CancellationError()) }
     }
   }
 
@@ -452,6 +463,14 @@ public actor SimulatorVideoStream: VideoStreamOperation {
   /// failed and the session is torn down (back to `.idle`), so a stream that reported a failed
   /// start can never quietly self-start on a later surface. A no-op once `.streaming` — a failed
   /// mid-stream surface swap keeps streaming the previous surface.
+  /// Fails the start that attached `attachment`, if it is still waiting for a surface, and not a later one.
+  private func failPendingStart(of attachment: FramebufferAttachment, with error: Error) {
+    guard case .starting(let session, _) = lifecycle, session.attachment === attachment else {
+      return
+    }
+    failPendingStart(with: error)
+  }
+
   private func failPendingStart(with error: Error) {
     guard case .starting(let session, let awaiters) = lifecycle else {
       return

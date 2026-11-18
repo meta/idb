@@ -44,11 +44,11 @@ final class ReplRecordingCoordinator: @unchecked Sendable {
     }
   }
 
-  /// The recording lifecycle. The single slot stays occupied through both start and
-  /// stop so a concurrent start (e.g. a reconnect) is rejected rather than racing the
-  /// framebuffer, which supports only one recording at a time: `pending` covers the
-  /// gap between reserving and the capture starting, and `stopping` the gap between
-  /// taking the recording and its `stop()` finishing finalizing.
+  /// The recording lifecycle. A session has one recording, because `IDB.video` stops
+  /// and pulls it without naming it. The single slot stays occupied through both start
+  /// and stop so a concurrent start (e.g. a reconnect) is rejected rather than replacing
+  /// it: `pending` covers the gap between reserving and the capture starting, and
+  /// `stopping` the gap between taking the recording and its `stop()` finishing finalizing.
   private enum State {
     case idle
     case pending

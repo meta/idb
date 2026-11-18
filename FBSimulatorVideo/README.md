@@ -27,6 +27,14 @@ let recording = try await simulator.videoRecording.start(toFile: "/tmp/screen.mp
 let file = try await recording.stop()
 ```
 
+Two recordings of one `Simulator` can run at once, beside any streams, such as a test that records itself while a harness records the whole run. Each is independent:
+
+- **Its own pipeline.** Each `start` connects a framebuffer of its own, registered with the display under a token of its own, and runs its own encoder and file writer. Stopping one unregisters only its token and finalizes only its file; the other keeps receiving every frame. A start still waiting for the display's surface ends when its task is cancelled.
+- **At most two.** Each recording costs an encoder, so a third `start` while two run is refused with an error naming the two files. When a recording starts beside another, the simulator's logger gets one line naming both files, so a slowdown can be traced to it.
+- **One file, one recording.** A writer replaces whatever is at its path when its first frame arrives, so `start` refuses, at once and naming the path, a file that another recording started through `videoRecording` in this process is writing. Two spellings of a path name one file when they reach its directory through symbolic links, `/private`, `.` and `..`, or a relative path, when they differ only in Unicode normalization, and, on a volume that ignores case, only in case. A symbolic link at the file's own name is an entry of its own: a writer replaces the link, not the file it points to.
+
+A recording runs, counts and holds its file until `stop()` returns on the handle `start` returned; a second `stop()` returns once the first has finalized the file. Releasing the handle does not stop it. An audio track added to the stopped file rewrites it after that.
+
 A consumer that drives the pipeline itself, for example to composite its own overlays, connects a framebuffer and builds the stream directly with `SimulatorVideoStream.start(framebuffer:configuration:to:logger:)`.
 
 ## The recorder session

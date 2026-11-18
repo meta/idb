@@ -63,7 +63,8 @@ enum SimulatorVideoError: Error, LocalizedError {
 /// The byte-stream consumer is unused; only the recording file is produced.
 ///
 /// An actor: `hasStopped` guards the single stop and is set before the first suspension, so
-/// concurrent `stop()` calls cannot both finalize.
+/// concurrent `stop()` calls cannot both finalize, and each later call returns only once the file
+/// the first finalizes is done.
 public actor SimulatorVideo {
 
   /// The URL of the recording file.
@@ -76,6 +77,7 @@ public actor SimulatorVideo {
   private let fileWriter: any RecordingFileWriter
   private let logger: any ControlCoreLogger
   private var hasStopped = false
+  private let stopped = AsyncEvent<URL>()
   private var keyFrames: Task<Void, Never>?
 
   /// How often the recording asks the encoder for a keyframe, at half the writer's fragment
@@ -161,6 +163,8 @@ public actor SimulatorVideo {
     guard hasStopped else {
       throw SimulatorVideoError.audioBeforeStop
     }
+    // The file is rewritten only once the stop has finished writing it.
+    _ = try? await stopped.waitIgnoringCancellation()
     let fileType: AVFileType
     switch container {
     case .mp4:
@@ -180,9 +184,12 @@ public actor SimulatorVideo {
 
   public func stop() async throws -> URL {
     if hasStopped {
-      return outputURL
+      // The first stop may still be finalizing the file; a later one returns once it has.
+      return try await stopped.waitIgnoringCancellation()
     }
     hasStopped = true
+    // A later stop returns the file, as one after a failed stop always has, but only once this one is done with it.
+    defer { stopped.happen(outputURL) }
     keyFrames?.cancel()
     keyFrames = nil
     // Stop the framebuffer push and flush the encoder (tearDown's VTCompressionSessionCompleteFrames

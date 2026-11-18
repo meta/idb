@@ -167,7 +167,7 @@ public final class IDBCommandExecutor {
   }
 
   /// Starts recording the target's screen to `filePath`. The returned handle's
-  /// `stop()` finalizes the file. Only one recording runs at a time.
+  /// `stop()` finalizes the file.
   public func replStartRecording(toFile filePath: String) async throws -> any VideoRecording {
     try await target.videoRecording.start(toFile: filePath)
   }
