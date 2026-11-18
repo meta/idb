@@ -174,7 +174,9 @@ extension Subprocess.Output {
       }
       return (HostSink(childDescriptor: descriptors[1], reader: nil, parentDescriptor: descriptors[0]), { Self.captured(descriptors[0]) })
     case .lines(let sink):
-      let consumer = LineConsumer(consumer: sink)
+      // The descriptor reader is the output-drained barrier. A separate delivery
+      // queue would let termination overtake callbacks that are still pending.
+      let consumer = LineConsumer(delivery: .synchronous, consumer: sink)
       return (try Self.drainedSink(into: consumer, logger: nil), { Self.captured(()) })
     case .data:
       let buffer = AccumulatingBuffer()

@@ -61,8 +61,8 @@ struct SubprocessRunTests {
     #expect(try String(contentsOf: newPath, encoding: .utf8) == "1\n2\n3\n")
   }
 
-  @Test("A line sink receives each line")
-  func lineSinkReceivesEachLine() async throws {
+  @Test("A line sink delivers every callback before termination", arguments: [false, true], [false, true])
+  func lineSinkReceivesEachLine(standardError: Bool, trailingNewline: Bool) async throws {
     // SAFETY: `lines` is the only mutable state and every read and write of it
     // goes through `lock`; the line sinks call in from arbitrary queues.
     // patternlint-disable-next-line unchecked-sendable
@@ -73,15 +73,55 @@ struct SubprocessRunTests {
       var snapshot: [String] { lock.withLock { lines } }
     }
     let newLines = Collected()
-
-    _ = try await Self.new("printf 'a\\nb\\nc\\n'").run(output: .lines { newLines.append($0) }, error: .closed)
-
-    // Lines arrive through the asynchronous block consumer, so delivery can
-    // trail termination; poll rather than assert immediately.
-    for _ in 0..<100 where newLines.snapshot.count < 3 {
-      try await Task.sleep(nanoseconds: 10_000_000)
+    let expected = (0..<1024).map(String.init)
+    let padding = String(repeating: " ", count: 128)
+    let payload = expected.map { padding + $0 + padding }.joined(separator: "\n") + (trailingNewline ? "\n" : "")
+    let output = Subprocess.Output<Void>.lines {
+      newLines.append(String($0.split(whereSeparator: \.isWhitespace).first ?? ""))
     }
-    #expect(newLines.snapshot == ["a", "b", "c"])
+
+    _ = try await Self.new(standardError ? "/bin/cat >&2" : "/bin/cat").run(
+      output: standardError ? .closed : output,
+      error: standardError ? output : .closed,
+      input: .data(Data(payload.utf8)))
+
+    // No polling: termination is the barrier for callbacks, including the
+    // final unterminated line flushed at EOF.
+    #expect(newLines.snapshot == expected)
+  }
+
+  @Test("Cancelling a termination waiter leaves line delivery active")
+  func cancelledWaiterDoesNotStopLineDelivery() async throws {
+    let input = InputSource()
+    let entered = AsyncEvent<Void>()
+    let delivered = AsyncEvent<String>()
+
+    try await Self.new("/bin/cat").withRunning(
+      output: .lines { line in
+        if line == "first" {
+          entered.happen()
+        } else {
+          delivered.happen(line)
+        }
+      },
+      error: .closed,
+      input: .source(input)
+    ) { running in
+      defer { input.finish() }
+      let observer = Task { try await running.terminationStatus }
+      input.write(Data("first\n".utf8))
+      try await entered.wait()
+      observer.cancel()
+      do {
+        _ = try await observer.value
+        Issue.record("A cancelled waiter completed normally")
+      } catch is CancellationError {
+      }
+      input.write(Data("after cancellation\n".utf8))
+      input.finish()
+      #expect(try await running.terminationStatus == .exited(0))
+      #expect(try delivered.result?.get() == "after cancellation")
+    }
   }
 
   @Test("An unconfigured run captures both streams as strings")
