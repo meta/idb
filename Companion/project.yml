@@ -23,8 +23,9 @@ settings:
     LD_RUNPATH_SEARCH_PATHS: $(inherited) @executable_path/Resources/Swift
     # FBControlCore is built without library evolution, so even its internal
     # import of ZstdDecompress has to resolve in every module that imports it,
-    # as does FBControlCoreObjC, which it re-exports.
-    SWIFT_INCLUDE_PATHS: $(inherited) $(SRCROOT)/../ZstdDecompress/include $(SRCROOT)/../FBControlCoreObjC/include
+    # as does FBControlCoreObjC, which it re-exports. FBDeviceHID's binary Swift
+    # module also imports the CoreDevice declaration module in PrivateHeaders.
+    SWIFT_INCLUDE_PATHS: $(inherited) $(SRCROOT)/../ZstdDecompress/include $(SRCROOT)/../FBControlCoreObjC/include $(SRCROOT)/../PrivateHeaders
     # The libraries this project links, and the public headers they install, are
     # always built Release. A Debug build here (the test schemes) otherwise looks
     # for both only under its own products directory: importing FBDeviceControl,

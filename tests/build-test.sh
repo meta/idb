@@ -49,6 +49,11 @@ function assert_contains() {
     fi
 }
 
+# Binary Swift modules retain internal imports that C header paths cannot resolve.
+companion_swift_paths=$(awk '/^    SWIFT_INCLUDE_PATHS:/ {$1=""; print; exit}' "$SRC/Companion/project.yml")
+assert_contains "companion importers find private Swift declaration modules" \
+    " $companion_swift_paths " " \$(SRCROOT)/../PrivateHeaders "
+
 # Checked before the trap is installed: an unset WORK would send every mkdir
 # below to an absolute path outside the sandbox and make the cleanup `rm -rf ""`.
 WORK=$(mktemp -d)
@@ -66,8 +71,10 @@ function sed_inplace() {
 
 # <file> <line to match on> <text to insert above it>. `sed i\` is spelled
 # differently by GNU and BSD sed, so insertion goes through awk instead.
+# BSD awk rejects embedded newlines in -v values; the environment preserves them.
 function insert_before() {
-    awk -v needle="$2" -v text="$3" 'index($0, needle) { print text } { print }' "$1" \
+    IDB_TEST_INSERT_TEXT="$3" awk -v needle="$2" \
+        'index($0, needle) { print ENVIRON["IDB_TEST_INSERT_TEXT"] } { print }' "$1" \
         > "$1.edited" && mv "$1.edited" "$1"
 }
 
