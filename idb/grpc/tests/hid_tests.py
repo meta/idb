@@ -8,7 +8,9 @@
 from collections.abc import AsyncIterator
 from unittest.mock import AsyncMock, call, MagicMock
 
-from idb.common.types import HIDEvent
+from grpclib.const import Status
+from grpclib.exceptions import GRPCError
+from idb.common.types import HIDEvent, IdbException
 from idb.grpc.client import Client
 from idb.grpc.hid import (
     event_to_grpc,
@@ -118,6 +120,89 @@ class HidTests(TestCase):
             event_to_grpc(HIDDelay(duration=1)),
             GrpcHIDEvent(delay=GrpcHIDDelay(duration=1)),
         )
+
+    async def test_companion_rejects_unsupported_and_malformed_hid_without_retry(
+        self,
+    ) -> None:
+        cases = [
+            (
+                HIDPress(action=HIDKey(keycode=4), direction=HIDDirection.DOWN),
+                Status.UNIMPLEMENTED,
+            ),
+            (
+                HIDOrientation(orientation=HIDOrientationType.PORTRAIT),
+                Status.UNIMPLEMENTED,
+            ),
+            (
+                HIDPress(
+                    action=HIDButton(button=HIDButtonType.LOCK),
+                    direction=HIDDirection.DOWN,
+                ),
+                Status.UNIMPLEMENTED,
+            ),
+            (HIDShake(), Status.UNIMPLEMENTED),
+            (HIDHinge(angle=90), Status.UNIMPLEMENTED),
+            (
+                HIDPress(
+                    action=HIDTouch(point=Point(x=-1, y=2)), direction=HIDDirection.DOWN
+                ),
+                Status.INVALID_ARGUMENT,
+            ),
+        ]
+        for event, status in cases:
+            with self.subTest(event=event, status=status):
+                stream = AsyncMock()
+                stream.__aenter__.return_value = stream
+                stream.__aexit__.return_value = None
+                error = GRPCError(status, "companion HID rejection")
+                stream.recv_message.side_effect = error
+                client = Client.__new__(Client)
+                client.logger = MagicMock()
+                client.stub = MagicMock()
+                client.stub.hid.open.return_value = stream
+
+                with self.assertRaisesRegex(
+                    IdbException, "companion HID rejection"
+                ) as raised:
+                    await client.send_events([event])
+
+                self.assertIs(raised.exception.__cause__, error)
+                client.stub.hid.open.assert_called_once_with()
+                stream.send_message.assert_awaited_once_with(event_to_grpc(event))
+                stream.end.assert_awaited_once_with()
+                stream.recv_message.assert_awaited_once_with()
+
+    async def test_hid_send_failure_after_a_prefix_is_not_replayed(self) -> None:
+        for status in (
+            Status.INVALID_ARGUMENT,
+            Status.UNIMPLEMENTED,
+            Status.UNAVAILABLE,
+        ):
+            with self.subTest(status=status):
+                stream = AsyncMock()
+                stream.__aenter__.return_value = stream
+                stream.__aexit__.return_value = None
+                error = GRPCError(status, "failed after down")
+                stream.send_message.side_effect = [None, error]
+                client = Client.__new__(Client)
+                client.logger = MagicMock()
+                client.stub = MagicMock()
+                client.stub.hid.open.return_value = stream
+
+                with self.assertRaisesRegex(
+                    IdbException, "failed after down"
+                ) as raised:
+                    await client.tap(1, 2)
+
+                self.assertIs(raised.exception.__cause__, error)
+                client.stub.hid.open.assert_called_once_with()
+                self.assertEqual(stream.send_message.await_count, 2)
+                self.assertEqual(
+                    stream.send_message.await_args_list[0].args[0].press.direction,
+                    GrpcHIDEvent.DOWN,
+                )
+                stream.end.assert_not_awaited()
+                stream.recv_message.assert_not_awaited()
 
     async def test_all_event_variants_stream_in_order_and_half_close(
         self,
