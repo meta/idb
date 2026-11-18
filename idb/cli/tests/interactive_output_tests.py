@@ -13,7 +13,7 @@ import sys
 import tempfile
 from argparse import Namespace
 from collections.abc import AsyncIterator, Callable, Iterator
-from contextlib import redirect_stderr, redirect_stdout
+from contextlib import nullcontext, redirect_stderr, redirect_stdout
 from pathlib import Path
 from types import SimpleNamespace
 from typing import cast
@@ -138,6 +138,37 @@ class _DiscoveryClient:
             uuid="installed-uuid",
             progress=0.0,
         )
+
+
+class _ObservedLogClient:
+    """Streams two log chunks until stopped, recording what reached the file after each."""
+
+    def __init__(
+        self, written: io.BytesIO, cancel_error: Exception | None = None
+    ) -> None:
+        self.written = written
+        # Raised when the stream is stopped, as a cancel on a lost connection does.
+        self.cancel_error = cancel_error
+        self.seen: list[bytes] = []
+        self.yielded: list[str] = []
+
+    async def _chunks(self, stop: asyncio.Event) -> AsyncIterator[str]:
+        for chunk in ("first\n", "partial"):
+            if stop.is_set():
+                if self.cancel_error is not None:
+                    raise self.cancel_error
+                return
+            self.yielded.append(chunk)
+            yield chunk
+            self.seen.append(self.written.getvalue())
+
+    def tail_logs(
+        self, stop: asyncio.Event, arguments: list[str] | None = None
+    ) -> AsyncIterator[str]:
+        return self._chunks(stop)
+
+    def tail_companion_logs(self, stop: asyncio.Event) -> AsyncIterator[str]:
+        return self._chunks(stop)
 
 
 class _ResultClient:
@@ -623,3 +654,53 @@ class InteractiveOutputTests(TestCase):
                 "    └── Attachment: Screenshot\n\n"
             ).encode(),
         )
+
+    async def test_log_writes_each_chunk_through_a_buffered_stdout(self) -> None:
+        for argv in (["log"], ["companion", "log"]):
+            with self.subTest(argv=argv):
+                written = io.BytesIO()
+                # Block-buffered, as standard output is when it is a file or a pipe.
+                stdout = io.TextIOWrapper(io.BufferedWriter(written), encoding="utf-8")
+                client = _ObservedLogClient(written)
+                args, command = self._resolve(argv)
+                with (
+                    patch(
+                        "idb.cli.commands.log.signal_handler_event",
+                        return_value=asyncio.Event(),
+                    ),
+                    redirect_stdout(stdout),
+                ):
+                    await command.run_with_client(args, cast(Client, client))
+
+                self.assertEqual(client.seen, [b"first\n", b"first\npartial"])
+
+    async def test_log_ends_quietly_when_the_reader_of_stdout_exits(self) -> None:
+        for argv in (["log"], ["companion", "log"]):
+            for cancel_error in (None, IdbException("the companion went away")):
+                with self.subTest(argv=argv, cancel_error=cancel_error):
+                    read_end, write_end = os.pipe()
+                    os.close(read_end)
+                    # A pipe whose reader has exited, as `| head` leaves it.
+                    stdout = open(write_end, "w", encoding="utf-8")
+                    self.addCleanup(stdout.close)
+                    client = _ObservedLogClient(io.BytesIO(), cancel_error)
+                    stop = asyncio.Event()
+                    args, command = self._resolve(argv)
+                    with (
+                        patch(
+                            "idb.cli.commands.log.signal_handler_event",
+                            return_value=stop,
+                        ),
+                        redirect_stdout(stdout),
+                        nullcontext()
+                        if cancel_error is None
+                        else self.assertRaises(IdbException),
+                    ):
+                        await command.run_with_client(args, cast(Client, client))
+
+                    self.assertTrue(stop.is_set())
+                    self.assertEqual(client.yielded, ["first\n"])
+                    # Standard output now leads to /dev/null, so the flush at exit
+                    # of what is still buffered succeeds, even after a failed cancel.
+                    stdout.write("after")
+                    stdout.flush()
