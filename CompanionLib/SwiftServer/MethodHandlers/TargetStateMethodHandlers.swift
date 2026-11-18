@@ -6,6 +6,8 @@
  */
 
 import FBControlCore
+import FBDeviceControl
+import FBDeviceHID
 import FBSimulatorControl
 import Foundation
 import GRPCCore
@@ -67,12 +69,43 @@ struct OrientationMethodHandler {
   let target: CompanionTarget
 
   func get() async throws -> Idb_GetOrientationResponse {
-    Self.response(try await target.simulator().orientation.current())
+    if let device = target as? Device {
+      return Self.response(try await device.orientation.current())
+    }
+    return Self.response(try await target.simulator().orientation.current())
   }
 
   func set(request: Idb_SetOrientationRequest) async throws -> Idb_SetOrientationResponse {
-    try await target.simulator().orientation.set(Self.orientation(request.orientation), convention: .device)
+    if let device = target as? Device {
+      try await device.orientation.set(Self.physicalOrientation(request.orientation))
+    } else {
+      try await target.simulator().orientation.set(Self.orientation(request.orientation), convention: .device)
+    }
     return .init()
+  }
+
+  static func physicalOrientation(_ value: Idb_HIDEvent.HIDOrientationType) throws -> DeviceOrientation {
+    switch value {
+    case .portrait: .portrait
+    case .portraitUpsideDown: .portraitUpsideDown
+    case .landscapeLeft: .landscapeLeft
+    case .landscapeRight: .landscapeRight
+    case .UNRECOGNIZED: throw RPCError(code: .invalidArgument, message: "Unrecognized orientation type")
+    }
+  }
+
+  static func response(_ orientation: DeviceOrientation) -> Idb_GetOrientationResponse {
+    .with {
+      switch orientation {
+      case .unknown: $0.orientation = .unknown
+      case .portrait: $0.orientation = .portrait
+      case .portraitUpsideDown: $0.orientation = .portraitUpsideDown
+      case .landscapeLeft: $0.orientation = .landscapeLeft
+      case .landscapeRight: $0.orientation = .landscapeRight
+      case .faceUp: $0.orientation = .faceUp
+      case .faceDown: $0.orientation = .faceDown
+      }
+    }
   }
 
   static func response(_ orientation: SimulatorDeviceOrientation) -> Idb_GetOrientationResponse {

@@ -210,13 +210,17 @@ final class CompanionServiceProvider: Idb_CompanionService.SimpleServiceProtocol
 
   func get_orientation(request: Idb_GetOrientationRequest, context: ServerContext) async throws -> Idb_GetOrientationResponse {
     try await trackedUnaryCall(context, request: request) {
-      try await OrientationMethodHandler(target: target).get()
+      try await withRPCCancellation(context.cancellation) {
+        try await OrientationMethodHandler(target: self.target).get()
+      }
     }
   }
 
   func set_orientation(request: Idb_SetOrientationRequest, context: ServerContext) async throws -> Idb_SetOrientationResponse {
     try await trackedUnaryCall(context, request: request) {
-      try await OrientationMethodHandler(target: target).set(request: request)
+      try await withRPCCancellation(context.cancellation) {
+        try await OrientationMethodHandler(target: self.target).set(request: request)
+      }
     }
   }
 
