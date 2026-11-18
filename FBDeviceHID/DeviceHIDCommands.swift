@@ -17,6 +17,7 @@ public final class DeviceHIDCommands: Sendable {
     var operation: DeviceHIDOperation?
     var cancelled = false
     var uncertain = false
+    var orientationSetAdmitted = false
 
     func checkAdmission(_ id: UUID) throws {
       guard !uncertain else { throw DeviceHIDError.uncertainState }
@@ -31,6 +32,7 @@ public final class DeviceHIDCommands: Sendable {
   private let prepareTouch: @Sendable (String, DeviceHIDTouchSequence) async throws -> DeviceHIDPreparedTouch
   private let prepareButton: @Sendable (String, DeviceHIDButton, TimeInterval?) async throws -> DeviceHIDPreparedButton
   private let makeButtonTransport: @Sendable (UUID) -> DeviceHIDTransport
+  private let orientationTool: DeviceOrientationTool
 
   init(
     device: Device,
@@ -41,7 +43,8 @@ public final class DeviceHIDCommands: Sendable {
     makeTransport: @escaping @Sendable (UUID) -> DeviceHIDTransport = { DeviceHIDTransport(deviceIdentifier: $0) },
     prepareTouch: @escaping @Sendable (String, DeviceHIDTouchSequence) async throws -> DeviceHIDPreparedTouch = { try await DeviceHIDPreparation.prepare(udid: $0, sequence: $1) },
     prepareButton: @escaping @Sendable (String, DeviceHIDButton, TimeInterval?) async throws -> DeviceHIDPreparedButton = { try await DeviceHIDPreparation.prepare(udid: $0, button: $1, duration: $2) },
-    makeButtonTransport: @escaping @Sendable (UUID) -> DeviceHIDTransport = { DeviceHIDTransport(deviceIdentifier: $0, kind: .button) }
+    makeButtonTransport: @escaping @Sendable (UUID) -> DeviceHIDTransport = { DeviceHIDTransport(deviceIdentifier: $0, kind: .button) },
+    orientationTool: DeviceOrientationTool = DeviceOrientationTool()
   ) {
     state = Atomic(wrappedValue: State(device: device))
     self.prepare = prepare
@@ -50,6 +53,7 @@ public final class DeviceHIDCommands: Sendable {
     self.prepareTouch = prepareTouch
     self.prepareButton = prepareButton
     self.makeButtonTransport = makeButtonTransport
+    self.orientationTool = orientationTool
   }
 
   /// Coordinates are display points. A nil or zero duration adds no intentional hold.
@@ -76,30 +80,75 @@ public final class DeviceHIDCommands: Sendable {
     try await perform { udid in .button(try await self.prepareButton(udid, button, duration)) }
   }
 
-  private func perform(_ prepare: @Sendable (String) async throws -> DeviceHIDPreparedInput) async throws {
-    let id = UUID()
-    let udid: String = try {
-      let device = try state.sync { state -> Device in
-        guard !state.uncertain else { throw DeviceHIDError.uncertainState }
-        guard state.operationID == nil else { throw DeviceHIDError.busy }
-        guard let device = state.device else { throw DeviceHIDError.deviceUnavailable }
-        state.operationID = id
-        state.cancelled = false
-        return device
+  func orientation(_ setting: DeviceOrientation?) async throws -> DeviceOrientation {
+    let (id, udid) = try admit()
+    defer { retire(id) }
+    return try await withTaskCancellationHandler {
+      do {
+        try Task.checkCancellation()
+        let result = try await orientationTool.perform(udid: udid, setting: setting) {
+          try Task.checkCancellation()
+          try self.state.sync { state in
+            try state.checkAdmission(id)
+            state.orientationSetAdmitted = true
+          }
+        }
+        try Task.checkCancellation()
+        try state.sync { try $0.checkAdmission(id) }
+        return result
+      } catch {
+        let uncertain = state.sync { state in
+          guard state.operationID == id, state.orientationSetAdmitted else { return false }
+          state.uncertain = true
+          return true
+        }
+        if uncertain { throw DeviceHIDError.orientationMayHaveApplied(error.localizedDescription) }
+        throw error
       }
-      return device.udid
-    }()
-    defer {
-      let retired = state.sync { state -> DeviceHIDOperation? in
-        guard state.operationID == id else { return nil }
-        let retired = state.operation
-        state.operation = nil
-        state.operationID = nil
-        state.cancelled = false
-        return retired
-      }
-      withExtendedLifetime(retired) {}
+    } onCancel: {
+      self.cancel(id)
     }
+  }
+
+  private func admit() throws -> (UUID, String) {
+    let id = UUID()
+    let device = try state.sync { state -> Device in
+      guard !state.uncertain else { throw DeviceHIDError.uncertainState }
+      guard state.operationID == nil else { throw DeviceHIDError.busy }
+      guard let device = state.device else { throw DeviceHIDError.deviceUnavailable }
+      state.operationID = id
+      state.cancelled = false
+      state.orientationSetAdmitted = false
+      return device
+    }
+    return (id, device.udid)
+  }
+
+  private func retire(_ id: UUID) {
+    let retired = state.sync { state -> DeviceHIDOperation? in
+      guard state.operationID == id else { return nil }
+      let retired = state.operation
+      state.operation = nil
+      state.operationID = nil
+      state.cancelled = false
+      state.orientationSetAdmitted = false
+      return retired
+    }
+    withExtendedLifetime(retired) {}
+  }
+
+  private func cancel(_ id: UUID) {
+    let operation = state.sync { state -> DeviceHIDOperation? in
+      guard state.operationID == id else { return nil }
+      state.cancelled = true
+      return state.operation
+    }
+    operation?.cancel()
+  }
+
+  private func perform(_ prepare: @Sendable (String) async throws -> DeviceHIDPreparedInput) async throws {
+    let (id, udid) = try admit()
+    defer { retire(id) }
     try await withTaskCancellationHandler {
       try Task.checkCancellation()
       let prepared = try await prepare(udid)
@@ -132,12 +181,7 @@ public final class DeviceHIDCommands: Sendable {
       let outcome = await operation.run()
       if let error = outcome.error { throw error }
     } onCancel: {
-      let operation = self.state.sync { state -> DeviceHIDOperation? in
-        guard state.operationID == id else { return nil }
-        state.cancelled = true
-        return state.operation
-      }
-      operation?.cancel()
+      self.cancel(id)
     }
   }
 }

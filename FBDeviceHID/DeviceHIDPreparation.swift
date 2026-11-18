@@ -51,6 +51,14 @@ enum DeviceHIDPreparation {
     return DeviceHIDPreparedButton(deviceIdentifier: identifier, button: button, duration: duration)
   }
 
+  static func prepareIdentity(udid: String, on launcher: any SubprocessLauncher, queryTimeout: TimeInterval, temporaryRoot: URL) async throws -> UUID {
+    let snapshot = try await snapshot(udid: udid, on: launcher, queryTimeout: queryTimeout, temporaryRoot: temporaryRoot, includeDisplays: false)
+    let details = try JSONDecoder().decode(Details.self, from: snapshot.details)
+    let identifier = try validate(details: details, udid: udid)
+    try Task.checkCancellation()
+    return identifier
+  }
+
   private struct Snapshot {
     let details: Data
     let displays: Data?
@@ -101,7 +109,7 @@ enum DeviceHIDPreparation {
     return try await readMetadata(path)
   }
 
-  private static func run(_ command: Subprocess, named name: String, on launcher: any SubprocessLauncher, timeout: TimeInterval) async throws {
+  static func run(_ command: Subprocess, named name: String, on launcher: any SubprocessLauncher, timeout: TimeInterval) async throws {
     let logger = ControlCoreGlobalConfiguration.defaultLogger
     let stderr = AccumulatingBuffer(capacity: Subprocess.errorMessageLength)
     let consumer = CompositeDataConsumer(consumers: [stderr, LoggingDataConsumer(logger: logger)])
@@ -117,7 +125,7 @@ enum DeviceHIDPreparation {
     }
   }
 
-  private static func readMetadata(_ path: URL) async throws -> Data {
+  static func readMetadata(_ path: URL) async throws -> Data {
     try await fileIO {
       let handle = try FileHandle(forReadingFrom: path)
       var data = Data()
@@ -143,7 +151,7 @@ enum DeviceHIDPreparation {
     }
   }
 
-  private static func fileIO<T: Sendable>(_ operation: @escaping @Sendable () throws -> T) async throws -> T {
+  static func fileIO<T: Sendable>(_ operation: @escaping @Sendable () throws -> T) async throws -> T {
     try await withCheckedThrowingContinuation { continuation in
       Thread.detachNewThread {
         do {

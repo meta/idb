@@ -19,6 +19,8 @@ public enum DeviceHIDError: Error, LocalizedError, Sendable {
   case unexpectedCompletion
   case nativeFailure(operation: String, domain: String, code: Int, message: String)
   case cleanupFailed(cause: any Error, failures: [any Error])
+  case orientationLocked
+  case orientationMayHaveApplied(String)
 
   public var errorDescription: String? {
     switch self {
@@ -44,6 +46,10 @@ public enum DeviceHIDError: Error, LocalizedError, Sendable {
       return "Physical input \(operation) failed: \(message) [\(domain) (\(code))]"
     case .cleanupFailed(let cause, let failures):
       return "\(cause.localizedDescription); cleanup also failed: \(failures.map { $0.localizedDescription }.joined(separator: "; "))"
+    case .orientationLocked:
+      return "Physical device orientation is locked; no orientation change was requested"
+    case .orientationMayHaveApplied(let message):
+      return "Physical orientation may have changed; further input is refused: \(message)"
     }
   }
 

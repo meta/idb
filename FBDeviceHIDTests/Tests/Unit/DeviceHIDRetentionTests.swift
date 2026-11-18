@@ -18,7 +18,7 @@ import Testing
 @Suite("Physical HID command retention and admission", .serialized)
 struct DeviceHIDRetentionTests {
   /// The native reference must remain nil: no MobileDevice call-table entry is populated.
-  private nonisolated static func makeInertDevice() -> Device {
+  nonisolated static func makeInertDevice() -> Device {
     let logger = ControlCoreGlobalConfiguration.defaultLogger
     let mobile = MobileDevice(
       allValues: ["UniqueDeviceID": "inert-hid-retention"],
