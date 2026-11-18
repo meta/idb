@@ -9,9 +9,11 @@ from __future__ import annotations
 
 import json
 import shutil
+import subprocess
 import tempfile
 import unittest
 from collections.abc import Sequence
+from copy import deepcopy
 from pathlib import Path
 from unittest import mock
 
@@ -99,6 +101,11 @@ class LibraryPackageTest(unittest.TestCase):
         patches = (
             mock.patch.object(library_package, "SOURCE_ROOT", source),
             mock.patch.object(library_package, "MANIFEST", manifest),
+            mock.patch.object(
+                library_package.subprocess,
+                "run",
+                side_effect=AssertionError("unexpected external tool"),
+            ),
         )
         for patch in patches:
             patch.start()
@@ -216,6 +223,256 @@ class LibraryPackageTest(unittest.TestCase):
             f"-Wl,-reexport_library,{self.root / 'Source/PrivateHeaders/Private/Private.tbd'}",
             dylib,
         )
+
+    def _declare_optional_runtime(self) -> Path:
+        manifest = deepcopy(MANIFEST)
+        manifest["libraries"]["Swifty"].update(
+            linker_flags=["-weak_library", "PrivateHeaders/Private/Private.tbd"],
+            weak_stub_frameworks=["Private"],
+        )
+        (self.root / "Source" / "LibraryPackage.json").write_text(json.dumps(manifest))
+        tbd = self.root / "Source" / "PrivateHeaders" / "Private" / "Private.tbd"
+        tbd.write_text("SDK-parsed TBD fixture")
+        return tbd
+
+    def _nm_output(
+        self, command: Sequence[str], **kwargs: object
+    ) -> subprocess.CompletedProcess[str]:
+        self.assertEqual(kwargs, {"check": True, "capture_output": True, "text": True})
+        if "--export-symbols" in command:
+            self.assertEqual(
+                list(command[:-1]),
+                [
+                    "xcrun",
+                    "nm",
+                    "--export-symbols",
+                    "--add-inlinedinfo",
+                    "--arch=arm64",
+                ],
+            )
+            output = "_optional_getter\n_optional_metadata\n_utility_value\n"
+        else:
+            self.assertEqual(
+                list(command[:-1]),
+                [
+                    "xcrun",
+                    "nm",
+                    "--undefined-only",
+                    "--no-weak",
+                    "--format=just-symbols",
+                    "--arch=arm64",
+                ],
+            )
+            output = "Module.o:\n_unrelated_strong_reference\n"
+        return subprocess.CompletedProcess(command, 0, stdout=output, stderr="")
+
+    def test_optional_runtime_uses_sdk_exports_and_preserves_the_product(self) -> None:
+        tbd = self._declare_optional_runtime()
+        commands: list[list[str]] = []
+
+        def record(command: Sequence[str]) -> None:
+            commands.append(list(command))
+            self.xcodebuild(command)
+
+        with mock.patch.object(
+            library_package.subprocess, "run", side_effect=self._nm_output
+        ) as nm:
+            library_package.assemble(self.build, self.output, record)
+        self.assertEqual(
+            [Path(call.args[0][-1]).name for call in nm.call_args_list],
+            ["Private.tbd", "libCish.a", "libSwifty.a"],
+        )
+        dylib = next(command for command in commands if "-dynamiclib" in command)
+        flags = dylib[dylib.index("-Xlinker") : -3]
+        symbol_list = Path(flags[-1])
+        self.assertEqual(
+            flags,
+            [
+                "-Xlinker",
+                "-weak_library",
+                "-Xlinker",
+                str(tbd),
+                "-Xlinker",
+                "-reexported_symbols_list",
+                "-Xlinker",
+                str(symbol_list),
+            ],
+        )
+        self.assertEqual(
+            symbol_list.read_text(),
+            "_optional_getter\n_optional_metadata\n_utility_value\n",
+        )
+        self.assertFalse(any("-reexport_library" in flag for flag in dylib))
+        package = (self.output / "Package.swift").read_text()
+        self.assertIn(
+            '.library(name: "Swifty", targets: ["PrivateStub", "IDBPrivateHeaders", "Swifty", "Cish"]),',
+            package,
+        )
+        self.assertIn('.library(name: "Cish", targets: ["Cish"]),', package)
+        self.assertNotIn("unsafeFlags", package)
+
+    def _declare_shared_optional_runtimes(self) -> None:
+        self._declare_optional_runtime()
+        manifest_path = self.root / "Source/LibraryPackage.json"
+        manifest = json.loads(manifest_path.read_text())
+        libraries = manifest["libraries"]
+        for entry in libraries.values():
+            entry["linker_flags"] = [
+                "PrivateHeaders/Private/Private.tbd",
+                "PrivateHeaders/Second/Second.tbd",
+            ]
+        libraries["Cish"]["weak_stub_frameworks"] = ["Second"]
+        libraries["Swifty"]["archives"].append("libSwifty.a")
+        manifest_path.write_text(json.dumps(manifest))
+        second = self.root / "Source/PrivateHeaders/Second"
+        second.mkdir()
+        (second / "Second.tbd").write_text("SDK-parsed TBD fixture")
+
+    def test_shared_archives_are_checked_once_across_optional_runtimes(self) -> None:
+        self._declare_shared_optional_runtimes()
+        with mock.patch.object(
+            library_package.subprocess, "run", side_effect=self._nm_output
+        ) as nm:
+            self._assemble()
+        self.assertEqual(
+            [Path(call.args[0][-1]).name for call in nm.call_args_list],
+            ["Private.tbd", "libCish.a", "libSwifty.a", "Second.tbd"],
+        )
+
+    def test_cached_archive_references_are_checked_against_each_runtime(self) -> None:
+        self._declare_shared_optional_runtimes()
+
+        def nm_output(
+            command: Sequence[str], **kwargs: object
+        ) -> subprocess.CompletedProcess[str]:
+            result = self._nm_output(command, **kwargs)
+            if Path(command[-1]).name in ("Second.tbd", "libCish.a"):
+                result.stdout = "_second_only\n"
+            return result
+
+        with mock.patch.object(
+            library_package.subprocess, "run", side_effect=nm_output
+        ) as nm:
+            with self.assertRaisesRegex(
+                library_package.PackageError, "libCish.a.*Second: _second_only"
+            ):
+                self._assemble()
+        self.assertEqual(
+            [Path(call.args[0][-1]).name for call in nm.call_args_list].count(
+                "libCish.a"
+            ),
+            1,
+        )
+        self.assertFalse(self.output.exists())
+
+    def test_archive_nm_failure_retains_its_path_and_diagnostic(self) -> None:
+        self._declare_optional_runtime()
+
+        def nm_output(
+            command: Sequence[str], **kwargs: object
+        ) -> subprocess.CompletedProcess[str]:
+            if Path(command[-1]).suffix == ".a":
+                raise subprocess.CalledProcessError(
+                    1, command, stderr="invalid archive fixture"
+                )
+            return self._nm_output(command, **kwargs)
+
+        with mock.patch.object(
+            library_package.subprocess, "run", side_effect=nm_output
+        ):
+            with self.assertRaisesRegex(
+                library_package.PackageError, "libCish.a.*invalid archive fixture"
+            ):
+                self._assemble()
+        self.assertFalse(self.output.exists())
+
+    def test_strong_optional_references_in_any_archive_preserve_previous_output(
+        self,
+    ) -> None:
+        self._declare_optional_runtime()
+        self.output.mkdir()
+        sentinel = self.output / "previous"
+        sentinel.write_text("keep")
+        for archive in ("libSwifty.a", "libCish.a"):
+            with self.subTest(archive=archive):
+
+                def nm_output(
+                    command: Sequence[str],
+                    archive_name: str = archive,
+                    **kwargs: object,
+                ) -> subprocess.CompletedProcess[str]:
+                    result = self._nm_output(command, **kwargs)
+                    if Path(command[-1]).name == archive_name:
+                        result.stdout = "Module.o:\n_optional_metadata\n"
+                    return result
+
+                with mock.patch.object(
+                    library_package.subprocess, "run", side_effect=nm_output
+                ):
+                    with self.assertRaisesRegex(
+                        library_package.PackageError,
+                        f"{archive}.*strong undefined references.*_optional_metadata",
+                    ):
+                        self._assemble()
+                self.assertEqual(sentinel.read_text(), "keep")
+                self.assertEqual(self.xcodebuild.commands, [])
+
+    def test_optional_runtime_rejects_empty_sdk_exports(self) -> None:
+        self._declare_optional_runtime()
+        with mock.patch.object(
+            library_package.subprocess,
+            "run",
+            return_value=subprocess.CompletedProcess([], 0, stdout="", stderr=""),
+        ):
+            with self.assertRaisesRegex(
+                library_package.PackageError, "no exports.*Private.tbd"
+            ):
+                self._assemble()
+        self.assertFalse(self.output.exists())
+
+    def test_optional_runtime_rejects_malformed_sdk_exports(self) -> None:
+        self._declare_optional_runtime()
+        self.output.mkdir()
+        sentinel = self.output / "previous"
+        sentinel.write_text("keep")
+        for line in ("Private.tbd:", "00000000 T _optional_getter", "# comment"):
+            with self.subTest(line=line):
+                with mock.patch.object(
+                    library_package.subprocess,
+                    "run",
+                    return_value=subprocess.CompletedProcess(
+                        [], 0, stdout=f"_optional_getter\n{line}\n", stderr=""
+                    ),
+                ):
+                    with self.assertRaisesRegex(
+                        library_package.PackageError, "invalid exports.*Private.tbd"
+                    ):
+                        self._assemble()
+                self.assertEqual(sentinel.read_text(), "keep")
+                self.assertEqual(self.xcodebuild.commands, [])
+
+    def test_optional_runtime_reports_sdk_failure_before_packaging(self) -> None:
+        self._declare_optional_runtime()
+        with mock.patch.object(
+            library_package.subprocess,
+            "run",
+            side_effect=subprocess.CalledProcessError(
+                1, ["xcrun", "nm"], stderr="invalid SDK input"
+            ),
+        ):
+            with self.assertRaisesRegex(
+                library_package.PackageError, "Private.tbd.*invalid SDK input"
+            ):
+                self._assemble()
+        self.assertFalse(self.output.exists())
+
+    def test_optional_runtime_metadata_requires_a_linker_input(self) -> None:
+        manifest = deepcopy(MANIFEST)
+        manifest["libraries"]["Swifty"]["weak_stub_frameworks"] = ["Private"]
+        (self.root / "Source" / "LibraryPackage.json").write_text(json.dumps(manifest))
+        with self.assertRaisesRegex(library_package.PackageError, "no linker input"):
+            self._assemble()
+        self.assertFalse(self.output.exists())
 
     def test_a_missing_product_names_the_build_that_makes_it(self) -> None:
         (self.build / "Products" / "Release" / "libCish.a").unlink()

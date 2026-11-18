@@ -35,6 +35,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import shutil
 import subprocess
 from collections.abc import Callable, Sequence
@@ -191,18 +192,101 @@ def _all_stub_frameworks(libraries: dict[str, dict[str, list[str]]]) -> list[str
     )
 
 
-def _stub_xcframework(name: str, output: Path, scratch: Path, run: Runner) -> None:
-    """A private framework's stand-in: a framework whose library re-exports the real one.
+def _nm_symbols(path: Path, options: Sequence[str]) -> set[str]:
+    command = ["xcrun", "nm", *options, "--arch=" + TARGET.split("-", 1)[0], str(path)]
+    try:
+        result = subprocess.run(command, check=True, capture_output=True, text=True)
+    except subprocess.CalledProcessError as error:
+        raise PackageError(
+            f"nm failed for {path} ({error.returncode}): {error.stderr}"
+        ) from error
+    except OSError as error:
+        raise PackageError(f"could not run nm for {path}: {error}") from error
+    return {line.strip() for line in result.stdout.splitlines() if line.strip()}
 
-    A consumer links it like any dynamic binary target, with no linker flags, and an app
-    embeds and signs it; at runtime it loads the private framework from the path the TBD
-    stub records. The framework has the versioned layout macOS bundles need.
+
+def _weak_stub_exports(
+    libraries: dict[str, dict[str, list[str]]], products: Path
+) -> dict[str, set[str]]:
+    """An optional runtime requires weak references in every consuming archive."""
+    weak_stubs: set[str] = set()
+    for name, entry in libraries.items():
+        declared = set(entry.get("weak_stub_frameworks", []))
+        missing = declared - set(_stub_frameworks(entry))
+        if missing:
+            raise PackageError(
+                f"{name}: optional stubs have no linker input: {sorted(missing)}"
+            )
+        weak_stubs.update(declared)
+    exports: dict[str, set[str]] = {}
+    strong_references: dict[Path, set[str]] = {}
+    for stub in sorted(weak_stubs):
+        tbd = SOURCE_ROOT / "PrivateHeaders" / stub / f"{stub}.tbd"
+        symbols = _nm_symbols(tbd, ["--export-symbols", "--add-inlinedinfo"])
+        if not symbols:
+            raise PackageError(f"nm returned no exports for optional runtime {tbd}")
+        invalid = sorted(
+            symbol
+            for symbol in symbols
+            if not re.fullmatch(r"_[A-Za-z0-9_$.]+", symbol)
+        )
+        if invalid:
+            raise PackageError(f"nm returned invalid exports for {tbd}: {invalid}")
+        exports[stub] = symbols
+        archives = sorted(
+            {
+                _find_product(products, name)
+                for entry in libraries.values()
+                if stub in _stub_frameworks(entry)
+                for name in entry["archives"]
+            }
+        )
+        for archive in archives:
+            if archive not in strong_references:
+                strong_references[archive] = _nm_symbols(
+                    archive,
+                    ["--undefined-only", "--no-weak", "--format=just-symbols"],
+                )
+            strong = symbols & strong_references[archive]
+            if strong:
+                raise PackageError(
+                    f"{archive} has strong undefined references to optional runtime "
+                    f"{stub}: {', '.join(sorted(strong))}; compile its imports as weak"
+                )
+    return exports
+
+
+def _stub_xcframework(
+    name: str,
+    output: Path,
+    scratch: Path,
+    run: Runner,
+    weak_symbols: set[str] | None = None,
+) -> None:
+    """A private framework's stand-in, preserving optional-runtime linkage.
+
+    SwiftPM links the binary target without unsafe flags. Optional runtimes export
+    only the TBD's symbols over a weak dependency; legacy stubs re-export the dylib.
     """
     stub = f"{name}Stub"
     framework = scratch / f"{stub}.framework"
     version = framework / "Versions" / "A"
     (version / "Resources").mkdir(parents=True)
     tbd = SOURCE_ROOT / "PrivateHeaders" / name / f"{name}.tbd"
+    link_flags = [f"-Wl,-reexport_library,{tbd}"]
+    if weak_symbols is not None:
+        symbol_list = scratch / "reexports.txt"
+        symbol_list.write_text("\n".join(sorted(weak_symbols)) + "\n")
+        link_flags = [
+            "-Xlinker",
+            "-weak_library",
+            "-Xlinker",
+            str(tbd),
+            "-Xlinker",
+            "-reexported_symbols_list",
+            "-Xlinker",
+            str(symbol_list),
+        ]
     run(
         [
             "xcrun",
@@ -214,7 +298,7 @@ def _stub_xcframework(name: str, output: Path, scratch: Path, run: Runner) -> No
             TARGET,
             "-install_name",
             f"@rpath/{stub}.framework/Versions/A/{stub}",
-            f"-Wl,-reexport_library,{tbd}",
+            *link_flags,
             str(_empty_object(scratch, run)),
             "-o",
             str(version / stub),
@@ -303,6 +387,7 @@ def assemble(
     manifest = json.loads(MANIFEST.read_text())
     libraries: dict[str, dict[str, list[str]]] = manifest["libraries"]
     products = build_directory / "Products"
+    weak_exports = _weak_stub_exports(libraries, products)
     if output.exists():
         shutil.rmtree(output)
     output.mkdir(parents=True)
@@ -327,7 +412,7 @@ def assemble(
     _private_headers_xcframework(output, scratch / PRIVATE_HEADERS_TARGET, run)
     for stub in _all_stub_frameworks(libraries):
         (scratch / stub).mkdir()
-        _stub_xcframework(stub, output, scratch / stub, run)
+        _stub_xcframework(stub, output, scratch / stub, run, weak_exports.get(stub))
     (output / "Package.swift").write_text(_package_manifest(libraries))
     return manifest
 
