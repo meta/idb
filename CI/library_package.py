@@ -383,7 +383,7 @@ def _package_manifest(libraries: dict[str, dict[str, list[str]]]) -> str:
 
 def assemble(
     build_directory: Path, output: Path, run: Runner = _run
-) -> dict[str, object]:
+) -> dict[str, dict[str, dict[str, list[str]]]]:
     manifest = json.loads(MANIFEST.read_text())
     libraries: dict[str, dict[str, list[str]]] = manifest["libraries"]
     products = build_directory / "Products"
