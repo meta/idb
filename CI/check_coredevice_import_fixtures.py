@@ -11,7 +11,7 @@ import argparse
 import json
 from pathlib import Path
 
-from check_coredevice_imports import check_imports, ImportCheckError
+from .check_coredevice_imports import check_imports, ImportCheckError
 
 
 def main() -> None:

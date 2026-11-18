@@ -11,7 +11,8 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from check_coredevice_imports import check_imports, ImportCheckError
+from . import check_coredevice_imports
+from .check_coredevice_imports import check_imports, ImportCheckError
 
 
 class CoreDeviceWeakImportsTests(unittest.TestCase):
@@ -28,8 +29,8 @@ class CoreDeviceWeakImportsTests(unittest.TestCase):
             subprocess.CompletedProcess([], 0, exports, ""),
             subprocess.CompletedProcess([], 0, strong, ""),
         ]
-        with patch(
-            "check_coredevice_imports.subprocess.run", side_effect=results
+        with patch.object(
+            check_coredevice_imports.subprocess, "run", side_effect=results
         ) as run:
             result = check_imports(["nm"], "arm64", self.stub, [self.archive])
         self.assertIn("--add-inlinedinfo", run.call_args_list[0].args[0])
@@ -75,6 +76,8 @@ class CoreDeviceWeakImportsTests(unittest.TestCase):
 
     def test_nm_failure_is_not_success(self) -> None:
         error = subprocess.CalledProcessError(1, ["nm"], stderr="malformed archive")
-        with patch("check_coredevice_imports.subprocess.run", side_effect=error):
+        with patch.object(
+            check_coredevice_imports.subprocess, "run", side_effect=error
+        ):
             with self.assertRaisesRegex(ImportCheckError, "malformed archive"):
                 check_imports(["nm"], "arm64", self.stub, [self.archive])
