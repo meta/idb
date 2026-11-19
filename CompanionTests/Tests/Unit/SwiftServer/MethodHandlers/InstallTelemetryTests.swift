@@ -51,6 +51,28 @@ private struct Refused: Error {}
     telemetry.record(into: call)
     #expect(call.normals == ["payload_kind": "url", "install_cache": column])
     #expect(call.ints["install_cache_free_bytes"] == nil)
+    #expect(call.ints["install_cache_evictions"] == nil)
+    #expect(call.ints["install_cache_evict_ms"] == nil)
+  }
+
+  @Test func aStoreReportsWhatItEvictedAndHowLongThatTook() {
+    let telemetry = InstallTelemetry(payloadKind: .url)
+    telemetry.observe(InstallEvent.cache(DownloadCacheReport(outcome: .stored, freeBytes: 80 << 30, evictions: DownloadCacheEvictions(count: 2, milliseconds: 640))))
+
+    let call = CallTelemetry()
+    telemetry.record(into: call)
+    #expect(call.ints["install_cache_evictions"] == 2)
+    #expect(call.ints["install_cache_evict_ms"] == 640)
+  }
+
+  @Test func aStoreThatEvictedNothingReportsZero() {
+    let telemetry = InstallTelemetry(payloadKind: .url)
+    telemetry.observe(InstallEvent.cache(DownloadCacheReport(outcome: .stored, freeBytes: 80 << 30, evictions: DownloadCacheEvictions(count: 0, milliseconds: 0))))
+
+    let call = CallTelemetry()
+    telemetry.record(into: call)
+    #expect(call.ints["install_cache_evictions"] == 0)
+    #expect(call.ints["install_cache_evict_ms"] == 0)
   }
 
   @Test func aCacheDecisionReportsTheFreeSpaceItWasMadeAgainst() {

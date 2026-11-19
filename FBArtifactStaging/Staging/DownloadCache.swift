@@ -23,6 +23,12 @@ public enum DownloadCacheOutcome: String, Equatable, Sendable {
   case notCacheable = "not_cacheable"
 }
 
+/// The entries a store removed, to make room or to fit the budget, and how long removing them took.
+public struct DownloadCacheEvictions: Equatable, Sendable {
+  public let count: Int
+  public let milliseconds: Int
+}
+
 /// What a download cache did for one install from a URL, and the free space it decided on.
 public struct DownloadCacheReport: Equatable, Sendable {
   public let outcome: DownloadCacheOutcome
@@ -30,10 +36,14 @@ public struct DownloadCacheReport: Equatable, Sendable {
   /// reported once the evictions making room for it were done. `nil` when it was not read: a hit, a response that could
   /// not be cached, or a volume whose free space could not be read.
   public let freeBytes: Int64?
+  /// What the store removed while it decided and kept the application. `nil` when no store ran: a hit, or a response
+  /// that could not be cached.
+  public let evictions: DownloadCacheEvictions?
 
-  init(outcome: DownloadCacheOutcome, freeBytes: Int64? = nil) {
+  init(outcome: DownloadCacheOutcome, freeBytes: Int64? = nil, evictions: DownloadCacheEvictions? = nil) {
     self.outcome = outcome
     self.freeBytes = freeBytes
+    self.evictions = evictions
   }
 }
 
@@ -210,16 +220,17 @@ public struct DownloadCache: Sendable {
     }
     let fileManager = FileManager.default
     let name = Self.name(of: identity)
+    var removals = Removals()
     // The tree is removed once the install returns, so a kept clone ends up owning all of its blocks.
     let bytes = Self.allocatedBytes(of: tree)
-    guard let free = makeRoom(logger: logger) else {
+    guard let free = makeRoom(removals: &removals, logger: logger) else {
       logger.info().log("Not keeping \(tree.path) in the install cache: the free space on its volume could not be read")
-      return DownloadCacheReport(outcome: .skippedLowDisk)
+      return DownloadCacheReport(outcome: .skippedLowDisk, evictions: removals.report)
     }
     // The tree already takes its blocks on this volume, and a clone shares them, so keeping it leaves `free` as it is.
     guard free >= minFreeBytes else {
       logger.info().log("Not keeping \(tree.path) in the install cache: its volume has \(free) bytes free, less than \(minFreeBytes)")
-      return DownloadCacheReport(outcome: .skippedLowDisk, freeBytes: free)
+      return DownloadCacheReport(outcome: .skippedLowDisk, freeBytes: free, evictions: removals.report)
     }
     let staging = directory.appendingPathComponent(".staging-\(UUID().uuidString)")
     do {
@@ -227,7 +238,7 @@ public struct DownloadCache: Sendable {
       // This store follows a miss, so an entry already under this name has expired, or never held this identity;
       // left in place, the rename below would keep its tree.
       if !contains(identity) {
-        remove(Entry(name: name, used: .distantPast, bytes: 0, expiry: nil), logger: logger)
+        remove(Entry(name: name, used: .distantPast, bytes: 0, expiry: nil), removals: &removals, logger: logger)
       }
       guard clonefile(tree.path, staging.path, 0) == 0 else {
         throw POSIXError.current
@@ -240,8 +251,8 @@ public struct DownloadCache: Sendable {
           throw error
         }
         // The tree another process placed is fresh for as long as its own response said, which it records itself.
-        evict(keeping: name, logger: logger)
-        return DownloadCacheReport(outcome: .stored, freeBytes: free)
+        evict(keeping: name, removals: &removals, logger: logger)
+        return DownloadCacheReport(outcome: .stored, freeBytes: free, evictions: removals.report)
       }
       if let inode = Self.inode(of: treeURL(name)) {
         record(bytes, inode: inode, for: name)
@@ -251,20 +262,30 @@ public struct DownloadCache: Sendable {
     } catch {
       try? fileManager.removeItem(at: staging)
       logger.info().log("Could not keep \(tree.path) in the install cache: \(error)")
-      return DownloadCacheReport(outcome: .storeFailed, freeBytes: free)
+      return DownloadCacheReport(outcome: .storeFailed, freeBytes: free, evictions: removals.report)
     }
-    evict(keeping: name, logger: logger)
-    return DownloadCacheReport(outcome: .stored, freeBytes: free)
+    evict(keeping: name, removals: &removals, logger: logger)
+    return DownloadCacheReport(outcome: .stored, freeBytes: free, evictions: removals.report)
+  }
+
+  /// The entries one store removed, and the time removing them took.
+  private struct Removals {
+    var count = 0
+    var duration = Duration.zero
+
+    var report: DownloadCacheEvictions {
+      DownloadCacheEvictions(count: count, milliseconds: Int((duration / .milliseconds(1)).rounded()))
+    }
   }
 
   /// Evicts the least recently used entries until the cache's volume has `minFreeBytes` free, and returns what the volume
   /// then reports free, which may still fall short. `nil` if the free space can't be read.
-  private func makeRoom(logger: any ControlCoreLogger) -> Int64? {
+  private func makeRoom(removals: inout Removals, logger: any ControlCoreLogger) -> Int64? {
     guard var free = freeBytes(directory) else {
       return nil
     }
     for entry in entries() where free < minFreeBytes {
-      remove(entry, logger: logger)
+      remove(entry, removals: &removals, logger: logger)
       // Read again rather than credited: an entry that could not be deleted, or whose blocks another clone still shares,
       // frees less than its size.
       guard let measured = freeBytes(directory) else {
@@ -276,19 +297,19 @@ public struct DownloadCache: Sendable {
   }
 
   /// Removes every expired entry, then the least recently used ones, never `keeping`, until the cache fits in `maxBytes`.
-  private func evict(keeping kept: String, logger: any ControlCoreLogger) {
+  private func evict(keeping kept: String, removals: inout Removals, logger: any ControlCoreLogger) {
     let now = Date()
     var live: [Entry] = []
     for entry in entries() where entry.name != kept {
       if let expiry = entry.expiry, expiry > now {
         live.append(entry)
       } else {
-        remove(entry, logger: logger)
+        remove(entry, removals: &removals, logger: logger)
       }
     }
     var total = entries().reduce(0) { $0 + $1.bytes }
     for entry in live where total > maxBytes {
-      remove(entry, logger: logger)
+      remove(entry, removals: &removals, logger: logger)
       total -= entry.bytes
     }
   }
@@ -317,16 +338,19 @@ public struct DownloadCache: Sendable {
     return entries.sorted { $0.used < $1.used }
   }
 
-  private func remove(_ entry: Entry, logger: any ControlCoreLogger) {
+  private func remove(_ entry: Entry, removals: inout Removals, logger: any ControlCoreLogger) {
     let fileManager = FileManager.default
     guard fileManager.fileExists(atPath: identityURL(entry.name).path) || fileManager.fileExists(atPath: treeURL(entry.name).path) else {
       return
     }
+    let start = ContinuousClock.now
     // The identity goes first, so no reader takes a tree that is being removed for an entry.
     try? fileManager.removeItem(at: identityURL(entry.name))
     try? fileManager.removeItem(at: expiryURL(entry.name))
     try? fileManager.removeItem(at: bytesURL(entry.name))
     try? fileManager.removeItem(at: treeURL(entry.name))
+    removals.count += 1
+    removals.duration += ContinuousClock.now - start
     logger.info().log("Evicted install cache entry \(entry.name) (\(entry.bytes) bytes)")
   }
 

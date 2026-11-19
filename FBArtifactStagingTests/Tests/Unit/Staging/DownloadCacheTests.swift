@@ -57,7 +57,9 @@ struct DownloadCacheTests {
   private func install(
     _ url: URL, as kind: ArtifactKind = .application, cache: DownloadCache?, options: InstallOptions = InstallOptions(),
     mutate: (URL) throws -> Void = { _ in }
-  ) async throws -> (identifier: String, outcomes: [DownloadCacheOutcome], freeBytes: [Int64?], downloaded: Bool, marker: String) {
+  ) async throws -> (
+    identifier: String, outcomes: [DownloadCacheOutcome], freeBytes: [Int64?], evictions: [DownloadCacheEvictions?], downloaded: Bool, marker: String
+  ) {
     let events = OSAllocatedUnfairLock<[InstallEvent]>(initialState: [])
     let marker = OSAllocatedUnfairLock<String>(initialState: "")
     // URLSession's own HTTP cache would answer a repeat request for a small archive itself.
@@ -82,7 +84,7 @@ struct DownloadCacheTests {
       if case .progress(.downloadStarted) = event { return true }
       return false
     }
-    return (installed.identifier, reports.map(\.outcome), reports.map(\.freeBytes), downloaded, marker.withLock { $0 })
+    return (installed.identifier, reports.map(\.outcome), reports.map(\.freeBytes), reports.map(\.evictions), downloaded, marker.withLock { $0 })
   }
 
   // MARK: - Tests
@@ -174,6 +176,45 @@ struct DownloadCacheTests {
 
     #expect(!cache.contains(DownloadCache.identity(of: first.url, options: InstallOptions())))
     #expect(cache.contains(DownloadCache.identity(of: second.url, options: InstallOptions())))
+  }
+
+  @Test
+  func aStoreReportsTheEntriesItEvictedToFitTheBudget() async throws {
+    let first = try await serve(identifier: "com.example.evicted")
+    let second = try await serve(identifier: "com.example.evicting")
+    defer {
+      first.stop()
+      second.stop()
+    }
+    let cache = DownloadCache(directory: cacheDirectory, maxBytes: 1, minFreeBytes: 0)
+
+    let kept = try await install(first.url, cache: cache)
+    let evicting = try await install(second.url, cache: cache)
+
+    #expect(kept.evictions.map { $0?.count } == [0])
+    #expect(evicting.outcomes == [.stored])
+    #expect(evicting.evictions.map { $0?.count } == [1])
+    #expect(evicting.evictions.allSatisfy { ($0?.milliseconds ?? -1) >= 0 })
+  }
+
+  @Test
+  func onlyAStoreReportsEvictions() async throws {
+    let cached = try await serve(identifier: "com.example.hit")
+    let uncacheable = try await serve(identifier: "com.example.uncacheable", headers: [])
+    defer {
+      cached.stop()
+      uncacheable.stop()
+    }
+    let cache = DownloadCache(directory: cacheDirectory, minFreeBytes: 0)
+    _ = try await install(cached.url, cache: cache)
+
+    let hit = try await install(cached.url, cache: cache)
+    let notCacheable = try await install(uncacheable.url, cache: cache)
+
+    #expect(hit.outcomes == [.hit])
+    #expect(hit.evictions == [nil])
+    #expect(notCacheable.outcomes == [.notCacheable])
+    #expect(notCacheable.evictions == [nil])
   }
 
   @Test
@@ -402,6 +443,7 @@ struct DownloadCacheTests {
     #expect(result.outcomes == [.stored])
     // What the volume reports once the older entry is gone.
     #expect(result.freeBytes == [capacity])
+    #expect(result.evictions.map { $0?.count } == [1])
     #expect(!cache.contains(firstIdentity))
     #expect(cache.contains(DownloadCache.identity(of: second.url, options: InstallOptions())))
   }

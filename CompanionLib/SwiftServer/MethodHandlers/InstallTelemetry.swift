@@ -208,6 +208,10 @@ final class InstallTelemetry: Sendable {
       if let freeBytes = cache.freeBytes {
         call.setInt(Int(freeBytes), forKey: "install_cache_free_bytes")
       }
+      if let evictions = cache.evictions {
+        call.setInt(evictions.count, forKey: "install_cache_evictions")
+        call.setInt(evictions.milliseconds, forKey: "install_cache_evict_ms")
+      }
     }
     if let failure = state.failure {
       if let stage = failure.stage {
