@@ -54,7 +54,7 @@ struct AccessibilityServiceTests {
     for verb in [123, ["a": 1], ["describe"], NSNull()] as [Any] {
       let response = AccessibilityService.handleRequest(["verb": verb])
       #expect(response["ok"] as? NSNumber == NSNumber(value: false), "a \(type(of: verb)) verb must be rejected")
-      #expect(response["error"] as? String != nil, "a \(type(of: verb)) verb must carry an error message")
+      #expect(response["error"] is String, "a \(type(of: verb)) verb must carry an error message")
       #expect(response["error_kind"] as? String == "bad_request", "a \(type(of: verb)) verb")
     }
   }

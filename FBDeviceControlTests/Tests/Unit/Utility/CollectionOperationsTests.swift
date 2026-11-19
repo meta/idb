@@ -38,6 +38,6 @@ struct CollectionOperationsTests {
     #expect(result.count == 3)
     #expect(result[0] as? String == "hello")
     #expect(result[1] as? Int == 42)
-    #expect(result[2] as? [String: String] != nil)
+    #expect(result[2] is [String: String])
   }
 }
