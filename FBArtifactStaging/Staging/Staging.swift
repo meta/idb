@@ -311,6 +311,9 @@ public enum Staging {
           return .extracted(restored)
         }
       }
+      // What earlier stores evicted waits in the cache's trash; deleting it while this downloads keeps that work off
+      // the install.
+      async let trashEmptied: Void = emptyTrash(of: cache)
       let freshness = OSAllocatedUnfairLock<HTTPFreshness?>(initialState: nil)
       let tree = try await temporaryDirectory.withTemporaryDirectory { spoolDirectory in
         let staged = OSAllocatedUnfairLock<StagedTree?>(initialState: nil)
@@ -333,6 +336,7 @@ public enum Staging {
         }
         return staged.withLock { $0 } ?? .extracted(stagingDirectory)
       }
+      await trashEmptied
       if let cache {
         let lifetime = freshness.withLock { $0 }
         let report = try await offCooperativePool { cache.store(tree.url, as: identity, freshness: lifetime, logger: logger) }.get()
@@ -340,6 +344,13 @@ public enum Staging {
       }
       return tree
     }
+  }
+
+  private static func emptyTrash(of cache: DownloadCache?) async {
+    guard let cache else {
+      return
+    }
+    _ = await offCooperativePool { cache.emptyTrash() }
   }
 
   /// Stages what `source` reads with `extractor`, unless `kind` is a dylib that arrives as a single file. A zip is

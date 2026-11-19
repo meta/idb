@@ -132,6 +132,12 @@ public struct DownloadCache: Sendable {
     directory.appendingPathComponent(name)
   }
 
+  /// Where the trees of entries evicted to fit the budget wait to be deleted. Renaming a tree there is instant, where
+  /// deleting a whole application is not.
+  private var trashURL: URL {
+    directory.appendingPathComponent(".trash")
+  }
+
   private func identityURL(_ name: String) -> URL {
     directory.appendingPathComponent("\(name).identity")
   }
@@ -238,7 +244,7 @@ public struct DownloadCache: Sendable {
       // This store follows a miss, so an entry already under this name has expired, or never held this identity;
       // left in place, the rename below would keep its tree.
       if !contains(identity) {
-        remove(Entry(name: name, used: .distantPast, bytes: 0, expiry: nil), removals: &removals, logger: logger)
+        remove(Entry(name: name, used: .distantPast, bytes: 0, expiry: nil), deleting: .later, removals: &removals, logger: logger)
       }
       guard clonefile(tree.path, staging.path, 0) == 0 else {
         throw POSIXError.current
@@ -284,8 +290,16 @@ public struct DownloadCache: Sendable {
     guard var free = freeBytes(directory) else {
       return nil
     }
+    if free < minFreeBytes {
+      emptyTrash()
+      guard let measured = freeBytes(directory) else {
+        return nil
+      }
+      free = measured
+    }
+    // Only a deleted tree frees space on the volume, so these are deleted now rather than moved to the trash.
     for entry in entries() where free < minFreeBytes {
-      remove(entry, removals: &removals, logger: logger)
+      remove(entry, deleting: .now, removals: &removals, logger: logger)
       // Read again rather than credited: an entry that could not be deleted, or whose blocks another clone still shares,
       // frees less than its size.
       guard let measured = freeBytes(directory) else {
@@ -304,14 +318,34 @@ public struct DownloadCache: Sendable {
       if let expiry = entry.expiry, expiry > now {
         live.append(entry)
       } else {
-        remove(entry, removals: &removals, logger: logger)
+        remove(entry, deleting: .later, removals: &removals, logger: logger)
       }
     }
     var total = entries().reduce(0) { $0 + $1.bytes }
     for entry in live where total > maxBytes {
-      remove(entry, removals: &removals, logger: logger)
+      remove(entry, deleting: .later, removals: &removals, logger: logger)
       total -= entry.bytes
     }
+  }
+
+  /// Deletes the trees evicted entries left in the trash. Another process emptying it at the same time is harmless:
+  /// each tree is deleted by whichever gets to it.
+  func emptyTrash() {
+    let fileManager = FileManager.default
+    guard let names = try? fileManager.contentsOfDirectory(atPath: trashURL.path) else {
+      return
+    }
+    for name in names {
+      try? fileManager.removeItem(at: trashURL.appendingPathComponent(name))
+    }
+  }
+
+  /// When an evicted entry's tree is deleted.
+  private enum TreeDeletion {
+    /// Before the removal returns.
+    case now
+    /// When the trash is next emptied; the tree is renamed into it.
+    case later
   }
 
   private struct Entry {
@@ -338,7 +372,7 @@ public struct DownloadCache: Sendable {
     return entries.sorted { $0.used < $1.used }
   }
 
-  private func remove(_ entry: Entry, removals: inout Removals, logger: any ControlCoreLogger) {
+  private func remove(_ entry: Entry, deleting deletion: TreeDeletion, removals: inout Removals, logger: any ControlCoreLogger) {
     let fileManager = FileManager.default
     guard fileManager.fileExists(atPath: identityURL(entry.name).path) || fileManager.fileExists(atPath: treeURL(entry.name).path) else {
       return
@@ -348,10 +382,23 @@ public struct DownloadCache: Sendable {
     try? fileManager.removeItem(at: identityURL(entry.name))
     try? fileManager.removeItem(at: expiryURL(entry.name))
     try? fileManager.removeItem(at: bytesURL(entry.name))
-    try? fileManager.removeItem(at: treeURL(entry.name))
+    if deletion == .now || !moveToTrash(treeURL(entry.name)) {
+      try? fileManager.removeItem(at: treeURL(entry.name))
+    }
     removals.count += 1
     removals.duration += ContinuousClock.now - start
     logger.info().log("Evicted install cache entry \(entry.name) (\(entry.bytes) bytes)")
+  }
+
+  /// Renames `tree` into the trash under a name no other tree takes. `false` when it is not there, or could not be
+  /// renamed.
+  private func moveToTrash(_ tree: URL) -> Bool {
+    guard FileManager.default.fileExists(atPath: tree.path) else {
+      return false
+    }
+    try? FileManager.default.createDirectory(at: trashURL, withIntermediateDirectories: true)
+    let destination = trashURL.appendingPathComponent("\(tree.lastPathComponent)-\(UUID().uuidString)")
+    return rename(tree.path, destination.path) == 0
   }
 
   static func allocatedBytes(of tree: URL) -> Int64 {

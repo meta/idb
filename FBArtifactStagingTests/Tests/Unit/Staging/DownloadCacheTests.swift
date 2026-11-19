@@ -197,6 +197,106 @@ struct DownloadCacheTests {
     #expect(evicting.evictions.allSatisfy { ($0?.milliseconds ?? -1) >= 0 })
   }
 
+  private var trashDirectory: URL { cacheDirectory.appendingPathComponent(".trash") }
+
+  private func trashed() -> [String] {
+    (try? FileManager.default.contentsOfDirectory(atPath: trashDirectory.path)) ?? []
+  }
+
+  @Test
+  func anEntryEvictedToFitTheBudgetLeavesTheCacheWithItsTreeInTheTrash() async throws {
+    let first = try await serve(identifier: "com.example.trashed")
+    let second = try await serve(identifier: "com.example.kept")
+    defer {
+      first.stop()
+      second.stop()
+    }
+    let cache = DownloadCache(directory: cacheDirectory, maxBytes: 1, minFreeBytes: 0)
+    _ = try await install(first.url, cache: cache)
+    let firstName = DownloadCache.name(of: DownloadCache.identity(of: first.url, options: InstallOptions()))
+
+    _ = try await install(second.url, cache: cache)
+
+    #expect(!FileManager.default.fileExists(atPath: cacheDirectory.appendingPathComponent(firstName).path))
+    #expect(trashed().count == 1)
+    #expect(trashed().allSatisfy { $0.hasPrefix(firstName) })
+    #expect(!cache.contains(DownloadCache.identity(of: first.url, options: InstallOptions())))
+  }
+
+  @Test
+  func theNextInstallThatDownloadsDeletesTheTrash() async throws {
+    let first = try await serve(identifier: "com.example.one")
+    let second = try await serve(identifier: "com.example.two")
+    let third = try await serve(identifier: "com.example.three")
+    defer {
+      first.stop()
+      second.stop()
+      third.stop()
+    }
+    let cache = DownloadCache(directory: cacheDirectory, maxBytes: 1, minFreeBytes: 0)
+    _ = try await install(first.url, cache: cache)
+    _ = try await install(second.url, cache: cache)
+    // What a process killed before it emptied the trash leaves there.
+    try FileManager.default.createDirectory(at: trashDirectory.appendingPathComponent("abandoned/Payload"), withIntermediateDirectories: true)
+
+    let result = try await install(third.url, cache: cache)
+
+    #expect(result.outcomes == [.stored])
+    // Only what this store evicted, the second entry; the earlier trash went while it downloaded.
+    #expect(trashed().count == 1)
+    #expect(trashed().allSatisfy { $0.hasPrefix(DownloadCache.name(of: DownloadCache.identity(of: second.url, options: InstallOptions()))) })
+  }
+
+  @Test
+  func aHitLeavesTheTrashAsItIs() async throws {
+    let first = try await serve(identifier: "com.example.left")
+    let second = try await serve(identifier: "com.example.again")
+    defer {
+      first.stop()
+      second.stop()
+    }
+    let cache = DownloadCache(directory: cacheDirectory, maxBytes: 1, minFreeBytes: 0)
+    _ = try await install(first.url, cache: cache)
+    _ = try await install(second.url, cache: cache)
+
+    let hit = try await install(second.url, cache: cache)
+
+    #expect(hit.outcomes == [.hit])
+    #expect(trashed().count == 1)
+  }
+
+  @Test
+  func makingRoomDeletesTheTrashBeforeDeletingAnEntry() throws {
+    let minFree: Int64 = 1 << 30
+    let freeSpace = FreeSpace()
+    let cache = DownloadCache(directory: cacheDirectory, maxBytes: 1, minFreeBytes: minFree) { [cacheDirectory] _ in
+      freeSpace.capacity.withLock { $0 } - DownloadCache.allocatedBytes(of: cacheDirectory)
+    }
+    func tree(_ name: String) throws -> URL {
+      let tree = root.appendingPathComponent(name)
+      try FileManager.default.createDirectory(at: tree, withIntermediateDirectories: true)
+      try Data(count: 64 << 10).write(to: tree.appendingPathComponent("payload"))
+      return tree
+    }
+    let identities = ["a", "b", "c"].map { "https://example.invalid/\($0)\noverrideModificationTime=false" }
+    let fresh = HTTPFreshness(lifetime: 600)
+    _ = cache.store(try tree("a"), as: identities[0], freshness: fresh, logger: logger)
+    // Evicts the first entry to fit the budget, into the trash.
+    _ = cache.store(try tree("b"), as: identities[1], freshness: fresh, logger: logger)
+    let firstName = DownloadCache.name(of: identities[0])
+    let secondName = DownloadCache.name(of: identities[1])
+    #expect(trashed().allSatisfy { $0.hasPrefix(firstName) })
+    // One byte short of the minimum, until the trash goes.
+    freeSpace.capacity.withLock { $0 = minFree - 1 + DownloadCache.allocatedBytes(of: cacheDirectory) }
+
+    let report = cache.store(try tree("c"), as: identities[2], freshness: fresh, logger: logger)
+
+    #expect(report.outcome == .stored)
+    // Had the second entry been deleted to make room instead, the first entry's tree would still be in the trash.
+    #expect(trashed().count == 1)
+    #expect(trashed().allSatisfy { $0.hasPrefix(secondName) })
+  }
+
   @Test
   func onlyAStoreReportsEvictions() async throws {
     let cached = try await serve(identifier: "com.example.hit")
