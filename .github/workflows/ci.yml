@@ -45,10 +45,14 @@ jobs:
         # default discovery pattern does not match. Run outside the checkout:
         # from the repo root the source idb/ tree — which lacks the generated
         # gRPC modules — shadows the installed package and breaks collection.
+        # gRPC tests are a namespace package. Require its directory explicitly
+        # rather than silently passing when that directory is missing from the wheel.
         working-directory: ${{ runner.temp }}
         run: |
           pip install pytest
-          python -m pytest --pyargs idb -o python_files='*_tests.py'
+          python -I -m pytest --pyargs idb.cli.tests idb.common.tests \
+            "$(python -I -c 'from pathlib import Path; import idb.grpc; print(Path(idb.grpc.__file__).parent / "tests")')" \
+            -o python_files='*_tests.py'
 
   pure-python:
     name: Pure Python tests (no simulator)

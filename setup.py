@@ -39,6 +39,12 @@ class BuildPyCommand(setuptools.command.build_py.build_py):
         grpclib_output = output_dir / "idb_grpc.py"
 
         output_dir.mkdir(parents=True, exist_ok=True)
+        test_dir = output_dir / "tests"
+        test_dir.mkdir(exist_ok=True)
+        self.copy_file(
+            str(root / "proto" / "fixtures" / "repl_transcript.v1.json"),
+            str(test_dir / "repl_transcript.v1.json"),
+        )
         command = [
             "grpc_tools.protoc",
             "--proto_path={}".format(proto_file.parent),
@@ -89,7 +95,9 @@ setuptools.setup(
     long_description=open("README.md").read(),
     long_description_content_type="text/markdown",
     url="https://github.com/facebook/idb",
-    packages=setuptools.find_packages(exclude=("idb.fb", "idb.fb.*")),
+    # This test directory is a namespace package, unlike the other test suites.
+    packages=setuptools.find_packages(exclude=("idb.fb", "idb.fb.*"))
+    + ["idb.grpc.tests"],
     data_files=[("proto", ["proto/idb.proto"]), ("", ["protoc_compiler_template.py"])],
     license="MIT",
     classifiers=[

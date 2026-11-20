@@ -31,7 +31,7 @@ def _load_json(data: bytes) -> Any:
 
 class ReplContractTests(unittest.TestCase):
     def test_language_neutral_repl_transcript(self) -> None:
-        fixture_data = pkgutil.get_data("idb.grpc.tests", "repl_transcript.v1.json")
+        fixture_data = pkgutil.get_data("idb.grpc", "tests/repl_transcript.v1.json")
         self.assertIsNotNone(fixture_data)
         with self.assertRaisesRegex(ValueError, "duplicate JSON key 'version'"):
             _load_json(b'{"version": 1, "version": 2}')
