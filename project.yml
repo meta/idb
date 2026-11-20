@@ -826,15 +826,6 @@ targets:
         excludes:
           - "**/*-Info.plist"
           - "**/*.xcconfig"
-    postBuildScripts:
-      - name: Copy generated bundle resources
-        script: set -e && DEST="$TARGET_BUILD_DIR/$UNLOCALIZED_RESOURCES_FOLDER_PATH" && mkdir -p "$DEST" && cp -R "$SYMROOT/Release/MacCommonApp.app" "$DEST/" && cp -R "$SYMROOT/Release/MacUnitTestFixture.xctest" "$DEST/"
-        inputFiles:
-          - $(SYMROOT)/Release/MacCommonApp.app
-          - $(SYMROOT)/Release/MacUnitTestFixture.xctest
-        outputFiles:
-          - $(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/MacCommonApp.app
-          - $(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/MacUnitTestFixture.xctest
     settings:
       base:
         MACOSX_DEPLOYMENT_TARGET: "15.0"
@@ -858,6 +849,10 @@ targets:
       - target: FBXCTestCore
       - sdk: Cocoa.framework
       - sdk: XCTest.framework
+      - bundle: $(SYMROOT)/Release/MacCommonApp.app
+        embed: false
+      - bundle: $(SYMROOT)/Release/MacUnitTestFixture.xctest
+        embed: false
   FBSimulatorControl:
     type: library.static
     platform: macOS
