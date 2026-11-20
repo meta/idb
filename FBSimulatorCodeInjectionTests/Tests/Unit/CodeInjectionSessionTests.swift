@@ -90,6 +90,38 @@ struct CodeInjectionSessionTests {
   }
 
   @Test
+  func anActorOwnedHandlerAnswersSuccessiveHostCommands() async throws {
+    actor Handler {
+      var commands: [Data] = []
+
+      func answer(_ command: Data) -> Result<Data, any Error> {
+        commands.append(command)
+        return .success(Data("reply to ".utf8) + command)
+      }
+    }
+    let shim = try FakeReplShim()
+    let (session, connection) = try await connect(to: shim)
+    let handler = Handler()
+    let commands = [Data("first".utf8), Data("second".utf8)]
+
+    async let output = session.execute(dylibAtPath: "/tmp/payload.dylib", symbol: "payload_entry") { command in
+      await handler.answer(command)
+    }
+    _ = try await connection.receive()
+    for command in commands {
+      try connection.send(["type": "host_command", "command": command])
+      let reply = try await connection.receive()
+      #expect(reply["type"] as? String == "host_result")
+      #expect(reply["success"] as? Bool == true)
+      #expect(reply["result"] as? Data == Data("reply to ".utf8) + command)
+    }
+    try connection.send(["type": "result", "success": true, "result": "done"])
+
+    #expect(try await output == "done")
+    #expect(await handler.commands == commands)
+  }
+
+  @Test
   func aHandlerCanRefuseAHostCommand() async throws {
     let shim = try FakeReplShim()
     let (session, connection) = try await connect(to: shim)

@@ -101,7 +101,7 @@ final class ControlSocketClient: @unchecked Sendable {
   /// Services a `host_command` the served process sends back *while* an `execute`
   /// is in flight. Receives the command's bytes, opaque to this client, and returns
   /// the command's outcome.
-  typealias HostCommandHandler = (_ commandData: Data) async -> Result<Data, any Error>
+  typealias HostCommandHandler = @Sendable (_ commandData: Data) async -> Result<Data, any Error>
 
   /// Sends a `{dylib, symbol}` command to the shim and returns its result. While
   /// the served process runs the injected code it may send nested `host_command`
@@ -118,8 +118,6 @@ final class ControlSocketClient: @unchecked Sendable {
   func run(dylibPath: String, symbol: String, hostCommandHandler: @escaping HostCommandHandler) async throws -> (outcome: Result<String, ExecuteFailure>, nextRunIndex: Int32) {
     let fd = self.fd
     return try await withCheckedThrowingContinuation { continuation in
-      // Not Sendable, so rebound as nonisolated(unsafe) for the ioQueue closure to capture.
-      nonisolated(unsafe) let hostCommandHandler = hostCommandHandler
       ioQueue.async {
         do {
           try Self.writeMessage(["type": "execute", "dylib": dylibPath, "symbol": symbol], to: fd)
@@ -159,9 +157,8 @@ final class ControlSocketClient: @unchecked Sendable {
     final class Box: @unchecked Sendable { var value: Result<Data, any Error> = .failure(CodeInjectionError.hostCommandDidNotComplete) }
     let box = Box()
     let semaphore = DispatchSemaphore(value: 0)
-    nonisolated(unsafe) let commandHandler = handler
     Task {
-      box.value = await commandHandler(commandData)
+      box.value = await handler(commandData)
       semaphore.signal()
     }
     semaphore.wait()

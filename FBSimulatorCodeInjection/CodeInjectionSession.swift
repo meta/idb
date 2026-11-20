@@ -16,7 +16,7 @@ public final class CodeInjectionSession: Sendable {
 
   /// Answers a command the injected code sends back to the session mid-execute, as opaque bytes.
   /// The injected code receives the bytes returned, or the description of the error.
-  public typealias HostCommandHandler = (_ command: Data) async -> Result<Data, any Error>
+  public typealias HostCommandHandler = @Sendable (_ command: Data) async -> Result<Data, any Error>
 
   /// Identifies the host process: the same when reattaching to an app still running from an
   /// earlier session, and new when the host is relaunched.

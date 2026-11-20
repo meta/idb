@@ -18,7 +18,7 @@ try await session.close()
 
 - **Targets.** `.application(bundleID:reattach:)` launches an app with the shim injected, or with `reattach` joins one still serving a session; the app outlives the session. `.simulator` runs the shim in the Simulator's guest bridge, and `.logicTestBundle(path:)` in a logic-test bundle; both end with the session.
 - **The entry point.** The host loads the dylib and calls `symbol`, an exported function that takes no arguments and returns a `malloc`'d C string, which the host frees. `execute` returns that string, or throws `CodeInjectionError.executionFailed` when the dylib does not load or the code reports failure.
-- **Host commands.** Injected code can send bytes back to the session while it runs. `execute`'s optional `hostCommands` handler answers them; without one, each is refused.
+- **Host commands.** Injected code can send bytes back to the session while it runs. `execute`'s optional `hostCommands` handler answers them; without one, each is refused. The handler is `@Sendable` because it crosses the socket's I/O queue and a Swift task; mutable captured state belongs behind synchronization or on an actor.
 - **Additional libraries.** `additionalLibraries` are loaded into the host alongside the shim before any code is injected, so injected code can call into them. `idb-repl` uses this for the idb command API.
 - **The shim.** `.bundled`, the default, is the shim this library carries; `shim: .path(...)` supplies another. `launchEnvironment(forApplication:)` is the environment that arms an ordinary app launch the same way, so a later `inject(into: .application(bundleID:reattach: true))` joins it.
 
