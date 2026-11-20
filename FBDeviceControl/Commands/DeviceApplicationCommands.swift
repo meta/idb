@@ -117,6 +117,10 @@ private class DeviceLaunchedApplication: LaunchedApplication {
 
   func terminate() async throws {
     try await commands.killApplication(processIdentifier: processIdentifier)
+    // A device does not relay the application's output, so its streams end once it has been stopped.
+    for case let .consumer(consumer) in [_configuration.stdOut, _configuration.stdErr] {
+      consumer.consumeEndOfFile()
+    }
   }
 
   var bundleID: String {

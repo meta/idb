@@ -12,6 +12,7 @@ import Foundation
 import ImageIO
 import Testing
 import UniformTypeIdentifiers
+import os
 
 /// Devices on iOS 17 and later are operated through `devicectl`, run once per operation.
 @MainActor
@@ -21,13 +22,20 @@ struct DeviceDevicectlTests {
 
   private let amDevice = FakeAMDevice()
 
-  private func launchConfiguration(arguments: [String] = [], environment: [String: String] = [:]) -> ApplicationLaunchConfiguration {
+  private func launchConfiguration(
+    arguments: [String] = [],
+    environment: [String: String] = [:],
+    stdOut: ApplicationOutput = .nullDevice,
+    stdErr: ApplicationOutput = .nullDevice
+  ) -> ApplicationLaunchConfiguration {
     ApplicationLaunchConfiguration(
       bundleID: "com.example.app",
       bundleName: nil,
       arguments: arguments,
       environment: environment,
       waitForDebugger: false,
+      stdOut: stdOut,
+      stdErr: stdErr,
       launchMode: .failIfRunning)
   }
 
@@ -198,6 +206,34 @@ struct DeviceDevicectlTests {
   }
 
   @Test
+  func stoppingALaunchedAppEndsTheOutputStreamsItWasGiven() async throws {
+    let launcher = FakeDevicectlLauncher(replies: [.json(#"{"result":{"process":{"processIdentifier":4242}}}"#), .succeed])
+    let device = amDevice.makeDevice(devicectlLauncher: launcher)
+    let stdOut = EndOfFileRecorder()
+    let stdErr = EndOfFileRecorder()
+
+    let launched = try await device.application.launch(launchConfiguration(stdOut: .consumer(stdOut), stdErr: .consumer(stdErr)))
+    #expect(!stdOut.ended && !stdErr.ended)
+    try await launched.terminate()
+
+    #expect(stdOut.ended && stdErr.ended)
+  }
+
+  @Test
+  func anAppThatFailsToStopKeepsItsOutputStreamsOpen() async throws {
+    let launcher = FakeDevicectlLauncher(replies: [.json(#"{"result":{"process":{"processIdentifier":4242}}}"#), .fail(code: 1, message: "The process could not be terminated")])
+    let device = amDevice.makeDevice(devicectlLauncher: launcher)
+    let stdOut = EndOfFileRecorder()
+
+    let launched = try await device.application.launch(launchConfiguration(stdOut: .consumer(stdOut)))
+    await #expect(throws: DevicectlError.self) {
+      try await launched.terminate()
+    }
+
+    #expect(!stdOut.ended)
+  }
+
+  @Test
   func aScreenshotIsThePNGDevicectlCaptures() async throws {
     let directory = FileManager.default.temporaryDirectory.appending(component: UUID().uuidString)
     try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
@@ -290,5 +326,18 @@ struct DeviceDevicectlTests {
       _ = try await launch.value
     }
     #expect(kill(hung, 0) == -1 && errno == ESRCH)
+  }
+}
+
+/// Records whether a stream has been ended.
+private final class EndOfFileRecorder: DataConsumer {
+  private let endOfFile = OSAllocatedUnfairLock(initialState: false)
+
+  var ended: Bool { endOfFile.withLock { $0 } }
+
+  func consumeData(_ data: Data) {}
+
+  func consumeEndOfFile() {
+    endOfFile.withLock { $0 = true }
   }
 }
