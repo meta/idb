@@ -292,6 +292,10 @@ extension Simulator {
     SimulatorHingeCommands(simulator: self)
   }
 
+  public var keyboard: SimulatorKeyboardCommands {
+    SimulatorKeyboardCommands(simulator: self)
+  }
+
   public var hardware: SimulatorHardwareCommands {
     SimulatorHardwareCommands(simulator: self)
   }

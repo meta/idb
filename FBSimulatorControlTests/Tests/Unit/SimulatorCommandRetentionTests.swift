@@ -33,6 +33,7 @@ enum SimulatorCommandAccessor: CaseIterable, Sendable {
   case audio
   case runtimeTools
   case bootstrapPorts
+  case keyboard
 
   func resolve(on simulator: Simulator) {
     switch self {
@@ -74,6 +75,8 @@ enum SimulatorCommandAccessor: CaseIterable, Sendable {
       _ = simulator.runtimeTools
     case .bootstrapPorts:
       _ = simulator.bootstrapPorts
+    case .keyboard:
+      _ = simulator.keyboard
     }
   }
 }

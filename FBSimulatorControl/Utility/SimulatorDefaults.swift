@@ -18,6 +18,7 @@ enum SimulatorDefaultsError: Error, CustomStringConvertible {
   case commandFailed(command: String, exitCode: Int32, stderr: String)
   case keyNotRemoved(domain: String, key: String, value: String)
   case noDataDirectory
+  case defaultsUnavailable(String)
 
   var description: String {
     switch self {
@@ -33,6 +34,8 @@ enum SimulatorDefaultsError: Error, CustomStringConvertible {
       return "\(key) in \(domain) still reads \(value) after defaults deleted it"
     case .noDataDirectory:
       return "The Simulator has no data directory, so its plists cannot be located"
+    case let .defaultsUnavailable(reason):
+      return reason
     }
   }
 }
@@ -71,6 +74,18 @@ package struct SimulatorDefaults {
     if !remaining.isEmpty {
       throw SimulatorDefaultsError.keyNotRemoved(domain: domain, key: name, value: remaining)
     }
+  }
+
+  /// Every preference of `domain`, as a property list. Throws where the other preference calls
+  /// trap: on a runtime that has no `defaults`.
+  package func exportedPreferences(domain: String?) async throws -> Data {
+    let command = Command.export(domain: domain ?? SimulatorDefaults.appleGlobalDomain)
+    let output = try await simulator.runtimeTools.run(hostExecutable: try locateDefaultsBinary(), arguments: command.arguments)
+    guard command.exitCodePolicy.accepts(output.exitCode) else {
+      throw SimulatorDefaultsError.commandFailed(
+        command: command.arguments.joined(separator: " "), exitCode: output.exitCode, stderr: String(decoding: output.stderr, as: UTF8.self))
+    }
+    return output.stdout
   }
 
   // MARK: - Location Services
@@ -157,6 +172,7 @@ package struct SimulatorDefaults {
     case write(domain: String, key: String, type: String, value: String)
     case importPlist(domainOrPath: String?, file: String)
     case delete(domainOrPath: String, key: String)
+    case export(domain: String)
 
     var arguments: [String] {
       switch self {
@@ -173,6 +189,8 @@ package struct SimulatorDefaults {
         return args
       case let .delete(domainOrPath, key):
         return ["delete", domainOrPath, key]
+      case let .export(domain):
+        return ["export", domain, "-"]
       }
     }
 
@@ -182,7 +200,7 @@ package struct SimulatorDefaults {
         // `defaults` returns 1 for a missing key/domain (a benign optional read or idempotent delete)
         // and for a genuine failure alike, with no distinguishing code, so tolerate any non-zero.
         return .tolerateAny
-      case .write, .importPlist:
+      case .write, .importPlist, .export:
         return .require([0])
       }
     }
@@ -229,10 +247,18 @@ package struct SimulatorDefaults {
   // MARK: - Private
 
   private var defaultsBinary: String {
+    do {
+      return try locateDefaultsBinary()
+    } catch {
+      fatalError("\(error)")
+    }
+  }
+
+  private func locateDefaultsBinary() throws -> String {
     // `SimRuntime.root` comes from an unannotated CoreSimulator header, so it imports implicitly
     // unwrapped; it is only absent for a runtime that could not be resolved at all.
     guard let runtimeRoot = simulator.device.runtime.root else {
-      fatalError("Could not locate defaults as the Simulator runtime has no root")
+      throw SimulatorDefaultsError.defaultsUnavailable("Could not locate defaults as the Simulator runtime has no root")
     }
     let path =
       ((runtimeRoot as NSString)
@@ -243,7 +269,7 @@ package struct SimulatorDefaults {
       let binary = try BinaryDescriptor(path: fullPath)
       return binary.path
     } catch {
-      fatalError("Could not locate defaults at expected location '\(fullPath)', error \(error)")
+      throw SimulatorDefaultsError.defaultsUnavailable("Could not locate defaults at expected location '\(fullPath)', error \(error)")
     }
   }
 }

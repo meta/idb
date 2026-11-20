@@ -62,6 +62,12 @@ public enum SimulatorHIDError: Error, LocalizedError {
   case watchButtonUnsupportedOnProductFamily(button: String, family: ProductFamily)
   /// An Apple Watch button was attempted over the legacy Indigo transport.
   case watchButtonUnsupportedOnIndigoTransport(button: String)
+  /// The character at `offset` in text, counting characters of its NFC form from 0, cannot be typed
+  /// on the named hardware keyboard layout. The character itself is not carried: an error can be
+  /// logged, and typed text is kept out of logs.
+  case characterNotOnKeyboardLayout(offset: Int, layout: String)
+  /// Text was to be typed on a hardware keyboard layout that the simulator's runtime does not have.
+  case unknownKeyboardLayout(name: String)
 
   public var errorDescription: String? {
     switch self {
@@ -122,6 +128,10 @@ public enum SimulatorHIDError: Error, LocalizedError {
       return "The Apple Watch \(button) button is only supported on Apple Watch targets, not \(family)"
     case let .watchButtonUnsupportedOnIndigoTransport(button):
       return "The Apple Watch \(button) button requires the DTUHID transport"
+    case let .characterNotOnKeyboardLayout(offset, layout):
+      return "Cannot type the character at offset \(offset) on the \(layout) hardware keyboard layout"
+    case let .unknownKeyboardLayout(name):
+      return "The simulator's runtime has no hardware keyboard layout named \"\(name)\""
     }
   }
 
