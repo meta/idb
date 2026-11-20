@@ -598,6 +598,24 @@ struct DownloadCacheTests {
     #expect(result.freeBytes == [nil])
   }
 
+  @Test(arguments: [
+    ("invalid", DownloadCache.defaultMaxBytes, DownloadCache.defaultMinFreeBytes),
+    ("0", DownloadCache.defaultMaxBytes, Int64(0)),
+    ("-1", DownloadCache.defaultMaxBytes, DownloadCache.defaultMinFreeBytes),
+    ("9223372036854775808", DownloadCache.defaultMaxBytes, DownloadCache.defaultMinFreeBytes),
+    ("9223372036854775807", Int64.max, Int64.max),
+    ("1", Int64(1), Int64(1)),
+  ])
+  func theEnvironmentBoundsTheCache(_ value: String, maxBytes: Int64, minFreeBytes: Int64) {
+    let cache = DownloadCache.fromEnvironment([
+      DownloadCache.directoryVariable: "/tmp/c",
+      DownloadCache.maxBytesVariable: value,
+      DownloadCache.minFreeBytesVariable: value,
+    ])
+    #expect(cache?.maxBytes == maxBytes)
+    #expect(cache?.minFreeBytes == minFreeBytes)
+  }
+
   @Test
   func theEnvironmentNamesTheCache() {
     #expect(DownloadCache.fromEnvironment([:]) == nil)

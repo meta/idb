@@ -105,8 +105,8 @@ public struct DownloadCache: Sendable {
     guard let path = environment[directoryVariable], !path.isEmpty else {
       return nil
     }
-    let maxBytes = environment[maxBytesVariable].flatMap { Int64($0) }.flatMap { $0 > 0 ? $0 : nil } ?? defaultMaxBytes
-    let minFreeBytes = environment[minFreeBytesVariable].flatMap { Int64($0) }.flatMap { $0 >= 0 ? $0 : nil } ?? defaultMinFreeBytes
+    let maxBytes: Int64 = environment[maxBytesVariable].flatMap { Int64($0) }.flatMap { $0 > 0 ? $0 : nil } ?? defaultMaxBytes
+    let minFreeBytes: Int64 = environment[minFreeBytesVariable].flatMap { Int64($0) }.flatMap { $0 >= 0 ? $0 : nil } ?? defaultMinFreeBytes
     return DownloadCache(directory: URL(fileURLWithPath: path), maxBytes: maxBytes, minFreeBytes: minFreeBytes)
   }
 
