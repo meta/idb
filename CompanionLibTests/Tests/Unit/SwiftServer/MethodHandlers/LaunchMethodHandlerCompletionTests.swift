@@ -17,6 +17,33 @@ import Testing
 struct LaunchMethodHandlerCompletionTests {
 
   @Test(.timeLimit(.minutes(1)))
+  func cancellingTheRPCCancelsALaunchThatHasNotFinished() async throws {
+    let cancellation = ServerContext.RPCCancellationHandle()
+    let started = AsyncEvent<Void>()
+    let launchCancelled = AsyncEvent<Void>()
+    let session = Task {
+      try await LaunchMethodHandler.launch(cancellation: cancellation) {
+        started.happen()
+        do {
+          try await Task.sleep(nanoseconds: 600_000_000_000)
+        } catch {
+          launchCancelled.happen()
+          throw error
+        }
+        return ControlledLaunchedApplication()
+      }
+    }
+    try await started.wait()
+
+    cancellation.cancel()
+
+    await #expect(throws: CancellationError.self) {
+      _ = try await session.value
+    }
+    #expect(launchCancelled.hasHappened)
+  }
+
+  @Test(.timeLimit(.minutes(1)))
   func naturalExitEndsTheSessionWithoutStopAndCancelsTheRequestWait() async throws {
     let application = ControlledLaunchedApplication()
     let (requests, client) = clientStream()
@@ -257,17 +284,26 @@ struct LaunchMethodHandlerCompletionTests {
 
   @Test(.timeLimit(.minutes(1)))
   func rpcCancellationArrivingWithStopStillStopsTheApp() async throws {
-    let application = ControlledLaunchedApplication()
+    // The stop suspends until released, and would give up if it were cancelled.
+    let release = AsyncEvent<Void>()
+    let application = ControlledLaunchedApplication(stopRelease: release)
     let cancellation = ServerContext.RPCCancellationHandle()
     let requests = RequestStreamReader(RPCAsyncSequence(wrapping: StopThenCancellation(cancellation: cancellation)))
+    let session = Task {
+      try await LaunchMethodHandler.waitForCompletion(
+        application: application,
+        requestStream: requests,
+        consumers: [],
+        cancellation: cancellation)
+    }
+    try await application.stopStarted.wait()
+    #expect(cancellation.isCancelled)
 
-    _ = try? await LaunchMethodHandler.waitForCompletion(
-      application: application,
-      requestStream: requests,
-      consumers: [],
-      cancellation: cancellation)
+    release.happen()
+    _ = try? await session.value
 
     #expect(await application.stopCalls == 1)
+    #expect(application.stopCompleted.hasHappened)
   }
 }
 
@@ -279,12 +315,16 @@ private actor ControlledLaunchedApplication: LaunchedApplication {
   let observationFinished = AsyncEvent<Void>()
   private let observerError: (any Error)?
   private let stopError: (any Error)?
+  private let stopRelease: AsyncEvent<Void>?
+  let stopStarted = AsyncEvent<Void>()
+  let stopCompleted = AsyncEvent<Void>()
   private(set) var stopCalls = 0
   private(set) var observationFinishedBeforeStop = false
 
-  init(observerError: (any Error)? = nil, stopError: (any Error)? = nil) {
+  init(observerError: (any Error)? = nil, stopError: (any Error)? = nil, stopRelease: AsyncEvent<Void>? = nil) {
     self.observerError = observerError
     self.stopError = stopError
+    self.stopRelease = stopRelease
   }
 
   func waitForTermination() async throws {
@@ -302,6 +342,9 @@ private actor ControlledLaunchedApplication: LaunchedApplication {
     if let stopError {
       throw stopError
     }
+    stopStarted.happen()
+    try await stopRelease?.wait()
+    stopCompleted.happen()
     exited.happen()
   }
 }

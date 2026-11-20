@@ -71,7 +71,9 @@ struct LaunchMethodHandler: @unchecked Sendable {
       stdOut: stdOut,
       stdErr: stdErr,
       launchMode: launchMode)
-    let launchedApp = try await launch(config, telemetry: call)
+    let launchedApp = try await Self.launch(cancellation: context.cancellation) {
+      try await self.launch(config, telemetry: call)
+    }
     let response = Idb_LaunchResponse.with {
       $0.debugger.pid = UInt64(launchedApp.processIdentifier)
     }
@@ -84,6 +86,16 @@ struct LaunchMethodHandler: @unchecked Sendable {
       requestStream: requestStream,
       consumers: consumers,
       cancellation: context.cancellation)
+  }
+
+  /// Runs `launch` so that the RPC's cancellation cancels it. A client that disconnects before the
+  /// app has started would otherwise leave the launch running, such as a `devicectl` launch
+  /// against a device CoreDevice cannot reach.
+  static func launch(
+    cancellation: ServerContext.RPCCancellationHandle,
+    _ launch: @escaping @Sendable () async throws -> any LaunchedApplication
+  ) async throws -> any LaunchedApplication {
+    try await withRPCCancellation(cancellation, operation: launch)
   }
 
   static func waitForCompletion(
@@ -128,9 +140,10 @@ struct LaunchMethodHandler: @unchecked Sendable {
         throw RPCError(code: .internalError, message: "Application launch ended without Stop or exit")
       }
       // Terminate the app on Stop before honouring cancellation, since a client can disconnect
-      // right after sending Stop
+      // right after sending Stop. The termination runs outside the RPC's cancellation, so a
+      // disconnect cannot interrupt a stop that was accepted, and it is joined before returning.
       if case .stopped = completion {
-        try await application.terminate()
+        try await Task { try await application.terminate() }.value
       }
       try Task.checkCancellation()
 
