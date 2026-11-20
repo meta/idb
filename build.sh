@@ -186,6 +186,7 @@ function generate_xcodeproj() {
       exit 1
     fi
   fi
+  python3 -m CI.xcodegen_headers "$dest_path/project.pbxproj"
 }
 
 # Only protoc itself. Both Swift plugins are built from pinned source below.
@@ -639,15 +640,12 @@ function invoke_xcodebuild() {
   local symroot="$root/Products"
   local objroot="$root/Intermediates"
   # Use arrays so each setting/argument stays a single word regardless of spaces.
-  # Add -skipMacroValidation to work around sandbox restrictions on Swift macro plugins
-  # Add ENABLE_USER_SCRIPT_SANDBOXING=NO to disable sandbox for macros
   # Add CLANG_ENABLE_EXPLICIT_MODULES=NO to mirror Configuration/Shared.xcconfig
   # Add ARCHS=arm64 to build arm64 only (no Intel/x86_64 slices).
   local common_settings=(
-    -skipMacroValidation
     -onlyUsePackageVersionsFromResolvedFile
     -disableAutomaticPackageResolution
-    ENABLE_USER_SCRIPT_SANDBOXING=NO
+    ENABLE_USER_SCRIPT_SANDBOXING=YES
     CLANG_ENABLE_EXPLICIT_MODULES=NO
     ARCHS=arm64
   )

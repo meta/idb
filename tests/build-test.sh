@@ -275,7 +275,7 @@ function stage_package() {
     write_package "$WORK/$1" "$2" "$3"
     cp "$SRC/build.sh" "$WORK/$1/"
     mkdir -p "$WORK/$1/CI"
-    cp "$SRC/CI/dependency_lock.py" "$WORK/$1/CI/"
+    cp "$SRC/CI/dependency_lock.py" "$SRC/CI/xcodegen_headers.py" "$WORK/$1/CI/"
     echo "$WORK/$1"
 }
 
@@ -591,6 +591,11 @@ output="$(in_package "$dir" 'invoke_xcodebuild -project Companion/idb_companion.
 assert_equal "a locked Xcode build succeeds" 0 "$?"
 assert_contains "Xcode may only use the lock" "$(cat "$XCODE_STUB_LOG")" "-onlyUsePackageVersionsFromResolvedFile"
 assert_contains "Xcode automatic resolution is disabled" "$(cat "$XCODE_STUB_LOG")" "-disableAutomaticPackageResolution"
+assert_contains "Xcode runs build scripts inside the sandbox" "$(cat "$XCODE_STUB_LOG")" "ENABLE_USER_SCRIPT_SANDBOXING=YES"
+assert_equal "Xcode does not bypass macro validation or compiler sandboxing" 0 \
+    "$(grep -Ec -- 'skipMacroValidation|disable-sandbox|ENABLE_USER_SCRIPT_SANDBOXING=NO' "$XCODE_STUB_LOG")"
+assert_contains "direct Xcode builds keep script sandboxing" \
+    "$(cat "$SRC/Configuration/Shared.xcconfig")" "ENABLE_USER_SCRIPT_SANDBOXING = YES"
 
 export XCODE_STUB_FAIL=1
 output="$(in_package "$dir" 'invoke_xcodebuild -project Companion/idb_companion.xcodeproj build')"
