@@ -396,12 +396,22 @@ class RepointTests(TestCase):
         assets.mkdir()
         (assets / COMPANION).write_bytes(b"")
         (assets / WHEEL).write_bytes(b"")
+        alias = self.temp / "assets alias"
+        alias.symlink_to(assets, target_is_directory=True)
         formulae, _ = rendered(RUNNER_ASSETS)
-        result = homebrew.repoint(formulae, RUNNER_ASSETS, assets)
-        for text in result.values():
-            self.assertNotIn(RUNNER_ASSETS, text)
-        self.assertIn(f'"{(assets / COMPANION).as_uri()}"', result["idb-companion.rb"])
-        self.assertIn(f'"{(assets / WHEEL).as_uri()}"', result["idb-cli.rb"])
+        canonical_assets = assets.resolve()
+        for directory in (assets, alias):
+            with self.subTest(directory=directory):
+                result = homebrew.repoint(formulae, RUNNER_ASSETS, directory)
+                for text in result.values():
+                    self.assertNotIn(RUNNER_ASSETS, text)
+                self.assertIn(
+                    f'"{(canonical_assets / COMPANION).as_uri()}"',
+                    result["idb-companion.rb"],
+                )
+                self.assertIn(
+                    f'"{(canonical_assets / WHEEL).as_uri()}"', result["idb-cli.rb"]
+                )
 
     def test_an_asset_the_build_lacks_is_reported(self):
         assets = self.temp / "assets"
