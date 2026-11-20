@@ -21,7 +21,8 @@ extension DevicectlError: LocalizedError {
   }
 }
 
-class AppleDevicectlCommandExecutor {
+/// Runs `xcrun devicectl` against one device, through the device's subprocess launcher.
+final class AppleDevicectlCommandExecutor {
 
   let logger: ControlCoreLogger?
   let device: Device
@@ -31,6 +32,18 @@ class AppleDevicectlCommandExecutor {
     self.device = device
   }
 
+  /// Runs `devicectl` with `arguments` and fails with its output unless it exits cleanly.
+  func run(_ arguments: [String]) async throws {
+    let result = try await Subprocess(executable: "/usr/bin/xcrun", arguments: ["devicectl"] + arguments)
+      .run(on: device.devicectlLauncher, exitPolicy: .any, logger: logger)
+    try result.checkExitedCleanly { code in
+      DevicectlError.commandFailed(
+        exitCode: String(code),
+        arguments: arguments,
+        stdOut: result.standardOutput,
+        stdErr: result.standardError)
+    }
+  }
 }
 
 extension AppleDevicectlCommandExecutor {
@@ -61,15 +74,7 @@ extension AppleDevicectlCommandExecutor {
     arguments.append(configuration.bundleID)
     arguments += configuration.arguments
 
-    let result = try await Subprocess(executable: "/usr/bin/xcrun", arguments: ["devicectl"] + arguments)
-      .run(exitPolicy: .any, logger: logger)
-    try result.checkExitedCleanly { code in
-      DevicectlError.commandFailed(
-        exitCode: String(code),
-        arguments: arguments,
-        stdOut: result.standardOutput,
-        stdErr: result.standardError)
-    }
+    try await run(arguments)
     let data = try Data(contentsOf: tmpPath)
     let info = try JSONDecoder().decode(DevicectlProcInfo.self, from: data)
     return info.result.process.processIdentifier

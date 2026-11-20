@@ -120,6 +120,9 @@ public final class Device: Target, DeviceCommands, CustomStringConvertible {
   /// The developer disk images this device can mount.
   public let developerDiskImages: any DeveloperDiskImageProviding
 
+  /// Spawns the `devicectl` processes that operate this device.
+  let devicectlLauncher: any SubprocessLauncher
+
   public var uniqueIdentifier: String { backingLock.withLock { cachedValues.uniqueIdentifier } ?? "" }
   public var udid: String { backingLock.withLock { cachedValues.udid } ?? "" }
   public var name: String { backingLock.withLock { cachedValues.name } ?? "" }
@@ -137,12 +140,14 @@ public final class Device: Target, DeviceCommands, CustomStringConvertible {
     amDevice: MobileDevice?,
     restorableDevice: RestorableDevice?,
     logger: any ControlCoreLogger,
-    developerDiskImages: any DeveloperDiskImageProviding = InstalledDeveloperDiskImages()
+    developerDiskImages: any DeveloperDiskImageProviding = InstalledDeveloperDiskImages(),
+    devicectlLauncher: any SubprocessLauncher = HostSubprocessLauncher()
   ) {
     self.amDeviceStorage = amDevice
     self.restorableDeviceStorage = restorableDevice
     self.commandCache = TargetCommandCache()
     self.developerDiskImages = developerDiskImages
+    self.devicectlLauncher = devicectlLauncher
     guard let info: any TargetInfo & DeviceProtocol = amDevice ?? restorableDevice else {
       preconditionFailure("A MobileDevice or RestorableDevice must be provided")
     }
