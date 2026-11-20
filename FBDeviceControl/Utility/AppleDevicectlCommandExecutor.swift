@@ -80,6 +80,76 @@ extension AppleDevicectlCommandExecutor {
     return info.result.process.processIdentifier
   }
 
+  /// Sends SIGKILL to `processIdentifier`, which the process cannot catch or ignore. Fails if the
+  /// process cannot be signalled.
+  func terminateProcess(processIdentifier: pid_t) async throws {
+    try await run([
+      "device",
+      "process",
+      "terminate",
+      "--device",
+      device.udid,
+      "--pid",
+      String(processIdentifier),
+      "--kill",
+    ])
+  }
+
+  /// The executable path of each running process, by process identifier.
+  func processExecutablePaths() async throws -> [pid_t: String] {
+    let output = try FileManager.default.temporaryFile(extension: "json")
+    defer {
+      try? FileManager.default.removeItem(at: output.deletingLastPathComponent())
+    }
+    try await run([
+      "device",
+      "info",
+      "processes",
+      "--device",
+      device.udid,
+      "--json-output",
+      output.path(),
+    ])
+    let listing = try JSONDecoder().decode(DevicectlProcessList.self, from: Data(contentsOf: output))
+    var paths: [pid_t: String] = [:]
+    for process in listing.result.runningProcesses {
+      guard let executable = process.executable else {
+        continue
+      }
+      paths[process.processIdentifier] = URL(string: executable)?.path(percentEncoded: false) ?? executable
+    }
+    return paths
+  }
+
+  /// Captures the device's main display as PNG data.
+  func screenshot() async throws -> Data {
+    let destination = try FileManager.default.temporaryFile(extension: "png")
+    defer {
+      try? FileManager.default.removeItem(at: destination.deletingLastPathComponent())
+    }
+    try await run([
+      "device",
+      "capture",
+      "screenshot",
+      "--device",
+      device.udid,
+      "--destination",
+      destination.path(),
+    ])
+    return try Data(contentsOf: destination)
+  }
+
+  private struct DevicectlProcessList: Decodable {
+    struct Result: Decodable {
+      struct Process: Decodable {
+        var processIdentifier: pid_t
+        var executable: String?
+      }
+      var runningProcesses: [Process]
+    }
+    var result: Result
+  }
+
   private struct DevicectlProcInfo: Decodable {
     struct Result: Decodable {
       struct Process: Decodable {

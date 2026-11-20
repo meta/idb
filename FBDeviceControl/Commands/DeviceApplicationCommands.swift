@@ -16,6 +16,7 @@ public enum DeviceApplicationError: Error {
   case uninstallFailed(bundleID: String, status: Int32, message: String, recentEvents: String)
   case applicationNotInstalled(bundleID: String, installed: [String])
   case noProcessID(bundleID: String)
+  case ambiguousProcess(bundleID: String, executable: String, sharedWith: [String])
   case applicationLookupFailed(status: Int32, message: String)
   case applicationLookupMalformed
   case pidListRequestFailed(underlying: Error)
@@ -39,6 +40,8 @@ extension DeviceApplicationError: LocalizedError {
       return "Application with bundle ID: \(bundleID) is not installed. Installed apps \(CollectionInformation.oneLineDescription(from: installed))"
     case let .noProcessID(bundleID):
       return "No pid for \(bundleID)"
+    case let .ambiguousProcess(bundleID, executable, sharedWith):
+      return "Cannot tell whether \(bundleID) is running: a process named \(executable) is running, and \(CollectionInformation.oneLineDescription(from: sharedWith)) share that executable name with it"
     case let .applicationLookupFailed(status, message):
       return "Failed to get list of applications 0x\(String(UInt32(bitPattern: status), radix: 16)) (\(message))"
     case .applicationLookupMalformed:
@@ -204,33 +207,18 @@ public final class DeviceApplicationCommands: ApplicationCommands {
   }
 
   public func running() async throws -> [String: pid_t] {
-    let pidToRunningProcessName = try await pidToRunningProcessName()
-    let bundleIdentifierToAttributes = try await installedApplicationsData(Self.namingLookupAttributes)
-    var bundleNameToBundleIdentifier: [String: String] = [:]
-    for (bundleIdentifier, attributes) in bundleIdentifierToAttributes {
-      if let bundleName = attributes[ApplicationInstallInfoKey.bundleName.rawValue] as? String {
-        bundleNameToBundleIdentifier[bundleName] = bundleIdentifier
-      }
-    }
-    var runningProcessNameToPID: [String: pid_t] = [:]
-    for (pid, processName) in pidToRunningProcessName {
-      runningProcessNameToPID[processName] = pid
-    }
-    var bundleNameToPID: [String: pid_t] = [:]
-    for (processName, pid) in runningProcessNameToPID {
-      if let bundleName = bundleNameToBundleIdentifier[processName] {
-        bundleNameToPID[bundleName] = pid
-      }
-    }
-    return bundleNameToPID
+    try await runningApplications().resolved
   }
 
   public func processID(forBundleID bundleID: String) async throws -> pid_t {
-    let running = try await self.running()
-    guard let pid = running[bundleID] else {
-      throw DeviceApplicationError.noProcessID(bundleID: bundleID)
+    let running = try await runningApplications()
+    if let pid = running.resolved[bundleID] {
+      return pid
     }
-    return pid
+    if let ambiguity = running.ambiguous[bundleID] {
+      throw DeviceApplicationError.ambiguousProcess(bundleID: bundleID, executable: ambiguity.executable, sharedWith: ambiguity.sharedWith)
+    }
+    throw DeviceApplicationError.noProcessID(bundleID: bundleID)
   }
 
   public func kill(bundleID: String) async throws {
@@ -258,7 +246,94 @@ public final class DeviceApplicationCommands: ApplicationCommands {
 
   // MARK: - Private
 
+  /// An executable name that more than one installed application has, with a running process
+  /// that could not be attributed to one of them.
+  private struct Ambiguity {
+    let executable: String
+    let sharedWith: [String]
+  }
+
+  /// Running applications by bundle identifier, and the installed applications that cannot be
+  /// told apart from a running process.
+  ///
+  /// The trace relay names each process after its executable, which can differ from the bundle
+  /// name (Settings runs as `Preferences`) and can be shared by several installed applications. A
+  /// process whose name only one installed application has belongs to that application. One whose
+  /// name several share belongs to the application whose bundle holds its executable, where
+  /// `devicectl` reports the path; otherwise it is attributed to none of them.
+  private func runningApplications() async throws -> (resolved: [String: pid_t], ambiguous: [String: Ambiguity]) {
+    let pidToRunningProcessName = try await pidToRunningProcessName()
+    let bundleIdentifierToAttributes = try await installedApplicationsData(Self.namingLookupAttributes)
+    var processNameToBundleIdentifiers: [String: [String]] = [:]
+    for (bundleIdentifier, attributes) in bundleIdentifierToAttributes {
+      let processName = attributes[Self.bundleExecutableKey] as? String ?? attributes[ApplicationInstallInfoKey.bundleName.rawValue] as? String
+      if let processName {
+        processNameToBundleIdentifiers[processName, default: []].append(bundleIdentifier)
+      }
+    }
+    var resolved: [String: pid_t] = [:]
+    var shared: [pid_t: (processName: String, bundleIdentifiers: [String])] = [:]
+    for (pid, processName) in pidToRunningProcessName {
+      guard let bundleIdentifiers = processNameToBundleIdentifiers[processName] else {
+        continue
+      }
+      if bundleIdentifiers.count == 1 {
+        resolved[bundleIdentifiers[0]] = pid
+      } else {
+        shared[pid] = (processName, bundleIdentifiers.sorted())
+      }
+    }
+    guard !shared.isEmpty else {
+      return (resolved, [:])
+    }
+    let executablePaths = await processExecutablePaths()
+    let bundlePath = { (bundleIdentifier: String) in bundleIdentifierToAttributes[bundleIdentifier]?[ApplicationInstallInfoKey.path.rawValue] as? String }
+    var ambiguous: [String: Ambiguity] = [:]
+    for (pid, process) in shared {
+      if let executablePath = executablePaths[pid],
+        let owner = process.bundleIdentifiers.first(where: { bundlePath($0).map { Self.path(executablePath, isInsideBundle: $0) } ?? false })
+      {
+        resolved[owner] = pid
+        continue
+      }
+      for bundleIdentifier in process.bundleIdentifiers {
+        ambiguous[bundleIdentifier] = Ambiguity(executable: process.processName, sharedWith: process.bundleIdentifiers.filter { $0 != bundleIdentifier })
+      }
+    }
+    for bundleIdentifier in resolved.keys {
+      ambiguous.removeValue(forKey: bundleIdentifier)
+    }
+    return (resolved, ambiguous)
+  }
+
+  /// The executable path of each running process, where `devicectl` can report it; empty otherwise.
+  private func processExecutablePaths() async -> [pid_t: String] {
+    guard device.osVersion.version.majorVersion >= 17 else {
+      return [:]
+    }
+    do {
+      return try await AppleDevicectlCommandExecutor(device: device).processExecutablePaths()
+    } catch {
+      device.logger.log("Could not read process executable paths to tell apps with the same executable apart: \(error.localizedDescription)")
+      return [:]
+    }
+  }
+
+  /// Whether `executablePath` is inside the bundle at `bundlePath`, ignoring the `/private`
+  /// prefix one of them may carry.
+  private static func path(_ executablePath: String, isInsideBundle bundlePath: String) -> Bool {
+    func normalized(_ path: String) -> String {
+      path.hasPrefix("/private/") ? String(path.dropFirst("/private".count)) : path
+    }
+    let bundle = normalized(bundlePath)
+    return normalized(executablePath).hasPrefix(bundle.hasSuffix("/") ? bundle : bundle + "/")
+  }
+
   fileprivate func killApplication(processIdentifier: pid_t) async throws {
+    if device.osVersion.version.majorVersion >= 17 {
+      try await AppleDevicectlCommandExecutor(device: device).terminateProcess(processIdentifier: processIdentifier)
+      return
+    }
     try await withRemoteInstrumentsClient { client in
       try client.killProcess(processIdentifier)
     }
@@ -321,15 +396,23 @@ public final class DeviceApplicationCommands: ApplicationCommands {
       if status != "RequestSuccessful" {
         throw DeviceApplicationError.pidListRequestUnsuccessful
       }
-      let payload = responseDict["Payload"] as? [NSNumber: Any] ?? [:]
+      let payload = responseDict["Payload"] as? NSDictionary ?? [:]
       var pidToRunningProcessName: [pid_t: String] = [:]
-      for (processIdentifier, value) in payload {
-        guard let contents = value as? [String: Any],
+      for (key, value) in payload {
+        // Process identifiers are numbers on older iOS versions and decimal strings on newer ones.
+        let processIdentifier: pid_t? =
+          switch key {
+          case let number as NSNumber: pid_t(exactly: number.int64Value)
+          case let string as String: pid_t(string)
+          default: nil
+          }
+        guard let processIdentifier,
+          let contents = value as? [String: Any],
           let processName = contents["ProcessName"] as? String
         else {
           continue
         }
-        pidToRunningProcessName[processIdentifier.int32Value] = processName
+        pidToRunningProcessName[processIdentifier] = processName
       }
       return pidToRunningProcessName
     }
@@ -360,8 +443,12 @@ public final class DeviceApplicationCommands: ApplicationCommands {
     ApplicationInstallInfoKey.signerIdentity.rawValue,
   ]
 
+  private static let bundleExecutableKey = "CFBundleExecutable"
+
   private static let namingLookupAttributes: [String] = [
     ApplicationInstallInfoKey.bundleIdentifier.rawValue,
     ApplicationInstallInfoKey.bundleName.rawValue,
+    ApplicationInstallInfoKey.path.rawValue,
+    bundleExecutableKey,
   ]
 }

@@ -45,7 +45,12 @@ public struct DeviceScreenshotCommands: ScreenshotCommands {
   }
 
   private func capture(from device: Device) async throws -> Data {
-    try await device.withDeviceLinkClient("com.apple.mobile.screenshotr") { client in
+    // From iOS 17 the developer services, the screenshot service among them, are only reachable
+    // through CoreDevice.
+    if device.osVersion.version.majorVersion >= 17 {
+      return try await AppleDevicectlCommandExecutor(device: device).screenshot()
+    }
+    return try await device.withDeviceLinkClient("com.apple.mobile.screenshotr") { client in
       let response = try await client.processMessage(["MessageType": "ScreenShotRequest"])
       guard let screenshotData = response[ScreenShotDataKey] as? Data else {
         throw DeviceScreenshotError.notImageData(response: String(describing: response), key: ScreenShotDataKey)

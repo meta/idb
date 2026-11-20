@@ -123,6 +123,10 @@ The "Instruments Service", which is a service within the "Developer Disk Image" 
 
 The client-side implementation of this protocol is provided via `DTXConnectionServices`, with a [provisional re-implementation within `FBDeviceControl`](https://github.com/facebook/idb/blob/main/FBDeviceControl/Services/InstrumentsClient.swift). There are more details about the makeup of this protocol [within the `ios_instruments_client` project](https://github.com/troybowman/ios_instruments_client).
 
+### CoreDevice and `devicectl`
+
+From iOS 17, the developer services, the Instruments Service and the screenshot service among them, live on a personalized developer disk image that is reached through CoreDevice rather than lockdown. On those devices `FBDeviceControl` launches applications, kills processes and takes screenshots by running `xcrun devicectl`, once per operation, and reports `devicectl`'s own error output when it fails. Devices before iOS 17 use the lockdown services described above.
+
 ### Video Encoding
 
 One of the key features of `FBDeviceControl` is the ability to stream the iPhone's screen to the host over USB. You might be familiar with this within QuickTime's "Screen Recording" feature, where you can record video from a connected iOS Device to an `.mp4` file on your Mac.

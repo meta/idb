@@ -27,6 +27,11 @@ actor FakeDevicectlLauncher: SubprocessLauncher {
       Reply(script: "printf '%s' '\(contents)' > \"$2\"")
     }
 
+    /// Copies the file at `path` to the `--destination` file and exits zero.
+    static func copyToDestination(_ path: String) -> Reply {
+      Reply(script: "/bin/cp '\(path)' \"$2\"")
+    }
+
     /// Exits zero without writing anything.
     static let succeed = Reply(script: "exit 0")
 
