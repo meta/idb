@@ -78,7 +78,9 @@ private func cString(at ptr: UnsafeRawPointer?) -> String? {
 // pointers instead. RTLD_DEFAULT is ((void *)-2) on Darwin: search every loaded
 // image for the libswiftCore entry point.
 
-private let rtldDefault = UnsafeMutableRawPointer(bitPattern: -2)
+private var rtldDefault: UnsafeMutableRawPointer? {
+  UnsafeMutableRawPointer(bitPattern: -2)
+}
 
 // Returns the type metadata pointer (Swift runtime `const Metadata *`); callers
 // bitcast it to `Any.Type`. A metatype isn't `@convention(c)`-representable, so
@@ -473,9 +475,9 @@ private func matchingParen(_ s: String, openAfter: String.Index) -> String.Index
 private func readSegmentName(_ command: UnsafeRawPointer) -> String {
   // segname is a 16-byte field at offset 8 in segment_command_64.
   let p = command.advanced(by: 8)
-  var bytes = [UInt8](repeating: 0, count: 17)
+  var bytes = [UInt8](repeating: 0, count: 16)
   for i in 0..<16 { bytes[i] = p.advanced(by: i).loadUnaligned(as: UInt8.self) }
-  return String(cString: bytes)
+  return String(decoding: bytes.prefix { $0 != 0 }, as: UTF8.self)
 }
 
 /// Walk an image's symbol table, demangle each Swift symbol, and collect the
