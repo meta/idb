@@ -92,6 +92,22 @@ private func fakeMountImage(
   return device.mountImageStatus
 }
 
+/// A named function for the same reason as `fakeMountImage`: it takes an `AMDeviceProgressCallback`.
+private func fakeSecureUninstallApplication(
+  _ connection: AMDServiceConnection?,
+  _ deviceRef: AMDevice?,
+  _ bundleID: CFString?,
+  _ options: Int32,
+  _ callback: AMDeviceProgressCallback?,
+  _ context: UnsafeMutableRawPointer?
+) -> Int32 {
+  guard let device = deviceRef as? FakeAMDevice, let bundleID = bundleID as String? else {
+    return 1
+  }
+  device.record("uninstall:\(bundleID)")
+  return device.uninstallStatus
+}
+
 /// An `AMDCalls` table backed by scripted fakes, so a real `MobileDevice` and its commands can be
 /// driven through their public API with nothing device-side.
 ///
@@ -132,6 +148,10 @@ final class FakeAMDevice: NSObject {
 
   /// What `LookupApplications` reports, keyed by bundle identifier.
   var installedApplications: [String: [String: Any]] = [:]
+
+  /// Status `SecureUninstallApplication` returns. Like a real device, it succeeds whether or not the
+  /// bundle ID is installed.
+  var uninstallStatus: Int32 = 0
 
   /// The scripted service of this name, created empty on first use so a test can set up a reply
   /// before the code under test starts it.
@@ -260,6 +280,7 @@ final class FakeAMDevice: NSObject {
 
     calls.MountImage = fakeMountImage
 
+    calls.SecureUninstallApplication = fakeSecureUninstallApplication
     calls.LookupApplications = { deviceRef, _, attributesOut in
       guard let device = FakeAMDevice.device(deviceRef) else {
         return 1

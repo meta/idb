@@ -14,6 +14,7 @@ public enum DeviceApplicationError: Error {
   case awaitingTerminationUnsupported
   case installFailed(applicationName: String, status: Int32, message: String, recentEvents: String)
   case uninstallFailed(bundleID: String, status: Int32, message: String, recentEvents: String)
+  case uninstallingApplicationNotInstalled(bundleID: String)
   case applicationNotInstalled(bundleID: String, installed: [String])
   case noProcessID(bundleID: String)
   case ambiguousProcess(bundleID: String, executable: String, sharedWith: [String])
@@ -36,6 +37,8 @@ extension DeviceApplicationError: LocalizedError {
       return "Failed to install application \(applicationName) 0x\(String(UInt32(bitPattern: status), radix: 16)) (\(message)). \(recentEvents)"
     case let .uninstallFailed(bundleID, status, message, recentEvents):
       return "Failed to uninstall application '\(bundleID)' with error 0x\(String(UInt32(bitPattern: status), radix: 16)) (\(message)). \(recentEvents)"
+    case let .uninstallingApplicationNotInstalled(bundleID):
+      return "Cannot uninstall \(bundleID): no application with this bundle ID is installed"
     case let .applicationNotInstalled(bundleID, installed):
       return "Application with bundle ID: \(bundleID) is not installed. Installed apps \(CollectionInformation.oneLineDescription(from: installed))"
     case let .noProcessID(bundleID):
@@ -167,6 +170,10 @@ public final class DeviceApplicationCommands: ApplicationCommands {
   }
 
   public func uninstall(bundleID: String) async throws {
+    // The device's uninstall succeeds for a bundle ID that is not installed, so that is checked first.
+    guard try await installedApplicationsData(Self.namingLookupAttributes)[bundleID] != nil else {
+      throw DeviceApplicationError.uninstallingApplicationNotInstalled(bundleID: bundleID)
+    }
     try await device.withConnectedDevice(purpose: "uninstall_\(bundleID)") { connectedDevice in
       let statistics = DeviceWorkflowStatistics(workflowType: "Uninstall", logger: connectedDevice.logger)
       device.logger.log("Uninstalling Application \(bundleID)")
