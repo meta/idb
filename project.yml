@@ -37,7 +37,6 @@ settings:
     SWIFT_INCLUDE_PATHS: $(inherited) $(SRCROOT)/ZstdDecompress/include $(SRCROOT)/FBControlCoreObjC/include
     IDB_MODULE_INTERFACE_ALIASES_2600: "-Xfrontend -alias-module-names-in-module-interface"
     IDB_ARCHIVE_SWIFT_FLAGS_Release: "-Xfrontend -no-clang-module-breadcrumbs"
-    OTHER_SWIFT_FLAGS: $(inherited) -Xfrontend -disable-sandbox
 
 targets:
   SimScopeProtocol:

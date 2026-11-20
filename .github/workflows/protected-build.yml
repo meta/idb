@@ -1,0 +1,49 @@
+name: Protected build qualification
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# Each matrix entry gets a fresh runner, with no restored build or macro cache.
+# All six results at one source revision are needed for qualification; rerunning
+# only failed jobs is not evidence of consecutive successful cold builds.
+jobs:
+  libraries:
+    name: Protected libraries (Xcode ${{ matrix.xcode }}, run ${{ matrix.repetition }})
+    runs-on: macos-26
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      max-parallel: 1
+      matrix:
+        xcode: ['26', 'default']
+        repetition: [1, 2, 3]
+    steps:
+      - uses: actions/checkout@v5
+      - name: Select an installed Xcode 26
+        if: matrix.xcode == '26'
+        shell: bash
+        run: python3 -m CI.select_xcode
+      - name: Record source and toolchain
+        shell: bash
+        run: |
+          {
+            printf 'source=%s\nrun=%s\nattempt=%s\n' "$GITHUB_SHA" "$GITHUB_RUN_ID" "$GITHUB_RUN_ATTEMPT"
+            sw_vers
+            xcodebuild -version
+            xcrun swift --version
+          } | tee qualification-toolchain.txt
+      - name: Install tools
+        run: brew install xcodegen xcbeautify
+      - name: Build libraries with normal protections
+        run: ./build.sh build libraries
+      - name: Upload qualification receipts
+        if: always()
+        uses: actions/upload-artifact@v5
+        with:
+          name: protected-xcode-${{ matrix.xcode }}-run-${{ matrix.repetition }}
+          path: |
+            qualification-toolchain.txt
+            Build/Logs/xcodebuild/*.log
+          retention-days: 14
