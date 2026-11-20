@@ -15,6 +15,7 @@ import Foundation
 enum TargetProviderError: Error {
   case targetNotUsable(udid: String, targetDescription: String)
   case targetNotFound(udid: String, targetSetsDescription: String)
+  case targetDidNotAppear(udid: String, timeout: TimeInterval, targetSetsDescription: String)
   case multipleTargets(targetsDescription: String)
   case noTargets(targetSetsDescription: String)
   case multipleBootedTargets(targetsDescription: String)
@@ -28,6 +29,8 @@ extension TargetProviderError: LocalizedError {
       return "\(udid) exists, but the target is not usable \(targetDescription)"
     case let .targetNotFound(udid, targetSetsDescription):
       return "\(udid) could not be resolved to any target in \(targetSetsDescription)"
+    case let .targetDidNotAppear(udid, timeout, targetSetsDescription):
+      return "No target with UDID \(udid) appeared within \(timeout)s in \(targetSetsDescription)"
     case let .multipleTargets(targetsDescription):
       return "Cannot get a sole target when multiple found \(targetsDescription)"
     case let .noTargets(targetSetsDescription):
@@ -45,11 +48,24 @@ public typealias TargetSetMaker = () async throws -> any TargetSet
 
 public enum TargetProvider {
 
+  /// How long a lookup by UDID waits for the target to appear once every set has been created.
+  /// A device set learns a device's UDID only after MobileDevice has connected to it and read its
+  /// values, which can finish after the set is created; until then the device is listed without
+  /// one. An unknown UDID costs this long before it fails.
+  public static let targetAppearanceTimeout: TimeInterval = 5
+
   /// Resolves `udid` against the target sets `makers` create, in order, creating a set only when
   /// the sets before it cannot resolve the UDID. Resolving the sole or sole booted target needs
-  /// every set, so creates them all; resolving the Mac needs none.
-  public static func target(withUDID udid: String, makingTargetSets makers: [TargetSetMaker], warmUp: Bool, logger: ControlCoreLogger) async throws -> CompanionTarget {
-    let targetSets = try await makeTargetSets(withUDID: udid, makers: makers)
+  /// every set, so creates them all; resolving the Mac needs none. A UDID no set holds yet is
+  /// waited for, for up to `appearanceTimeout`.
+  public static func target(
+    withUDID udid: String,
+    makingTargetSets makers: [TargetSetMaker],
+    warmUp: Bool,
+    appearanceTimeout: TimeInterval = targetAppearanceTimeout,
+    logger: ControlCoreLogger
+  ) async throws -> CompanionTarget {
+    let targetSets = try await makeTargetSets(withUDID: udid, makers: makers, appearanceTimeout: appearanceTimeout, logger: logger)
     return try target(withUDID: udid, targetSets: targetSets, warmUp: warmUp, logger: logger)
   }
 
@@ -58,16 +74,17 @@ public enum TargetProvider {
     withUDID udid: String,
     makingTargetSets makers: [TargetSetMaker],
     warmUp: Bool,
+    appearanceTimeout: TimeInterval = targetAppearanceTimeout,
     logger: ControlCoreLogger,
     _ body: (CompanionTarget) async throws -> Result
   ) async throws -> Result {
-    let targetSets = try await makeTargetSets(withUDID: udid, makers: makers)
+    let targetSets = try await makeTargetSets(withUDID: udid, makers: makers, appearanceTimeout: appearanceTimeout, logger: logger)
     defer { withExtendedLifetime(targetSets) {} }
     let target = try target(withUDID: udid, targetSets: targetSets, warmUp: warmUp, logger: logger)
     return try await body(target)
   }
 
-  private static func makeTargetSets(withUDID udid: String, makers: [TargetSetMaker]) async throws -> [TargetSet] {
+  private static func makeTargetSets(withUDID udid: String, makers: [TargetSetMaker], appearanceTimeout: TimeInterval, logger: ControlCoreLogger) async throws -> [TargetSet] {
     var targetSets: [TargetSet] = []
     switch udid.lowercased() {
     case "only", "booted":
@@ -81,11 +98,26 @@ public enum TargetProvider {
         let targetSet = try await make()
         targetSets.append(targetSet)
         if targetSet.target(withUDID: udid) != nil {
-          break
+          return targetSets
         }
       }
+      try await awaitTarget(withUDID: udid, in: targetSets, timeout: appearanceTimeout, logger: logger)
     }
     return targetSets
+  }
+
+  /// Waits until one of `targetSets` holds `udid`. The sets are mutated on the main queue, so they
+  /// are read there.
+  private static func awaitTarget(withUDID udid: String, in targetSets: [TargetSet], timeout: TimeInterval, logger: ControlCoreLogger) async throws {
+    let start = DispatchTime.now()
+    let holdsTarget = { targetSets.contains { $0.target(withUDID: udid) != nil } }
+    do {
+      try await pollUntilTrue(on: .main, interval: 0.05, deadline: PollDeadline(timeout: timeout, waitingFor: udid), condition: holdsTarget)
+    } catch is PollTimeoutError {
+      throw TargetProviderError.targetDidNotAppear(udid: udid, timeout: timeout, targetSetsDescription: String(describing: targetSets))
+    }
+    let waited = Double(DispatchTime.now().uptimeNanoseconds - start.uptimeNanoseconds) / Double(NSEC_PER_SEC)
+    logger.log("\(udid) appeared \(String(format: "%.3f", waited))s after its target sets were created")
   }
 
   public static func target(withUDID udid: String, targetSets: [TargetSet], warmUp: Bool, logger: ControlCoreLogger) throws -> CompanionTarget {

@@ -134,7 +134,7 @@ struct TargetProviderLifetimeTests {
     await #expect(throws: TargetProviderError.self) {
       try await TargetProvider.withTarget(
         withUDID: "unknown", makingTargetSets: probe.makers(target: target),
-        warmUp: false, logger: logger
+        warmUp: false, appearanceTimeout: 0, logger: logger
       ) { _ in Issue.record("Operation started after failed lookup") }
     }
     probe.expectReleased()
