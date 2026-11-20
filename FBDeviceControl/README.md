@@ -125,7 +125,7 @@ The client-side implementation of this protocol is provided via `DTXConnectionSe
 
 ### CoreDevice and `devicectl`
 
-From iOS 17, the developer services, the Instruments Service and the screenshot service among them, live on a personalized developer disk image that is reached through CoreDevice rather than lockdown. On those devices `FBDeviceControl` launches applications, kills processes and takes screenshots by running `xcrun devicectl`, once per operation, and reports `devicectl`'s own error output when it fails. Devices before iOS 17 use the lockdown services described above.
+From iOS 17, the developer services, the Instruments Service and the screenshot service among them, live on a personalized developer disk image that is reached through CoreDevice rather than lockdown. On those devices `FBDeviceControl` launches applications, kills processes and takes screenshots by running `xcrun devicectl`, once per operation, and reports `devicectl`'s own error output when it fails. Each run is bounded, and is stopped when its caller is cancelled, except a kill, which runs to completion within its bound so that a stop already asked for is carried out; a run that times out reports the device's connection state as CoreDevice sees it. Devices before iOS 17 use the lockdown services described above.
 
 ### Video Encoding
 

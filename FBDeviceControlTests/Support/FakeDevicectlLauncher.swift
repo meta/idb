@@ -32,6 +32,9 @@ actor FakeDevicectlLauncher: SubprocessLauncher {
       Reply(script: "/bin/cp '\(path)' \"$2\"")
     }
 
+    /// Never exits on its own, as `devicectl` does when CoreDevice cannot reach the device.
+    static let hang = Reply(script: "exec /bin/sleep 600")
+
     /// Exits zero without writing anything.
     static let succeed = Reply(script: "exit 0")
 
@@ -45,6 +48,8 @@ actor FakeDevicectlLauncher: SubprocessLauncher {
   private var replies: [Reply]
   private(set) var executables: [String] = []
   private(set) var invocations: [[String]] = []
+  private(set) var processIdentifiers: [pid_t] = []
+  private var spawnWaiters: [(index: Int, continuation: CheckedContinuation<pid_t, Never>)] = []
 
   init(replies: [Reply]) {
     self.replies = replies
@@ -57,7 +62,23 @@ actor FakeDevicectlLauncher: SubprocessLauncher {
     let fixture = Subprocess(
       executable: "/bin/sh",
       arguments: ["-c", reply.script, "devicectl-fixture", Self.value(of: "--json-output", in: subprocess.arguments), Self.value(of: "--destination", in: subprocess.arguments)])
-    return try await HostSubprocessLauncher().spawn(fixture, standardInput: standardInput, standardOutput: standardOutput, standardError: standardError, logger: logger)
+    let process = try await HostSubprocessLauncher().spawn(fixture, standardInput: standardInput, standardOutput: standardOutput, standardError: standardError, logger: logger)
+    processIdentifiers.append(process.processIdentifier)
+    let index = processIdentifiers.count - 1
+    for waiter in spawnWaiters where waiter.index == index {
+      waiter.continuation.resume(returning: process.processIdentifier)
+    }
+    spawnWaiters.removeAll { $0.index == index }
+    return process
+  }
+
+  /// The process identifier of the fixture spawned for the invocation at `index`, once it has been
+  /// spawned.
+  func processIdentifier(ofInvocation index: Int) async -> pid_t {
+    if index < processIdentifiers.count {
+      return processIdentifiers[index]
+    }
+    return await withCheckedContinuation { spawnWaiters.append((index, $0)) }
   }
 
   static func value(of option: String, in arguments: [String]) -> String {

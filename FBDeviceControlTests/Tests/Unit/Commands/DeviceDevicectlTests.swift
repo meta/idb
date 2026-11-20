@@ -42,7 +42,7 @@ struct DeviceDevicectlTests {
     #expect(await launcher.executables == ["/usr/bin/xcrun"])
     let invocation = try #require(await launcher.invocations.first)
     let output = FakeDevicectlLauncher.value(of: "--json-output", in: invocation)
-    #expect(invocation == ["devicectl", "device", "process", "launch", "--device", "fake-udid", "--terminate-existing", "--json-output", output, "com.example.app", "--flag"])
+    #expect(invocation == ["devicectl", "device", "process", "launch", "--timeout", "60", "--device", "fake-udid", "--terminate-existing", "--json-output", output, "com.example.app", "--flag"])
   }
 
   @Test
@@ -73,7 +73,7 @@ struct DeviceDevicectlTests {
 
     try await device.application.kill(bundleID: "com.example.app")
 
-    #expect(await launcher.invocations == [["devicectl", "device", "process", "terminate", "--device", "fake-udid", "--pid", "940", "--kill"]])
+    #expect(await launcher.invocations == [["devicectl", "device", "process", "terminate", "--timeout", "60", "--device", "fake-udid", "--pid", "940", "--kill"]])
   }
 
   @Test
@@ -170,7 +170,31 @@ struct DeviceDevicectlTests {
     let launched = try await device.application.launch(launchConfiguration())
     try await launched.terminate()
 
-    #expect(await launcher.invocations.last == ["devicectl", "device", "process", "terminate", "--device", "fake-udid", "--pid", "4242", "--kill"])
+    #expect(await launcher.invocations.last == ["devicectl", "device", "process", "terminate", "--timeout", "60", "--device", "fake-udid", "--pid", "4242", "--kill"])
+  }
+
+  @Test
+  func aKillRunsToCompletionWhenItsCallerIsCancelled() async throws {
+    let directory = FileManager.default.temporaryDirectory.appending(component: UUID().uuidString)
+    try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: directory) }
+    let delivered = directory.appending(component: "kill-delivered")
+    // The fake kill holds until its caller has been cancelled, then completes.
+    let release = directory.appending(component: "release")
+    let launcher = FakeDevicectlLauncher(replies: [
+      .json(#"{"result":{"process":{"processIdentifier":4242}}}"#),
+      .init(script: "while [ ! -e '\(release.path())' ]; do /bin/sleep 0.05; done; /usr/bin/touch '\(delivered.path())'"),
+    ])
+    let device = amDevice.makeDevice(devicectlLauncher: launcher)
+    let launched = try await device.application.launch(launchConfiguration())
+    let stop = Task { try await launched.terminate() }
+    _ = await launcher.processIdentifier(ofInvocation: 1)
+
+    stop.cancel()
+    try Data().write(to: release)
+    try await stop.value
+
+    #expect(FileManager.default.fileExists(atPath: delivered.path()))
   }
 
   @Test
@@ -190,7 +214,7 @@ struct DeviceDevicectlTests {
     #expect(result.size == CGSize(width: 3, height: 5))
     let invocation = try #require(await launcher.invocations.first)
     let destination = FakeDevicectlLauncher.value(of: "--destination", in: invocation)
-    #expect(invocation == ["devicectl", "device", "capture", "screenshot", "--device", "fake-udid", "--destination", destination])
+    #expect(invocation == ["devicectl", "device", "capture", "screenshot", "--timeout", "60", "--device", "fake-udid", "--destination", destination])
     #expect(!FileManager.default.fileExists(atPath: destination))
   }
 
@@ -216,5 +240,55 @@ struct DeviceDevicectlTests {
     CGImageDestinationAddImage(destination, image, nil)
     #expect(CGImageDestinationFinalize(destination))
     return data as Data
+  }
+
+  // MARK: - Bounded runs
+
+  private static let connectingDeviceList =
+    #"{"result":{"devices":[{"hardwareProperties":{"udid":"fake-udid"},"connectionProperties":{"pairingState":"paired","transportType":"localNetwork","tunnelState":"connecting"}}]}}"#
+
+  @Test
+  func aRunDevicectlAbandonsReportsTheDevicesTunnelState() async throws {
+    let launcher = FakeDevicectlLauncher(replies: [
+      .fail(code: 2, message: "ERROR: Command timeout of 60.0 seconds exceeded. Assuming command got stuck and aborting."),
+      .json(Self.connectingDeviceList),
+    ])
+    let device = amDevice.makeDevice(devicectlLauncher: launcher)
+
+    let error = await #expect(throws: DevicectlError.self) {
+      _ = try await device.application.launch(launchConfiguration())
+    }
+    let description = try #require(error?.localizedDescription)
+    #expect(description.hasPrefix("devicectl did not finish within 60s, so it was stopped. CoreDevice reports the device's tunnel state as 'connecting' (pairing state 'paired', transport 'localNetwork')."))
+    let stateQuery = try #require(await launcher.invocations.last)
+    #expect(Array(stateQuery.prefix(5)) == ["devicectl", "list", "devices", "--timeout", "10"])
+  }
+
+  @Test
+  func aRunThatOutlivesTheHostDeadlineIsStoppedAndReported() async throws {
+    let launcher = FakeDevicectlLauncher(replies: [.hang, .json(Self.connectingDeviceList)])
+    let device = amDevice.makeDevice(devicectlLauncher: launcher)
+
+    let error = await #expect(throws: DevicectlError.self) {
+      _ = try await AppleDevicectlCommandExecutor(device: device, timeout: 0).launchApplication(configuration: launchConfiguration())
+    }
+    #expect(error?.localizedDescription.contains("tunnel state as 'connecting'") == true)
+    let hung = try #require(await launcher.processIdentifiers.first)
+    #expect(kill(hung, 0) == -1 && errno == ESRCH)
+  }
+
+  @Test
+  func cancellingARunStopsDevicectl() async throws {
+    let launcher = FakeDevicectlLauncher(replies: [.hang])
+    let device = amDevice.makeDevice(devicectlLauncher: launcher)
+    let launch = Task { try await device.application.launch(launchConfiguration()) }
+    let hung = await launcher.processIdentifier(ofInvocation: 0)
+
+    launch.cancel()
+
+    await #expect(throws: CancellationError.self) {
+      _ = try await launch.value
+    }
+    #expect(kill(hung, 0) == -1 && errno == ESRCH)
   }
 }
