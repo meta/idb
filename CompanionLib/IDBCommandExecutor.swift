@@ -204,11 +204,24 @@ public final class IDBCommandExecutor {
     try await target.application.uninstall(bundleID: bundleID)
   }
 
+  /// Stops the app with `bundleID`. Succeeds without doing anything when the app is not running;
+  /// any other failure, including one to stop a running app, is thrown.
   public func killApplication(_ bundleID: String) async throws {
     do {
       try await target.application.kill(bundleID: bundleID)
-    } catch {
+    } catch let error where Self.meansNotRunning(error) {
       // Killing an app that is not running is a no-op.
+    }
+  }
+
+  /// Whether a failed kill means there was nothing to stop, as each kind of target reports it.
+  static func meansNotRunning(_ error: any Error) -> Bool {
+    switch error {
+    case DeviceApplicationError.noProcessID(_), MacDeviceError.applicationNotLaunched(_):
+      return true
+    case let error as NSError:
+      // CoreSimulator reports "found nothing to terminate" as ESRCH.
+      return error.domain == NSPOSIXErrorDomain && error.code == Int(ESRCH)
     }
   }
 
