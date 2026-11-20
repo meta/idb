@@ -38,6 +38,7 @@ func installSwizzles() {
     (session, "addOutput:", #selector(AVCaptureSession.shimulator_addOutput(_:))),
     (session, "removeOutput:", #selector(AVCaptureSession.shimulator_removeOutput(_:))),
     (session, "outputs", #selector(getter: AVCaptureSession.shimulator_outputs)),
+    (session, "connections", #selector(getter: AVCaptureSession.shimulator_connections)),
     (session, "canSetSessionPreset:", #selector(AVCaptureSession.shimulator_canSetSessionPreset(_:))),
     (session, "setSessionPreset:", #selector(setter: AVCaptureSession.shimulator_sessionPreset)),
     (session, "sessionPreset", #selector(getter: AVCaptureSession.shimulator_sessionPreset)),
@@ -55,6 +56,22 @@ func installSwizzles() {
     (AVCapturePhotoOutput.self, "capturePhotoWithSettings:delegate:", #selector(AVCapturePhotoOutput.shimulator_capturePhoto(with:delegate:))),
     (AVCaptureVideoPreviewLayer.self, "session", #selector(getter: AVCaptureVideoPreviewLayer.shimulator_session)),
     (AVCaptureVideoPreviewLayer.self, "connection", #selector(getter: AVCaptureVideoPreviewLayer.shimulator_connection)),
+    (
+      AVCaptureVideoPreviewLayer.self, "metadataOutputRectOfInterestForRect:",
+      #selector(AVCaptureVideoPreviewLayer.shimulator_metadataOutputRectOfInterest(for:))
+    ),
+    (
+      AVCaptureVideoPreviewLayer.self, "rectForMetadataOutputRectOfInterest:",
+      #selector(AVCaptureVideoPreviewLayer.shimulator_rectForMetadataOutputRectOfInterest(_:))
+    ),
+    (
+      AVCaptureVideoPreviewLayer.self, "captureDevicePointOfInterestForPoint:",
+      #selector(AVCaptureVideoPreviewLayer.shimulator_captureDevicePointOfInterest(for:))
+    ),
+    (
+      AVCaptureVideoPreviewLayer.self, "pointForCaptureDevicePointOfInterest:",
+      #selector(AVCaptureVideoPreviewLayer.shimulator_pointForCaptureDevicePointOfInterest(_:))
+    ),
     (AVCaptureVideoPreviewLayer.self, "setSession:", #selector(AVCaptureVideoPreviewLayer.shimulator_setSession(_:))),
     (AVCaptureVideoPreviewLayer.self, "initWithSession:", NSSelectorFromString("initShimulatorWithSession:")),
   ]
@@ -328,6 +345,12 @@ extension AVCaptureSession {
     return withNativeView(self) { self.shimulator_outputs } + outputs
   }
 
+  @objc dynamic var shimulator_connections: [AVCaptureConnection] {
+    guard let state = sessionState(self) else { return self.shimulator_connections }
+    let connections: [AVCaptureConnection] = synchronized(state) { state.outputs }.compactMap { virtualConnection($0) }.filter { !$0.virtualPorts.isEmpty }
+    return withNativeView(self) { self.shimulator_connections } + connections
+  }
+
   @objc dynamic func shimulator_canSetSessionPreset(_ preset: Preset) -> Bool {
     holdsConfiguration || withNativeView(self) { shimulator_canSetSessionPreset(preset) }
   }
@@ -465,6 +488,52 @@ extension AVCaptureVideoPreviewLayer {
       associate(self, &Key.previewConnection, connection)
       return connection
     }
+  }
+
+  /// Maps the normalised native frame onto the layer as the preview shows it: turned by the angle
+  /// the frames are turned by, mirrored when the connection is, and placed by `videoGravity`.
+  private var virtualFrameTransform: CGAffineTransform? {
+    guard let connection = connection as? ShimulatorCaptureConnection else { return nil }
+    let size = frameSize(connection)
+    let bounds = self.bounds
+    guard size.width > 0, size.height > 0, bounds.width > 0, bounds.height > 0 else { return nil }
+    var video = bounds
+    if videoGravity != .resize {
+      let widthScale = bounds.width / size.width
+      let heightScale = bounds.height / size.height
+      let scale = videoGravity == .resizeAspectFill ? max(widthScale, heightScale) : min(widthScale, heightScale)
+      video.size = CGSize(width: size.width * scale, height: size.height * scale)
+      video.origin = CGPoint(x: bounds.midX - video.width / 2, y: bounds.midY - video.height / 2)
+    }
+    let rotations: [CGFloat: CGAffineTransform] = [
+      90: CGAffineTransform(a: 0, b: 1, c: -1, d: 0, tx: 0, ty: 0),
+      180: CGAffineTransform(a: -1, b: 0, c: 0, d: -1, tx: 0, ty: 0),
+      270: CGAffineTransform(a: 0, b: -1, c: 1, d: 0, tx: 0, ty: 0),
+    ]
+    return CGAffineTransform(translationX: -0.5, y: -0.5)
+      .concatenating(rotations[connection.frameRotationAngle] ?? .identity)
+      .concatenating(CGAffineTransform(a: connection.isVideoMirrored ? -1 : 1, b: 0, c: 0, d: 1, tx: 0.5, ty: 0.5))
+      .concatenating(CGAffineTransform(a: video.width, b: 0, c: 0, d: video.height, tx: video.minX, ty: video.minY))
+  }
+
+  @objc dynamic func shimulator_metadataOutputRectOfInterest(for rect: CGRect) -> CGRect {
+    guard let transform = virtualFrameTransform else { return shimulator_metadataOutputRectOfInterest(for: rect) }
+    return rect.applying(transform.inverted())
+  }
+
+  @objc dynamic func shimulator_rectForMetadataOutputRectOfInterest(_ rect: CGRect) -> CGRect {
+    guard let transform = virtualFrameTransform else { return shimulator_rectForMetadataOutputRectOfInterest(rect) }
+    return rect.applying(transform)
+  }
+
+  @objc dynamic func shimulator_captureDevicePointOfInterest(for point: CGPoint) -> CGPoint {
+    guard let transform = virtualFrameTransform else { return shimulator_captureDevicePointOfInterest(for: point) }
+    return point.applying(transform.inverted())
+  }
+
+  @objc dynamic func shimulator_pointForCaptureDevicePointOfInterest(_ point: CGPoint) -> CGPoint {
+    guard let transform = virtualFrameTransform else { return shimulator_pointForCaptureDevicePointOfInterest(point) }
+    return point.applying(transform)
   }
 
   @objc dynamic func shimulator_setSession(_ session: AVCaptureSession?) {

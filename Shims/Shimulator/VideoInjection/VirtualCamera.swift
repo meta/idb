@@ -347,6 +347,16 @@ func makeConnection(_ ports: [AVCaptureInput.Port], _ session: AVCaptureSession?
   return connection
 }
 
+/// The shape of the frames a connection delivers: the preset's native size turned by the
+/// connection's rotation, as a video data output delivers physically rotated buffers. The file's
+/// own size only decides the crop.
+func frameSize(_ connection: ShimulatorCaptureConnection) -> CGSize {
+  let preset = sessionState(connection.virtualSession).map { state in synchronized(state) { state.preset } }
+  let size = preset.flatMap { presetSizes[$0] } ?? nativeSize
+  let angle = connection.rotationAngle
+  return angle == 90 || angle == 270 ? CGSize(width: size.height, height: size.width) : size
+}
+
 final class MovieRecording {
   let writer: AVAssetWriter, adaptor: AVAssetWriterInputPixelBufferAdaptor
   let delegate: AVCaptureFileOutputRecordingDelegate, url: URL, frameSize: CGSize, rotationAngle: CGFloat, mirrored: Bool
@@ -426,16 +436,6 @@ final class VirtualCamera: NSObject {
     format.formatDescriptionRef = description
     format.range.rate = source.frameRate
     return format
-  }
-
-  /// The shape of the frames a connection delivers: the preset's native size turned by the
-  /// connection's rotation, as a video data output delivers physically rotated buffers. The file's
-  /// own size only decides the crop.
-  private func frameSize(_ connection: ShimulatorCaptureConnection) -> CGSize {
-    let preset = sessionState(connection.virtualSession).map { state in synchronized(state) { state.preset } }
-    let size = preset.flatMap { presetSizes[$0] } ?? nativeSize
-    let angle = connection.rotationAngle
-    return angle == 90 || angle == 270 ? CGSize(width: size.height, height: size.width) : size
   }
 
   // MARK: - Injection
