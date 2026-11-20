@@ -71,7 +71,7 @@ enum DeviceHIDRequest {
           case .UNRECOGNIZED: throw RPCError(code: .invalidArgument, message: "Unrecognized physical touch direction")
           }
         case let .delay(delay): return .delay(delay.duration)
-        case .swipe, .pinch, .orientation, .shake, .hinge:
+        case .swipe, .pinch, .orientation, .shake, .hinge, .text:
           throw RPCError(code: .unimplemented, message: "Physical HID requires one touch recipe, swipe or pinch; mixed and other events are unsupported")
         case .none:
           throw RPCError(code: .invalidArgument, message: "Missing physical HID event")

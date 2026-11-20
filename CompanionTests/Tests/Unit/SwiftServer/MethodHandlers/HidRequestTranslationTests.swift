@@ -92,4 +92,161 @@ struct HidRequestTranslationTests {
     let request = Idb_HIDEvent.with { $0.shake = Idb_HIDEvent.HIDShake() }
     #expect(try HidMethodHandler.request(from: request) == .shake)
   }
+
+  @Test
+  func textWithNoLayoutIsTypedOnTheSimulatorsOwn() throws {
+    let request = Idb_HIDEvent.with { $0.text.text = "héllo" }
+    #expect(try HidMethodHandler.request(from: request) == .text("héllo", layout: nil))
+  }
+
+  @Test
+  func textCarriesTheLayoutItNames() throws {
+    let request = Idb_HIDEvent.with {
+      $0.text.text = "azerty"
+      $0.text.layout = "French"
+    }
+    #expect(try HidMethodHandler.request(from: request) == .text("azerty", layout: SimulatorKeyboardLayout(name: "French")))
+  }
+
+  @Test
+  func textThatCannotBeTypedAsAskedIsAnInvalidArgument() {
+    let failures: [SimulatorHIDError] = [
+      .characterNotOnKeyboardLayout(offset: 3, layout: "French"),
+      .unknownKeyboardLayout(name: "Bogus"),
+    ]
+    for failure in failures {
+      let error = HidMethodHandler.typingFailure(failure) as? RPCError
+      #expect(error?.code == .invalidArgument)
+      #expect(error?.message == failure.localizedDescription)
+    }
+    #expect(HidMethodHandler.typingFailure(SimulatorHIDError.clientDisposed) is SimulatorHIDError)
+  }
+
+  // MARK: - The events of a stream
+
+  private struct Refused: Error {}
+
+  /// Messages handed out one at a time, counting how many have been asked for.
+  private final class Messages: AsyncIteratorProtocol {
+    private var remaining: [Result<Idb_HIDEvent, any Error>]
+    private(set) var read = 0
+
+    init(_ messages: [Result<Idb_HIDEvent, any Error>]) {
+      remaining = messages
+    }
+
+    func next() async throws -> Idb_HIDEvent? {
+      guard !remaining.isEmpty else { return nil }
+      read += 1
+      return try remaining.removeFirst().get()
+    }
+  }
+
+  private func delay(_ duration: Double) -> Result<Idb_HIDEvent, any Error> {
+    .success(.with { $0.delay.duration = duration })
+  }
+
+  /// A delay resolves to itself, a shake to no event, and anything else is refused.
+  private func resolve(_ message: Idb_HIDEvent) throws -> SimulatorHIDEvent? {
+    switch message.event {
+    case let .delay(delay): return .delay(delay.duration)
+    case .shake: return nil
+    default: throw Refused()
+    }
+  }
+
+  private func collect<S: AsyncSequence>(_ events: S) async throws -> [SimulatorHIDEvent] where S.Element == SimulatorHIDEvent {
+    var collected: [SimulatorHIDEvent] = []
+    for try await event in events { collected.append(event) }
+    return collected
+  }
+
+  @Test
+  func theFirstEventIsResolvedBeforeTheEventsAreAskedFor() async throws {
+    let messages = Messages([delay(1), delay(2)])
+    var resolved: [Idb_HIDEvent] = []
+
+    let events = try await HidMethodHandler.Events.resolvingFirst(of: messages, if: { _ in true }) {
+      resolved.append($0)
+      return try self.resolve($0)
+    }
+
+    #expect(messages.read == 1)
+    #expect(resolved.count == 1)
+    #expect(try await collect(events) == [.delay(1), .delay(2)])
+    #expect(resolved.count == 2)
+  }
+
+  @Test
+  func eventsKeepTheirOrderAndMessagesThatAreNoInputAreLeftOut() async throws {
+    let shake: Result<Idb_HIDEvent, any Error> = .success(.with { $0.shake = Idb_HIDEvent.HIDShake() })
+
+    let leading = try await HidMethodHandler.Events.resolvingFirst(of: Messages([shake, delay(1), shake, delay(2)]), if: { _ in true }, event: resolve)
+    #expect(try await collect(leading) == [.delay(1), .delay(2)])
+
+    let trailing = try await HidMethodHandler.Events.resolvingFirst(of: Messages([delay(1), delay(2), delay(3), shake]), if: { _ in true }, event: resolve)
+    #expect(try await collect(trailing) == [.delay(1), .delay(2), .delay(3)])
+  }
+
+  @Test
+  func anEmptyStreamHasNoEvents() async throws {
+    let events = try await HidMethodHandler.Events.resolvingFirst(of: Messages([]), if: { _ in true }, event: resolve)
+    #expect(try await collect(events).isEmpty)
+  }
+
+  @Test
+  func aFirstMessageThatFailsFailsBeforeThereAreEvents() async {
+    let unresolvable: Result<Idb_HIDEvent, any Error> = .success(.with { $0.hinge.angle = 90 })
+    await #expect(throws: Refused.self) {
+      _ = try await HidMethodHandler.Events.resolvingFirst(of: Messages([unresolvable, self.delay(1)]), if: { _ in true }, event: self.resolve)
+    }
+    await #expect(throws: Refused.self) {
+      _ = try await HidMethodHandler.Events.resolvingFirst(of: Messages([.failure(Refused())]), if: { _ in true }, event: self.resolve)
+    }
+  }
+
+  @Test
+  func anErrorAfterTheFirstEventEndsTheEventsOnceItIsDelivered() async throws {
+    let events = try await HidMethodHandler.Events.resolvingFirst(of: Messages([delay(1), .failure(Refused()), delay(2)]), if: { _ in true }, event: resolve)
+    var iterator = events.makeAsyncIterator()
+
+    #expect(try await iterator.next() == .delay(1))
+    await #expect(throws: Refused.self) { _ = try await iterator.next() }
+  }
+
+  @Test
+  func aFirstMessageNotResolvedEarlyIsResolvedOnlyOnceTheEventsAreAskedFor() async throws {
+    let shake: Result<Idb_HIDEvent, any Error> = .success(.with { $0.shake = Idb_HIDEvent.HIDShake() })
+    let messages = Messages([shake, delay(1)])
+    var resolved: [Idb_HIDEvent] = []
+
+    let events = try await HidMethodHandler.Events.resolvingFirst(of: messages, if: { _ in false }) {
+      resolved.append($0)
+      return try self.resolve($0)
+    }
+
+    // The shake stands for a device action: it must not run before the events are iterated under the HID.
+    #expect(messages.read == 1)
+    #expect(resolved.isEmpty)
+    #expect(try await collect(events) == [.delay(1)])
+    #expect(resolved.count == 2)
+  }
+
+  @Test
+  func aFirstMessageNotResolvedEarlyFailsOnlyOnceTheEventsAreAskedFor() async throws {
+    let unresolvable: Result<Idb_HIDEvent, any Error> = .success(.with { $0.hinge.angle = 90 })
+    let events = try await HidMethodHandler.Events.resolvingFirst(of: Messages([unresolvable]), if: { _ in false }, event: resolve)
+    var iterator = events.makeAsyncIterator()
+
+    await #expect(throws: Refused.self) { _ = try await iterator.next() }
+  }
+
+  @Test
+  func onlyTextIsResolvedBeforeTheHIDIsTaken() {
+    #expect(HidMethodHandler.isText(.with { $0.text.text = "azerty" }))
+    #expect(!HidMethodHandler.isText(.with { $0.shake = Idb_HIDEvent.HIDShake() }))
+    #expect(!HidMethodHandler.isText(.with { $0.hinge.angle = 90 }))
+    #expect(!HidMethodHandler.isText(.with { $0.orientation.orientation = .portrait }))
+    #expect(!HidMethodHandler.isText(.with { $0.delay.duration = 1 }))
+  }
 }

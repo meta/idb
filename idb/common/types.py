@@ -278,6 +278,7 @@ class CompanionInfo:
     screenshot_app_context: bool = False
     install_connect_to: bool = False
     supports_notification_service_extension: bool = False
+    hid_text: bool = False
 
 
 @dataclass(frozen=True)
@@ -832,6 +833,15 @@ class HIDKey:
     keycode: int
 
 
+@dataclass(frozen=True)
+class HIDText:
+    """Text typed as a hardware keyboard would, on a hardware keyboard layout such
+    as "US" or "French". No layout means the simulator's active one."""
+
+    text: str
+    layout: str | None = None
+
+
 HIDPressAction = Union[HIDTouch, HIDButton, HIDKey]
 
 
@@ -901,7 +911,14 @@ class HIDHinge:
 
 
 HIDEvent = Union[
-    HIDPress, HIDSwipe, HIDDelay, HIDPinch, HIDOrientation, HIDShake, HIDHinge
+    HIDPress,
+    HIDSwipe,
+    HIDDelay,
+    HIDPinch,
+    HIDOrientation,
+    HIDShake,
+    HIDHinge,
+    HIDText,
 ]
 
 
@@ -1637,7 +1654,7 @@ class Client(ABC):
         pass
 
     @abstractmethod
-    async def text(self, text: str) -> None:
+    async def text(self, text: str, layout: str | None = None) -> None:
         return
 
     @abstractmethod

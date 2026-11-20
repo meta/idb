@@ -303,13 +303,22 @@ idb ui remote down
 idb ui remote select
 ```
 
-### `idb ui text TEXT`
+### `idb ui text TEXT [--layout LAYOUT]`
 
 Types text, as a hardware keyboard would. It takes a single argument, so text containing spaces must be quoted.
 
 ```
 idb ui text 'hello world'
+idb ui text 'héllo' --layout French
 ```
+
+Each character becomes the key presses that produce it on the simulator's hardware keyboard layout, whichever layout the simulator is set to. An accented character can arrive in a canonically equivalent form. `--layout` names a layout to type on instead, such as `US` or `French`.
+
+The layout is read from the simulator's keyboard settings. An app keeps the layout it was launched with, so after changing the simulator's keyboards, relaunch the app or pass `--layout`.
+
+Text the layout cannot type fails the command before anything is typed, naming the offset of the first character it cannot type. The offset counts characters (grapheme clusters), starting at 0. Input methods that convert key presses into other text, such as Japanese, Chinese and Korean, are not covered. [`idb ui set-value`](#idb-ui-set-value-target---value-value) sets such text with no keyboard involved.
+
+With a companion that does not advertise typing text, the client sends the key presses of a US keyboard and refuses any other `--layout`.
 
 ### `idb ui key KEYCODE`
 

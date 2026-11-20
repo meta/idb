@@ -58,6 +58,7 @@ struct DeviceHIDRequestTests {
       Idb_HIDEvent.with { $0.orientation.orientation = .portrait },
       Idb_HIDEvent.with { $0.shake = .init() },
       Idb_HIDEvent.with { $0.hinge.angle = 90 },
+      Idb_HIDEvent.with { $0.text.text = "azerty" },
     ]
     for event in unsupported {
       await #expect { try await DeviceHIDRequest.read(from: stream([event])) } throws: { error in

@@ -84,6 +84,7 @@ from idb.common.types import (
     HIDEvent,
     HIDHinge,
     HIDOrientationType,
+    HIDText,
     IdbConnectionException,
     IdbException,
     InstalledAppInfo,
@@ -1171,6 +1172,7 @@ class Client(ClientBase):
                 supports_notification_service_extension=(
                     self.companion.supports_notification_service_extension
                 ),
+                hid_text=self.companion.hid_text,
             ),
             # Extract the companion metadata from the response.
             metadata=response.companion.metadata,
@@ -1520,8 +1522,17 @@ class Client(ClientBase):
         await self.send_events(key_press_to_events(keycode, duration))
 
     @log_and_handle_exceptions("hid")
-    async def text(self, text: str) -> None:
-        await self.send_events(text_to_events(text))
+    async def text(self, text: str, layout: str | None = None) -> None:
+        if self.companion.hid_text:
+            # The companion maps the text onto the keyboard layout.
+            await self.send_events([HIDText(text=text, layout=layout)])
+        elif not layout or layout == "US":
+            # US key presses, which are all an older companion can be sent.
+            await self.send_events(text_to_events(text))
+        else:
+            raise IdbException(
+                "The companion does not support typing on a keyboard layout"
+            )
 
     @log_and_handle_exceptions("hid")
     async def swipe(

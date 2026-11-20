@@ -82,6 +82,7 @@ def companion_to_py(companion: GrpcCompanionInfo, address: Address) -> Companion
             companion.supports_notification_service_extension
         ),
         screenshot_app_context=companion.screenshot_app_context,
+        hid_text=companion.hid_text,
     )
 
 
