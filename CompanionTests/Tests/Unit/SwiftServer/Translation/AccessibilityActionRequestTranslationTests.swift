@@ -151,6 +151,9 @@ final class AccessibilityActionRequestTranslationTests: XCTestCase {
   func testWaitCarriesFinalProbeDiagnostics() async throws {
     for diagnostics in [
       AccessibilitySearchDiagnostics(unmatchedValues: ["Settings", "General"], truncated: true),
+      AccessibilitySearchDiagnostics(unmatchedValues: ["Settings"], readTruncated: true),
+      AccessibilitySearchDiagnostics(truncated: true, readTruncated: true),
+      AccessibilitySearchDiagnostics(readTruncated: false),
       AccessibilitySearchDiagnostics(),
       AccessibilitySearchDiagnostics(readError: "application unavailable"),
     ] {
@@ -163,7 +166,11 @@ final class AccessibilityActionRequestTranslationTests: XCTestCase {
       XCTAssertEqual(response.wait.result, .timedOut)
       XCTAssertTrue(response.wait.hasDiagnostics)
       XCTAssertEqual(response.wait.diagnostics.unmatchedValues, diagnostics.unmatchedValues)
-      XCTAssertEqual(response.wait.diagnostics.truncated, diagnostics.truncated)
+      XCTAssertEqual(response.wait.diagnostics.truncated, diagnostics.truncated || diagnostics.readTruncated == true)
+      XCTAssertEqual(response.wait.diagnostics.hasReadTruncated, diagnostics.readTruncated != nil)
+      XCTAssertEqual(response.wait.diagnostics.readTruncated, diagnostics.readTruncated ?? false)
+      XCTAssertTrue(response.wait.diagnostics.hasSampleTruncated)
+      XCTAssertEqual(response.wait.diagnostics.sampleTruncated, diagnostics.truncated)
       XCTAssertEqual(response.wait.diagnostics.readError, diagnostics.readError ?? "")
       XCTAssertEqual(
         response.wait.message,

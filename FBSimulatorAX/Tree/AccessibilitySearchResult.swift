@@ -11,11 +11,18 @@ import Foundation
 /// Nonmatching values of the searched key from one traversal, or that probe's read failure.
 public struct AccessibilitySearchDiagnostics: Equatable, Sendable {
   public private(set) var unmatchedValues: [String] = []
+  /// Only the diagnostic sample was shortened; the search can still be complete.
   public var truncated: Bool = false
+  /// Whether the tree walk stopped at a bound; nil if the backend cannot report it.
+  public var readTruncated: Bool? = nil
   public let readError: String?
 
-  public init(unmatchedValues: [String] = [], truncated: Bool = false, readError: String? = nil) {
+  public init(
+    unmatchedValues: [String] = [], truncated: Bool = false, readError: String? = nil,
+    readTruncated: Bool? = nil
+  ) {
     self.readError = readError
+    self.readTruncated = readTruncated
     self.truncated = truncated
     for value in unmatchedValues {
       record(value)

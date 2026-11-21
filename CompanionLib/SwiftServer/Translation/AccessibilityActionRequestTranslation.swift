@@ -85,7 +85,11 @@ enum AccessibilityActionRequestTranslation {
       if let diagnostics {
         wait.diagnostics = .with {
           $0.unmatchedValues = diagnostics.unmatchedValues
-          $0.truncated = diagnostics.truncated
+          $0.truncated = diagnostics.truncated || diagnostics.readTruncated == true
+          if let readTruncated = diagnostics.readTruncated {
+            $0.readTruncated = readTruncated
+          }
+          $0.sampleTruncated = diagnostics.truncated
           $0.readError = diagnostics.readError ?? ""
         }
       }
