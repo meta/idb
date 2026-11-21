@@ -135,7 +135,7 @@ struct SocketStreamTests {
     let peerSocket = try SocketStream(adopting: peer)
     defer { peerSocket.close() }
     await #expect {
-      try await SocketStream.withSocket(adopting: descriptor) { _ -> Void in throw Failed() }
+      try await SocketStream.withSocket(adopting: descriptor) { _ in throw Failed() }
     } throws: { $0 is Failed }
     #expect(try await peerSocket.read() == nil)
   }

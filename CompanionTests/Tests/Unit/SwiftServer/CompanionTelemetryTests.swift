@@ -147,7 +147,7 @@ struct CompanionTelemetryTests {
   func columnsSetBeforeAFailureReachTheFailureSubject() async {
     let (telemetry, recorder) = makeTelemetry()
     do {
-      try await telemetry.clientStreaming("install") { () async throws -> Void in
+      try await telemetry.clientStreaming("install") { () async throws in
         CallTelemetry.current?.setSize(10)
         CallTelemetry.current?.setNormal("extract", forKey: "failure_stage")
         throw TelemetryTestError()
@@ -371,7 +371,7 @@ struct CompanionTelemetryTests {
     let telemetry = CompanionTelemetry(
       logger: IDBLogger(loggers: [recorder]),
       reporter: RecordingEventReporter())
-    try? await telemetry.clientStreaming("install") { () async throws -> Void in
+    try? await telemetry.clientStreaming("install") { () async throws in
       CallTelemetry.current?.setNormal("download", forKey: "failure_stage")
       throw TelemetryTestError()
     }
