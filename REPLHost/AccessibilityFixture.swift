@@ -56,7 +56,7 @@ private struct FixtureRow {
 // This open-source fixture cannot depend on internal METAUIKit.
 // ast-grep-ignore: ig-core/swift/meta-no-coding-uikit-subclass
 private final class FixtureListController: UITableViewController {
-  static let openingRowLabel = "General"
+  nonisolated static let openingRowLabel = "General"
   static let customActionName = "Mark complete"
   static let customActionPendingValue = "Pending"
   static let customActionCompletedValue = "Completed"
