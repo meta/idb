@@ -7,7 +7,7 @@
 
 import Darwin
 import Foundation
-@_implementationOnly import SimulatorIPC
+internal import SimulatorIPC
 
 public struct ShimulatorResponder: Equatable, Sendable {
   public var response: ShimulatorResponse?
