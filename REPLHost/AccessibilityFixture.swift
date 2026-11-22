@@ -86,6 +86,15 @@ private final class FixtureListController: UITableViewController {
     // ast-grep-ignore: common/swift/i18n-hardcoded-ui-property
     search.placeholder = "Search"
     search.searchTextField.accessibilityIdentifier = FixtureIdentifier.search
+    // Typing tests compare the field with exactly what they typed, so it must
+    // not capitalize, correct or otherwise rewrite what arrives.
+    search.autocapitalizationType = .none
+    search.autocorrectionType = .no
+    search.spellCheckingType = .no
+    search.smartQuotesType = .no
+    search.smartDashesType = .no
+    search.smartInsertDeleteType = .no
+    search.inlinePredictionType = .no
     search.sizeToFit()
     tableView.tableHeaderView = search
   }
