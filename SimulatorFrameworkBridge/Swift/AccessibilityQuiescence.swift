@@ -115,6 +115,14 @@ final class QuiescenceStream: AccessibilityAnswerStream {
   /// case a state change went unreported.
   private static let heartbeatInterval: TimeInterval = 1
 
+  /// Adds a timer to the current run loop. Its handler runs on this thread, so unlike `Timer`'s it
+  /// need not be `@Sendable`.
+  private static func scheduledTimer(after interval: TimeInterval, repeating: Bool, handler: @escaping () -> Void) -> CFRunLoopTimer {
+    let timer: CFRunLoopTimer = CFRunLoopTimerCreateWithHandler(nil, CFAbsoluteTimeGetCurrent() + interval, repeating ? interval : 0, 0, 0) { _ in handler() }
+    CFRunLoopAddTimer(CFRunLoopGetCurrent(), timer, .defaultMode)
+    return timer
+  }
+
   private let target: Target
   private let resolveFrontmost: (FBAXClient) throws -> FBAXFrontmostOutcome
   private var tracker: QuiescenceTracker
@@ -131,8 +139,8 @@ final class QuiescenceStream: AccessibilityAnswerStream {
   /// Bumped on every retarget, so a re-arm scheduled for the previous application is dropped.
   private var generation = 0
   private var lastState: QuiescenceTracker.State?
-  private var deadlineTimer: Timer?
-  private var heartbeat: Timer?
+  private var deadlineTimer: CFRunLoopTimer?
+  private var heartbeat: CFRunLoopTimer?
   private(set) var failed = false
 
   init(target: Target, busyThreshold: TimeInterval, quietWindow: TimeInterval, resolveFrontmost: @escaping (FBAXClient) throws -> FBAXFrontmostOutcome) {
@@ -155,8 +163,12 @@ final class QuiescenceStream: AccessibilityAnswerStream {
     while !isCancelled {
       CFRunLoopRunInMode(.defaultMode, Self.heartbeatInterval, false)
     }
-    deadlineTimer?.invalidate()
-    heartbeat?.invalidate()
+    if let deadlineTimer {
+      CFRunLoopTimerInvalidate(deadlineTimer)
+    }
+    if let heartbeat {
+      CFRunLoopTimerInvalidate(heartbeat)
+    }
     monitor?.invalidate()
     // The one-shot CLI lends `emit` only for the duration of `run`.
     self.emit = nil
@@ -188,9 +200,7 @@ final class QuiescenceStream: AccessibilityAnswerStream {
     monitor = try client.quiescenceMonitor { [weak self] report, pid in
       self?.enqueue(report, pid: pid)
     }
-    let heartbeat = Timer(timeInterval: Self.heartbeatInterval, repeats: true) { [weak self] _ in self?.beat() }
-    RunLoop.current.add(heartbeat, forMode: .default)
-    self.heartbeat = heartbeat
+    heartbeat = Self.scheduledTimer(after: Self.heartbeatInterval, repeating: true) { [weak self] in self?.beat() }
     switch target {
     case let .pid(pid):
       try arm(pid)
@@ -263,11 +273,10 @@ final class QuiescenceStream: AccessibilityAnswerStream {
       guard tracker.answered(signal, at: Self.now) else { return }
       evaluate()
       let generation = generation
-      let rearm = Timer(timeInterval: Self.rearmDelay, repeats: false) { [weak self] _ in
+      _ = Self.scheduledTimer(after: Self.rearmDelay, repeating: false) { [weak self] in
         guard let self, self.generation == generation else { return }
         self.guarded { try self.request(signal) }
       }
-      RunLoop.current.add(rearm, forMode: .default)
     @unknown default:
       break
     }
@@ -339,12 +348,12 @@ final class QuiescenceStream: AccessibilityAnswerStream {
       lastState = state
       write(.quiescence(Self.event(for: state, pid: pid)))
     }
-    deadlineTimer?.invalidate()
+    if let deadlineTimer {
+      CFRunLoopTimerInvalidate(deadlineTimer)
+    }
     deadlineTimer = nil
     guard let deadline = tracker.nextDeadline(after: now) else { return }
-    let timer = Timer(timeInterval: max(0, deadline - now), repeats: false) { [weak self] _ in self?.evaluate() }
-    RunLoop.current.add(timer, forMode: .default)
-    deadlineTimer = timer
+    deadlineTimer = Self.scheduledTimer(after: max(0, deadline - now), repeating: false) { [weak self] in self?.evaluate() }
   }
 
   private static func event(for state: QuiescenceTracker.State, pid: pid_t) -> BridgeAXQuiescenceEvent {
