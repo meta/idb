@@ -13,6 +13,7 @@ import GRPCNIOTransportHTTP2Posix
 import IDBGRPCSwift
 import IDBTelemetry
 import ReplCompiler
+import SwiftProtobuf
 
 /// The options needed to establish a REPL session, gathered from the CLI so both
 /// `ReplRunner` (the interactive/one-shot subcommands) and `ReplayCommand` can drive a
