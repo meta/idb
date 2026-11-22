@@ -7,6 +7,7 @@
 
 @preconcurrency import FBControlCore
 import Foundation
+import MobileDeviceAPI
 
 private let MountPathKey = "MountPath"
 private let ImageTypeKey = "ImageType"

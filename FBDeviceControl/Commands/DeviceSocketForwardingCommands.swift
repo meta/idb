@@ -7,6 +7,7 @@
 
 @preconcurrency import FBControlCore
 import Foundation
+import MobileDeviceAPI
 
 public enum DeviceSocketForwardingError: Error {
   case socketDuplicationFailed(message: String)

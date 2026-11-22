@@ -8,6 +8,7 @@
 @preconcurrency import FBControlCore
 import FBXCTestCore
 import Foundation
+import MobileDeviceAPI
 
 public enum DeviceXCTestError: Error {
   case testManagerAlreadyRunning(configurationDescription: String)
