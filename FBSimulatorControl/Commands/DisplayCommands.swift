@@ -6,6 +6,7 @@
  */
 
 import FBControlCore
+import FBSimulatorBridgeProtocol
 import Foundation
 
 /// The display reads that route interactions. `SimulatorDisplayCommands` reads the simulator; the

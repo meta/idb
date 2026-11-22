@@ -5,6 +5,7 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+import CoreSimulator
 import FBControlCore
 @testable import FBSimulatorControl
 import XCTest

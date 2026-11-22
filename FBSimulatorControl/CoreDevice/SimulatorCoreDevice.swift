@@ -6,6 +6,7 @@
  */
 
 @preconcurrency import CoreSimulator
+import FBControlCore
 import Foundation
 import XPC
 

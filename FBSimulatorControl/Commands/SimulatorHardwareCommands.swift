@@ -5,6 +5,7 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+import CoreSimulator
 import Foundation
 
 /// Physical actions on the simulated device that are not input to its screen or buttons.

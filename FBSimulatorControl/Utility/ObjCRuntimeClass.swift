@@ -5,6 +5,7 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+import FBControlCore
 import FBControlCoreObjC
 import Foundation
 import ObjectiveC
