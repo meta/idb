@@ -8,6 +8,7 @@
 import CoreGraphics
 import FBControlCore
 import FBSimulatorAX
+import FBSimulatorBridgeProtocol
 import FBSimulatorControl
 import FBSimulatorServices
 import FBSimulatorVideo

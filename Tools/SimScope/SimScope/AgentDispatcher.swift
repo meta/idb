@@ -8,6 +8,7 @@
 import CoreGraphics
 import FBControlCore
 import FBSimulatorAX
+import FBSimulatorControl
 import Foundation
 import SimScopeProtocol
 
