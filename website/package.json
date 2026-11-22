@@ -26,7 +26,7 @@
   "resolutions": {
     "browserslist": ">4.16.5",
     "css-what": ">5.0.1",
-    "follow-redirects": ">=1.16.0",
+    "follow-redirects": ">=1.16.2",
     "minimist": ">=1.2.6",
     "got": ">=11.8.5",
     "semver": ">=7.5.2",
