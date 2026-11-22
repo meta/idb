@@ -6,6 +6,7 @@
  */
 
 @testable import FBControlCore
+import Foundation
 import Testing
 
 @Suite
