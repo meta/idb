@@ -216,7 +216,7 @@ static void CompletionReady(void *context)
     CFAbsoluteTimeGetCurrent() + MAX(0, timeout),
     0,
     0,
-    0, ^(CFRunLoopTimerRef timer) {
+    0, ^(__unused CFRunLoopTimerRef firedTimer) {
       [completion expire];
     });
   CFRunLoopAddTimer(completion.loop, timer, kCFRunLoopDefaultMode);

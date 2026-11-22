@@ -40,7 +40,7 @@ static id FBAXWirePlainValue(id value)
   if ([value isKindOfClass:NSDictionary.class]) {
     NSMutableDictionary *copy = [NSMutableDictionary dictionary];
     [(NSDictionary *)value
-     enumerateKeysAndObjectsUsingBlock:^(id key, id object, BOOL *stop) {
+     enumerateKeysAndObjectsUsingBlock:^(id key, id object, __unused BOOL *stop) {
        copy[[key description]] = FBAXWirePlainValue(object);
      }];
     return copy;

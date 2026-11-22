@@ -8,8 +8,10 @@
 #import <Foundation/Foundation.h>
 #import <UserNotifications/UserNotifications.h>
 
+NS_ASSUME_NONNULL_BEGIN
+
 @interface UNCNotificationServiceExtension : NSObject
-- (dispatch_queue_t)queue;
+- (nullable dispatch_queue_t)queue;
 - (nullable UNNotificationContent *)mutateContentForNotificationRequest:(UNNotificationRequest *)request error:(NSError **)error;
 - (void)cleanUp;
 @end
@@ -29,5 +31,7 @@
 @end
 
 @interface UNUserNotificationCenter (FBServiceExtension)
-- (void)addNotificationRequest:(UNNotificationRequest *)request withCompletionHandler:(void (^)(NSError *error))handler;
+- (void)addNotificationRequest:(UNNotificationRequest *)request withCompletionHandler:(void (^)(NSError *_Nullable error))handler;
 @end
+
+NS_ASSUME_NONNULL_END

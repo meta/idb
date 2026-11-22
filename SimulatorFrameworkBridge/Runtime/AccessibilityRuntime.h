@@ -495,7 +495,7 @@ typedef void (^FBAXQuiescenceHandler)(FBAXQuiescenceReport report, pid_t pid);
  * continues a snapshot across a process boundary. Ask, options and `namesByNumber` are exactly
  * `-snapshotOfElement:…`'s.
  */
-- (nullable id)snapshotOfSnapshotElement:(id)element
+- (nullable id)snapshotOfSnapshotElement:(nullable id)element
                           attributeNames:(NSArray<NSString *> *)names
                            namesByNumber:(NSDictionary<NSNumber *, NSString *> *_Nullable *_Nonnull)namesByNumber
                                    error:(NSError **)error;

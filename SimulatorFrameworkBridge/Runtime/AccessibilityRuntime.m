@@ -108,11 +108,11 @@ static NSString *FBAXErrorDescription(int32_t axError)
 - (instancetype)initWithNames:(NSArray<NSString *> *)names handler:(void (^)(void))handler;
 @end
 
-static void FBAXSettingChanged(CFNotificationCenterRef center,
+static void FBAXSettingChanged(__unused CFNotificationCenterRef center,
                                void *observer,
-                               CFStringRef name,
-                               const void *object,
-                               CFDictionaryRef userInfo)
+                               __unused CFStringRef name,
+                               __unused const void *object,
+                               __unused CFDictionaryRef userInfo)
 {
   FBAXDarwinSettingMonitor *monitor = (__bridge FBAXDarwinSettingMonitor *)observer;
   if (monitor.handler) {
@@ -864,7 +864,7 @@ BOOL FBAXQuiescenceReportForNotification(uint32_t notification, id _Nullable inf
 
 // The observer's callback. `refcon` is the monitor, unretained: the source is removed from the run loop
 // before the monitor goes, and delivery happens only on that run loop, so the callback cannot outlive it.
-static void FBAXQuiescenceObserverCallback(void *observer, void *element, uint32_t notification, const void *info, void *refcon)
+static void FBAXQuiescenceObserverCallback(__unused void *observer, void *element, uint32_t notification, const void *info, void *refcon)
 {
   FBAXLiveQuiescenceMonitor *monitor = (__bridge FBAXLiveQuiescenceMonitor *)refcon;
   [monitor deliverNotification:notification element:element info:(__bridge id)info];
@@ -1462,6 +1462,7 @@ static NSString *const kFrontboardVisibilityEndowment = @"com.apple.frontboard.v
         }
         _functions.voiceOverSetEnabled(enabled);
         break;
+      case FBAXDeviceSettingIncreaseContrast:
       default:
         return [FBAXDeviceSettingOutcome unavailable:@"Unknown device setting"];
     }
@@ -1542,7 +1543,7 @@ static NSError *FBAXSnapshotFailure(NSInteger code, NSString *description)
     return nil;
   }
   NSMutableDictionary<NSNumber *, NSString *> *inverse = [NSMutableDictionary dictionary];
-  [numbers enumerateObjectsUsingBlock:^(id number, NSUInteger index, BOOL *stop) {
+  [numbers enumerateObjectsUsingBlock:^(id number, NSUInteger index, __unused BOOL *stop) {
     if ([number isKindOfClass:NSNumber.class]) {
       inverse[number] = names[index];
     }
@@ -1605,7 +1606,7 @@ static NSError *FBAXSnapshotFailure(NSInteger code, NSString *description)
   return [self owningProcessIdentifierForSnapshotElement:(__bridge id)[element AXUIElement]];
 }
 
-- (nullable id)snapshotOfSnapshotElement:(id)element
+- (nullable id)snapshotOfSnapshotElement:(nullable id)element
                           attributeNames:(NSArray<NSString *> *)names
                            namesByNumber:(NSDictionary<NSNumber *, NSString *> *_Nullable *_Nonnull)namesByNumber
                                    error:(NSError **)error

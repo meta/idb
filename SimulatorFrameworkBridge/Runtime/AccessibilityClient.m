@@ -70,7 +70,8 @@ static void FBAXClientException(NSException *exception, NSError **error)
   self = [super init];
   if (self) {
     _status = outcome.status;
-    _element = outcome.element ? [[FBAXElement alloc] initWithValue:outcome.element] : nil;
+    id element = outcome.element;
+    _element = element ? [[FBAXElement alloc] initWithValue:element] : nil;
     _owningProcessIdentifier = outcome.owningProcessIdentifier;
     _failureReason = [outcome.failureReason copy];
     _axError = outcome.axError;
