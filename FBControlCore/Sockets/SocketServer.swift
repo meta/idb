@@ -83,12 +83,12 @@ public final class SocketServer {
     }
 
     // Since the client queue may be concurrent, accept() calls are serialized on a queue of their
-    // own: they update internal state.
+    // own. It targets the client queue, so the delegate is called there.
     let clientQueue = delegate.queue
-    let acceptQueue = DispatchQueue(label: "\(clientQueue.label).accept")
+    let acceptQueue = DispatchQueue(label: "\(clientQueue.label).accept", target: clientQueue)
     let acceptSource = DispatchSource.makeReadSource(fileDescriptor: socketDescriptor, queue: acceptQueue)
     acceptSource.setEventHandler { [weak self] in
-      self?.accept(socketDescriptor, clientQueue: clientQueue)
+      self?.accept(socketDescriptor)
     }
     acceptSource.setCancelHandler {
       close(socketDescriptor)
@@ -103,17 +103,14 @@ public final class SocketServer {
     self.port = bound.sin6_port.bigEndian
   }
 
-  private func accept(_ socketDescriptor: Int32, clientQueue: DispatchQueue) {
+  private func accept(_ socketDescriptor: Int32) {
     var address = sockaddr_in6()
     var addressLength = socklen_t(MemoryLayout<sockaddr_in6>.size)
     let acceptDescriptor = Self.withSocketAddress(&address) { Darwin.accept(socketDescriptor, $0, &addressLength) }
     guard acceptDescriptor > 0 else {
       return
     }
-    let clientAddress = address.sin6_addr
-    clientQueue.async {
-      self.delegate.socketServer(self, clientConnected: clientAddress, fileDescriptor: acceptDescriptor)
-    }
+    delegate.socketServer(self, clientConnected: address.sin6_addr, fileDescriptor: acceptDescriptor)
   }
 
   private static func withSocketAddress<Result>(
