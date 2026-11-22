@@ -24,7 +24,7 @@ public enum ZipSignature {
 /// symlinks and permissions. A reader of the zip as a stream never reaches it.
 public struct ZipCentralDirectory {
 
-  public struct Entry: Equatable {
+  public struct Entry: Equatable, Sendable {
     public var path: String
 
     /// The unix mode, when the archiver recorded one.
