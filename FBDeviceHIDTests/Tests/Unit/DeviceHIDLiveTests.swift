@@ -7,6 +7,7 @@
 
 import CoreGraphics
 import Dispatch
+import FBDeviceControl
 @testable import FBDeviceHID
 import Foundation
 import IDBConcurrency

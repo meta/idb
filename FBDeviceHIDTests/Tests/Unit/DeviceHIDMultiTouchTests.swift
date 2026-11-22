@@ -9,6 +9,7 @@ import CoreGraphics
 @testable import FBDeviceControl
 @testable import FBDeviceHID
 import Foundation
+import IDBConcurrency
 import Testing
 
 @Suite("Bounded sequential physical contacts")

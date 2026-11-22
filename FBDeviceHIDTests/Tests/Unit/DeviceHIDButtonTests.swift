@@ -7,6 +7,7 @@
 
 @testable import FBDeviceHID
 import Foundation
+import IDBConcurrency
 import Testing
 
 @Suite("Physical button contact lifetime")

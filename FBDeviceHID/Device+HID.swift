@@ -5,6 +5,7 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+internal import FBControlCore
 import FBDeviceControl
 
 extension Device {

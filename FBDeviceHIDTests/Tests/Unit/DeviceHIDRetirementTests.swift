@@ -6,8 +6,10 @@
  */
 
 import CoreGraphics
+import FBDeviceControl
 @testable import FBDeviceHID
 import Foundation
+import IDBConcurrency
 import Testing
 
 @Suite("Physical HID caller completion and native retirement")

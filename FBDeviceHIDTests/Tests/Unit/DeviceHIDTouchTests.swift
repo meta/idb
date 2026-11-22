@@ -8,6 +8,7 @@
 import CoreGraphics
 @testable import FBDeviceHID
 import Foundation
+import IDBConcurrency
 import Testing
 
 @Suite("Bounded physical touch sequences")
