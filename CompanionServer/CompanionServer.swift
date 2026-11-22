@@ -193,7 +193,9 @@ public final class CompanionServer: @unchecked Sendable {
         }
         handlers.append(ByteToMessageHandler(NewlineFrameDecoder()))
         handlers.append(JSONRPCConnectionHandler(submit: submit))
-        return channel.pipeline.addHandlers(handlers)
+        return channel.eventLoop.makeCompletedFuture {
+          try channel.pipeline.syncOperations.addHandlers(handlers)
+        }
       }
 
     let boundAddress: CompanionAddress

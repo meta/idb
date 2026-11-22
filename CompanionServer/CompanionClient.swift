@@ -55,7 +55,9 @@ public enum CompanionClient {
             }
           }
           handlers.append(ResponseAccumulator(promise: responsePromise))
-          return channel.pipeline.addHandlers(handlers)
+          return channel.eventLoop.makeCompletedFuture {
+            try channel.pipeline.syncOperations.addHandlers(handlers)
+          }
         }
 
       let channel: Channel
