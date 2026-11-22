@@ -12,6 +12,7 @@ import FBSimulatorControl
 import Foundation
 import GRPCCore
 import IDBGRPCSwift
+import SwiftProtobuf
 
 /// Translates an `accessibility_action` request to a checked `Action`. Rejects shapes no action accepts
 /// (a missing target, a drag onto its own source, a negative duration).

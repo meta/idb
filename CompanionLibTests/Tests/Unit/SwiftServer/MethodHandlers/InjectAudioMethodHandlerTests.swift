@@ -13,6 +13,7 @@ import Foundation
 import GRPCCore
 import IDBGRPCSwift
 import ShimulatorAudioInjectionCore
+import SwiftProtobuf
 import Testing
 
 @Suite

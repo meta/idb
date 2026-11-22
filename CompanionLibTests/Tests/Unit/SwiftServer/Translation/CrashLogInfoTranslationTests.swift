@@ -8,6 +8,7 @@
 @preconcurrency @testable import CompanionLib
 @preconcurrency import FBControlCore
 import Foundation
+import IDBGRPCSwift
 import Testing
 
 @Suite

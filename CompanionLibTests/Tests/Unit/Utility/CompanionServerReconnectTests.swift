@@ -12,6 +12,7 @@ import Foundation
 import GRPCCore
 import IDBGRPCSwift
 import MobileDeviceAPI
+import SwiftProtobuf
 import Testing
 import os
 

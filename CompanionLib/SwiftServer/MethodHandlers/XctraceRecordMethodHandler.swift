@@ -12,6 +12,7 @@ import Foundation
 import GRPCCore
 import IDBConcurrency
 import IDBGRPCSwift
+import SwiftProtobuf
 
 /// The parts of a running xctrace a record session drives.
 protocol XCTraceRecording: Sendable {

@@ -6,6 +6,7 @@
  */
 
 @preconcurrency import FBControlCore
+import FBSimulatorServices
 import FBXCTestCore
 import Foundation
 import GRPCCore

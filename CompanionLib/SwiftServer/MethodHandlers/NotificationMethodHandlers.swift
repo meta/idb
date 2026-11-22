@@ -6,8 +6,10 @@
  */
 
 import FBControlCore
+import FBSimulatorServices
 import GRPCCore
 import IDBGRPCSwift
+import SwiftProtobuf
 
 struct SendNotificationMethodHandler {
 

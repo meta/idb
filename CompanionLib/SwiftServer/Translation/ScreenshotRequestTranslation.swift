@@ -10,6 +10,7 @@ import FBControlCore
 import Foundation
 import GRPCCore
 import IDBGRPCSwift
+import SwiftProtobuf
 
 /// Translates a `screenshot` request to `ScreenshotConfiguration` and a capture to the response.
 /// Rejects request shapes the configuration type cannot represent (a quality on a lossless format, an

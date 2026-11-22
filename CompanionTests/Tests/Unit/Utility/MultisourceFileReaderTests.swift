@@ -11,6 +11,7 @@ import FBArtifactStaging
 import Foundation
 import GRPCCore
 import IDBGRPCSwift
+import SwiftProtobuf
 import Testing
 import os
 

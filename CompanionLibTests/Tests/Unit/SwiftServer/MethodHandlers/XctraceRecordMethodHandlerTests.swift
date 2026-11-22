@@ -10,6 +10,7 @@ import FBControlCore
 import Foundation
 import GRPCCore
 import IDBGRPCSwift
+import SwiftProtobuf
 import Testing
 
 /// An xctrace that exits with `status` on its own, or never exits until stopped when `status` is nil.

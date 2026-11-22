@@ -10,6 +10,7 @@ import FBSimulatorControl
 import GRPCCore
 import IDBConcurrency
 import IDBGRPCSwift
+import SwiftProtobuf
 
 protocol TailOperation {
   func cancel() async throws

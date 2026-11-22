@@ -12,6 +12,7 @@ import Foundation
 import GRPCCore
 import IDBGRPCSwift
 import IDBTelemetry
+import SwiftProtobuf
 import Synchronization
 
 /// Seam over the two `CompanionAccessibility` reads this handler drives, so the request-to-options wiring

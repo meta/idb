@@ -15,6 +15,7 @@ import GRPCNIOTransportCore
 import GRPCProtobuf
 import IDBGRPCSwift
 import IDBTelemetry
+import SwiftProtobuf
 import Testing
 
 @Suite

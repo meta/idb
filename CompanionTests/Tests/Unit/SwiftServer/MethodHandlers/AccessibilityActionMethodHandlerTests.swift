@@ -12,6 +12,7 @@ import FBSimulatorAX
 @preconcurrency import FBSimulatorControl
 import Foundation
 import IDBGRPCSwift
+import SwiftProtobuf
 import Testing
 
 /// Records what the handler hands the command executor, so a test can read it without a simulator.

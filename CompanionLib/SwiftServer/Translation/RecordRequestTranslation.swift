@@ -11,6 +11,7 @@ import FBVideoCore
 import Foundation
 import GRPCCore
 import IDBGRPCSwift
+import SwiftProtobuf
 
 /// Translates a `record` request to `VideoEncodeOptions` and echoes the resolved options back.
 /// Rejects what the encoder cannot honor (a quality out of range, an enlargement, two rate controls).

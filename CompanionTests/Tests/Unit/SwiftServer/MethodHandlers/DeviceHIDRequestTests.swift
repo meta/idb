@@ -6,9 +6,12 @@
  */
 
 @testable import CompanionLib
+import CoreGraphics
 @testable import FBDeviceHID
+import FBSimulatorControl
 import GRPCCore
 import IDBGRPCSwift
+import SwiftProtobuf
 import Testing
 
 @Suite("Physical HID recipe parsing")

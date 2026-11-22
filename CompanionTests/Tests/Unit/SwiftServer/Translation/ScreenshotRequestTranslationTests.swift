@@ -11,6 +11,7 @@ import CoreGraphics
 import Foundation
 import GRPCCore
 import IDBGRPCSwift
+import SwiftProtobuf
 import XCTest
 
 /// Pins the `screenshot` request → configuration translation, the capture → response shape, and the

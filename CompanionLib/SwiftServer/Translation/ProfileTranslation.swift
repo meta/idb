@@ -10,6 +10,7 @@ import FBProfilingCore
 import Foundation
 import GRPCCore
 import IDBGRPCSwift
+import SwiftProtobuf
 
 /// Translates a `profile` request to a `ProfileConfiguration`, and what the profiler reports back to the wire.
 /// A zero in the request is unset, and takes the profiler's default.

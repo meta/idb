@@ -10,6 +10,7 @@
 @preconcurrency import FBControlCore
 import Foundation
 import IDBGRPCSwift
+import SwiftProtobuf
 import Testing
 
 /// Installs streamed payloads through the handler onto the host Mac.

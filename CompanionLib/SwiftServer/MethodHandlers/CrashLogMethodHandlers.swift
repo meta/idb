@@ -8,6 +8,7 @@
 import FBControlCore
 import GRPCCore
 import IDBGRPCSwift
+import SwiftProtobuf
 
 struct CrashListMethodHandler {
 

@@ -8,8 +8,10 @@
 @testable import CompanionLib
 @preconcurrency import FBControlCore
 import Foundation
+import GRPCCore
 import IDBGRPCSwift
 import IDBTelemetry
+import SwiftProtobuf
 import Testing
 
 /// Captures every subject the telemetry reports, so the per-RPC emission can

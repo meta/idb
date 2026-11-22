@@ -6,6 +6,7 @@
  */
 
 @testable import CompanionLib
+import FBArtifactStaging
 import FBControlCore
 import Foundation
 import Testing

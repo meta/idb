@@ -11,6 +11,7 @@ import Foundation
 import GRPCCore
 import IDBConcurrency
 import IDBGRPCSwift
+import SwiftProtobuf
 
 /// Launches an application and, for a waiting client, streams its output until the app exits,
 /// ending the response after the client sends Stop or the exit is observed.

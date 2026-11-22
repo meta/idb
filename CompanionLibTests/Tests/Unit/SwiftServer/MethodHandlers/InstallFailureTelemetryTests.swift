@@ -10,6 +10,7 @@
 @preconcurrency import FBControlCore
 import Foundation
 import IDBGRPCSwift
+import SwiftProtobuf
 import Testing
 
 /// What an install that fails between staging and installing reports: the stage it failed in and what failed.

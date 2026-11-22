@@ -11,6 +11,7 @@ import Foundation
 import GRPCCore
 import IDBConcurrency
 import IDBGRPCSwift
+import SwiftProtobuf
 
 struct DapMethodHandler: Sendable {
 

@@ -11,6 +11,7 @@ import FBSimulatorAX
 import FBSimulatorControl
 import Foundation
 import IDBGRPCSwift
+import SwiftProtobuf
 
 struct ScreenshotAppSample: Sendable {
   let displayID: String

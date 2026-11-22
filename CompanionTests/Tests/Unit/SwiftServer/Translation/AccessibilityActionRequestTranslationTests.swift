@@ -13,6 +13,7 @@ import FBSimulatorAX
 import Foundation
 import GRPCCore
 import IDBGRPCSwift
+import SwiftProtobuf
 import XCTest
 
 /// Pins the `accessibility_action` request → action translation: which handler a request reaches,

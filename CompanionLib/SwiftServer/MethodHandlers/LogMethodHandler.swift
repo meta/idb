@@ -10,6 +10,7 @@ import FBSimulatorControl
 import GRPCCore
 import IDBConcurrency
 import IDBGRPCSwift
+import SwiftProtobuf
 
 /// Starts the log a `log` request streams, writing its output to `consumer`.
 protocol LogStarting: Sendable {

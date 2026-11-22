@@ -8,10 +8,12 @@
 @testable import CompanionLib
 @preconcurrency import FBControlCore
 import FBSimulatorAX
+import FBSimulatorBridgeProtocol
 import FBSimulatorControl
 import Foundation
 import GRPCCore
 import IDBGRPCSwift
+import SwiftProtobuf
 import Testing
 
 /// Pins the `accessibility_info` request → framework translation and the legacy output byte shape.

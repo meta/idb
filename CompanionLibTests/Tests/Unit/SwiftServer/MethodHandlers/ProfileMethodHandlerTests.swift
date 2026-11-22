@@ -11,6 +11,7 @@ import FBProfilingCore
 import Foundation
 import GRPCCore
 import IDBGRPCSwift
+import SwiftProtobuf
 import Testing
 
 private let logger = ControlCoreGlobalConfiguration.systemLogger(writingToStderr: false, debugLogging: false)

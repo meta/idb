@@ -13,6 +13,7 @@ import Foundation
 import GRPCCore
 import IDBConcurrency
 import IDBGRPCSwift
+import SwiftProtobuf
 
 extension IDBXCTestReporter {
 

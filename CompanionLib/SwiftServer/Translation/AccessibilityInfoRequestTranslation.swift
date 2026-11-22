@@ -7,6 +7,7 @@
 
 import FBControlCore
 import FBSimulatorAX
+import FBSimulatorBridgeProtocol
 import FBSimulatorControl
 import Foundation
 import GRPCCore

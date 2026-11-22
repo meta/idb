@@ -13,6 +13,7 @@ import GRPCCore
 import IDBConcurrency
 import IDBGRPCSwift
 import ReplProtocol
+import SwiftProtobuf
 
 struct ReplMethodHandler {
 

@@ -8,6 +8,7 @@
 @testable import CompanionLib
 @preconcurrency import FBControlCore
 @testable import FBSimulatorAX
+import FBSimulatorBridgeProtocol
 import FBSimulatorControl
 import Foundation
 import GRPCCore

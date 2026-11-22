@@ -6,6 +6,7 @@
  */
 
 import FBDeviceHID
+import Foundation
 import GRPCCore
 import IDBGRPCSwift
 

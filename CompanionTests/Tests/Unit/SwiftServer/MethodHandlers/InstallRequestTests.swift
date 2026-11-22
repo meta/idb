@@ -6,9 +6,11 @@
  */
 
 @testable import CompanionLib
+import FBArtifactStaging
 import Foundation
 import GRPCCore
 import IDBGRPCSwift
+import SwiftProtobuf
 import Testing
 
 /// Reads an install request stream into its header and payload.

@@ -11,6 +11,7 @@ import FBSimulatorControl
 import Foundation
 import GRPCCore
 import IDBGRPCSwift
+import SwiftProtobuf
 
 /// Seam over the `IDBCommandExecutor` calls this handler drives, so it can be tested against a double.
 protocol FilePulling: Sendable {

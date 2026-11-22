@@ -9,6 +9,7 @@
 import FBControlCore
 import GRPCCore
 import IDBGRPCSwift
+import SwiftProtobuf
 import XCTest
 
 private final class ScriptedLogOperation: LogOperation, @unchecked Sendable {

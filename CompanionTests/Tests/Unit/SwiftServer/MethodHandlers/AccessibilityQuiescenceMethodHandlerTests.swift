@@ -11,6 +11,7 @@ import FBSimulatorAX
 import FBSimulatorControl
 import GRPCCore
 import IDBGRPCSwift
+import SwiftProtobuf
 import XCTest
 
 private final class ScriptedQuiescenceExecutor: AccessibilityQuiescenceStreaming {

@@ -7,7 +7,9 @@
 
 import FBControlCore
 import FBSimulatorControl
+import Foundation
 import IDBGRPCSwift
+import SwiftProtobuf
 
 enum CrashLogInfoTranslation {
 

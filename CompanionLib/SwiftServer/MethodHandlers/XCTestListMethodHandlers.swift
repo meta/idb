@@ -7,10 +7,12 @@
 
 import FBControlCore
 import FBSimulatorControl
+import FBSimulatorXCTest
 import FBXCTestCore
 import Foundation
 import GRPCCore
 import IDBGRPCSwift
+import SwiftProtobuf
 
 struct XCTestListBundlesMethodHandler {
 

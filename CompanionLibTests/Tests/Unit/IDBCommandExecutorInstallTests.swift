@@ -8,6 +8,7 @@
 @testable import CompanionLib
 import FBArtifactStaging
 import FBControlCore
+import FBXCTestCore
 import Foundation
 import Testing
 import os

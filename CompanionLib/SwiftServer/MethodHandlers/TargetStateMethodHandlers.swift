@@ -9,9 +9,11 @@ import FBControlCore
 import FBDeviceControl
 import FBDeviceHID
 import FBSimulatorControl
+import FBSimulatorServices
 import Foundation
 import GRPCCore
 import IDBGRPCSwift
+import SwiftProtobuf
 
 struct FocusMethodHandler {
 

@@ -13,6 +13,7 @@ import FBVideoCore
 import Foundation
 import GRPCCore
 import IDBGRPCSwift
+import SwiftProtobuf
 
 struct RecordMethodHandler {
 

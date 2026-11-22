@@ -6,6 +6,7 @@
  */
 
 import FBControlCore
+import FBSimulatorServices
 import GRPCCore
 import IDBGRPCSwift
 

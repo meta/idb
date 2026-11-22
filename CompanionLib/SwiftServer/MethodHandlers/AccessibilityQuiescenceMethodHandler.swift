@@ -11,6 +11,7 @@ import FBSimulatorControl
 import Foundation
 import GRPCCore
 import IDBGRPCSwift
+import SwiftProtobuf
 
 /// Seam over the `CompanionAccessibility` calls this handler drives, so the request-to-stream wiring can be
 /// tested against a double.

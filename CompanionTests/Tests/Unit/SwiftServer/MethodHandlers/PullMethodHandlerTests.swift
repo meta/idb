@@ -9,6 +9,7 @@
 import FBControlCore
 import GRPCCore
 import IDBGRPCSwift
+import SwiftProtobuf
 import XCTest
 
 private let logger = ControlCoreGlobalConfiguration.systemLogger(writingToStderr: false, debugLogging: false)

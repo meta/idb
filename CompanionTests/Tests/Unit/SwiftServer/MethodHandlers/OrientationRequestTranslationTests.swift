@@ -10,6 +10,7 @@ import FBSimulatorControl
 import Foundation
 import GRPCCore
 import IDBGRPCSwift
+import SwiftProtobuf
 import Testing
 
 @Suite

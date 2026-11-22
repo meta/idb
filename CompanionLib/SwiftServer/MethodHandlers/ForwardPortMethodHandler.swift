@@ -10,6 +10,7 @@
 import Foundation
 import GRPCCore
 import IDBGRPCSwift
+import SwiftProtobuf
 
 struct ForwardPortMethodHandler {
   let target: CompanionTarget

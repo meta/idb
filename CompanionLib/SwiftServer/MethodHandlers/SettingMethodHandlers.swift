@@ -11,6 +11,7 @@ import FBSimulatorServices
 import Foundation
 import GRPCCore
 import IDBGRPCSwift
+import SwiftProtobuf
 
 struct SettingMethodHandler {
 

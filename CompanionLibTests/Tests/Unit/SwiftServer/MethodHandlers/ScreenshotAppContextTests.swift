@@ -9,6 +9,7 @@
 import FBControlCore
 import Foundation
 import IDBGRPCSwift
+import SwiftProtobuf
 import Testing
 
 @Suite

@@ -10,6 +10,7 @@ import Foundation
 import GRPCCore
 import IDBGRPCSwift
 import IDBTelemetry
+import SwiftProtobuf
 
 struct DescribeMethodHandler {
 

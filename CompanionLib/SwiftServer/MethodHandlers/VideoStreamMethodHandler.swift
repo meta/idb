@@ -11,6 +11,7 @@ import FBVideoCore
 import GRPCCore
 import IDBConcurrency
 import IDBGRPCSwift
+import SwiftProtobuf
 
 struct VideoStreamMethodHandler {
 
