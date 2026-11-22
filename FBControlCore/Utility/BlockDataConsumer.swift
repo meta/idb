@@ -47,12 +47,12 @@ public final class AsynchronousDataConsumer: DataConsumer, DataConsumerLifecycle
   private let queue: DispatchQueue
   private let group = DispatchGroup()
   private let lock = NSRecursiveLock()
-  private var consumer: ((Data) -> Void)?
+  private var consumer: (@Sendable (Data) -> Void)?
   private let pendingLock = NSLock()
   private var pending = 0
   public let finishedConsuming = AsyncEvent<Void>()
 
-  public init(queue: DispatchQueue = AsynchronousDataConsumer.privateQueue(), consumer: @escaping (Data) -> Void) {
+  public init(queue: DispatchQueue = AsynchronousDataConsumer.privateQueue(), consumer: @escaping @Sendable (Data) -> Void) {
     self.queue = queue
     self.consumer = consumer
   }

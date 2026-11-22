@@ -16,7 +16,7 @@ final class ResponseForwardingConsumer: DataConsumer, DataConsumerLifecycle, Sen
   private let stopped: Atomic<Bool>
   private let consumer: AsynchronousDataConsumer
 
-  init(send: @escaping (Data) throws -> Void) {
+  init(send: @escaping @Sendable (Data) throws -> Void) {
     let stopped = Atomic(wrappedValue: false)
     self.stopped = stopped
     self.consumer = AsynchronousDataConsumer { data in

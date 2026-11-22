@@ -7,6 +7,7 @@
 
 @testable import FBControlCore
 import XCTest
+import os
 
 final class DataConsumerTests: XCTestCase {
   func testLineBufferAccumulation() {
@@ -171,11 +172,11 @@ final class DataConsumerTests: XCTestCase {
 
   func testUnbufferedConsumerAsync() {
     let expected = "FOOBARBAZ".data(using: .utf8)!
-    let actual = NSMutableData()
+    let actual = DeliveredData()
     let allChunks = expectation(description: "all three chunks delivered to the consumer")
     let consumer = AsynchronousDataConsumer { incremental in
       actual.append(incremental)
-      if actual.length == expected.count { allChunks.fulfill() }
+      if actual.data.count == expected.count { allChunks.fulfill() }
     }
 
     XCTAssertFalse(consumer.finishedConsuming.hasHappened)
@@ -183,22 +184,22 @@ final class DataConsumerTests: XCTestCase {
     consumer.consumeData("BAR".data(using: .utf8)!)
     consumer.consumeData("BAZ".data(using: .utf8)!)
     wait(for: [allChunks], timeout: ControlCoreGlobalConfiguration.fastTimeout)
-    XCTAssertEqual(expected, actual as Data)
+    XCTAssertEqual(expected, actual.data)
     XCTAssertFalse(consumer.finishedConsuming.hasHappened)
 
     consumer.consumeEndOfFile()
-    XCTAssertEqual(expected, actual as Data)
+    XCTAssertEqual(expected, actual.data)
     XCTAssertTrue(consumer.finishedConsuming.hasHappened)
 
     consumer.consumeData("NOPE".data(using: .utf8)!)
     consumer.consumeData("NOPE".data(using: .utf8)!)
     XCTAssertTrue(consumer.finishedConsuming.hasHappened)
-    XCTAssertEqual(expected, actual as Data)
+    XCTAssertEqual(expected, actual.data)
   }
 
   func testConsumerAsync() {
     let expected = "FOO".data(using: .utf8)!
-    let actual = NSMutableData()
+    let actual = DeliveredData()
     let consumeStarted = DispatchSemaphore(value: 0)
     let continueConsume = DispatchSemaphore(value: 0)
     let consumer = AsynchronousDataConsumer { incremental in
@@ -215,11 +216,11 @@ final class DataConsumerTests: XCTestCase {
     consumer.consumeEndOfFile()
     XCTAssertTrue(consumer.finishedConsuming.hasHappened)
     XCTAssertEqual(0, consumer.unprocessedDataCount())
-    XCTAssertEqual(expected, actual as Data)
+    XCTAssertEqual(expected, actual.data)
   }
 
   func testConsumerAsyncEndOfFileWithReentrantDelivery() {
-    let actual = NSMutableData()
+    let actual = DeliveredData()
     let endOfFileStarted = DispatchSemaphore(value: 0)
     let box = ConsumerBox<AsynchronousDataConsumer>()
     box.consumer = AsynchronousDataConsumer { incremental in
@@ -240,7 +241,7 @@ final class DataConsumerTests: XCTestCase {
     endOfFileStarted.signal()
 
     wait(for: [returned], timeout: ControlCoreGlobalConfiguration.fastTimeout)
-    XCTAssertEqual("FOO".data(using: .utf8)!, actual as Data)
+    XCTAssertEqual("FOO".data(using: .utf8)!, actual.data)
     XCTAssertTrue(box.consumer?.finishedConsuming.hasHappened ?? false)
   }
 
@@ -370,6 +371,17 @@ private final class RecordingLogger: ControlCoreLogger, @unchecked Sendable {
   func error() -> any ControlCoreLogger { self }
   func withName(_ name: String) -> any ControlCoreLogger { self }
   func withDateFormatEnabled(_ enabled: Bool) -> any ControlCoreLogger { self }
+}
+
+/// The bytes a consumer has delivered so far: appended on its queue, read by the test.
+private final class DeliveredData: Sendable {
+  private let storage = OSAllocatedUnfairLock(initialState: Data())
+
+  var data: Data { storage.withLock { $0 } }
+
+  func append(_ data: Data) {
+    storage.withLock { $0.append(data) }
+  }
 }
 
 private final class ConsumerBox<Consumer>: @unchecked Sendable {
