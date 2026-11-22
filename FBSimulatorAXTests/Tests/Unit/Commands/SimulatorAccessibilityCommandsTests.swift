@@ -5,6 +5,7 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+import AccessibilityPlatformTranslation
 import AppKit
 import FBControlCore
 @testable import FBSimulatorAX

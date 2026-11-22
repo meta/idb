@@ -5,7 +5,9 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+import FBControlCore
 @testable import FBSimulatorAX
+import FBSimulatorBridgeProtocol
 @testable import FBSimulatorControl
 @testable import FBSimulatorServices
 import Foundation

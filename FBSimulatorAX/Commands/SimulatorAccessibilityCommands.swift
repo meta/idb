@@ -9,6 +9,7 @@
 import AppKit
 import CoreSimulator
 import FBControlCore
+import FBSimulatorBridgeProtocol
 import FBSimulatorControl
 import FBSimulatorServices
 import Foundation

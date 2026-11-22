@@ -6,6 +6,7 @@
  */
 
 @testable import FBSimulatorAX
+import FBSimulatorBridgeProtocol
 import Foundation
 import Testing
 

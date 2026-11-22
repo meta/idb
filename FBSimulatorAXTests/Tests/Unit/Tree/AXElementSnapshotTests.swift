@@ -7,6 +7,7 @@
 
 import AppKit
 @testable import FBSimulatorAX
+import FBSimulatorBridgeProtocol
 @testable import FBSimulatorControl
 import XCTest
 

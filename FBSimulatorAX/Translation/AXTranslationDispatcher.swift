@@ -8,6 +8,7 @@
 @preconcurrency internal import AccessibilityPlatformTranslation
 import CoreSimulator
 import FBControlCore
+import FBSimulatorBridgeProtocol
 import FBSimulatorControl
 import Foundation
 
