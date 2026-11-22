@@ -7,7 +7,7 @@
 
 import Foundation
 
-public enum ApplicationLaunchMode: UInt {
+public enum ApplicationLaunchMode: UInt, Sendable {
   case failIfRunning = 0
   case foregroundIfRunning = 1
   case relaunchIfRunning = 2
@@ -20,7 +20,7 @@ public enum ApplicationOutput: Sendable {
   case consumer(any DataConsumer)
 }
 
-public struct ApplicationLaunchConfiguration: CustomStringConvertible {
+public struct ApplicationLaunchConfiguration: CustomStringConvertible, Sendable {
 
   public let bundleID: String
   public let bundleName: String?

@@ -77,7 +77,7 @@ private final class TerminationState: @unchecked Sendable {
   }
 }
 
-public final class SimulatorLaunchedApplication: LaunchedApplication, CustomStringConvertible {
+public final class SimulatorLaunchedApplication: LaunchedApplication, CustomStringConvertible, Sendable {
 
   public let configuration: ApplicationLaunchConfiguration
   public let processIdentifier: pid_t
