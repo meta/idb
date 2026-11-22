@@ -10,7 +10,7 @@ import FBControlCore
 @preconcurrency import FBSimulatorControl
 import Foundation
 internal import ShimulatorAudioInjectionCore
-@_implementationOnly import ShimulatorProtocol
+internal import ShimulatorProtocol
 import SimulatorIPC
 
 /// Why capturing what a simulator's apps play failed.

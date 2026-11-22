@@ -12,7 +12,7 @@ import FBControlCoreObjC
 @preconcurrency import FBSimulatorControl
 import Foundation
 internal import ShimulatorAudioInjectionCore
-@_implementationOnly import ShimulatorProtocol
+internal import ShimulatorProtocol
 import SimulatorIPC
 
 /// Plays audio into the microphone input of apps on a Simulator, through the Shimulator shim

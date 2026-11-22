@@ -9,7 +9,7 @@
 import FBControlCore
 @preconcurrency import FBSimulatorControl
 import Foundation
-@_implementationOnly import ShimulatorProtocol
+internal import ShimulatorProtocol
 internal import ShimulatorVideoInjectionCore
 import SimulatorIPC
 import os
