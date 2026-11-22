@@ -95,7 +95,12 @@ static const CGFloat OrientationAngles[] = {0, 90, 270, 0, 180};
   return self;
 }
 
+// AVFoundation declares this nonnull; the virtual format returns the description it was given, nil until one is set.
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wnullable-to-nonnull-conversion"
 - (CMFormatDescriptionRef)formatDescription { return self.formatDescriptionRef; }
+
+#pragma clang diagnostic pop
 
 - (NSString *)mediaType { return AVMediaTypeVideo; }
 
@@ -230,7 +235,7 @@ static const CGFloat OrientationAngles[] = {0, 90, 270, 0, 180};
 
 - (NSArray<AVCaptureDevice *> *)constituentDevices { return @[]; }
 
-- (NSArray<AVCaptureDeviceType> *)linkedDevices { return @[]; }
+- (NSArray<AVCaptureDevice *> *)linkedDevices { return @[]; }
 
 - (NSString *)description
 {
@@ -250,7 +255,12 @@ static const CGFloat OrientationAngles[] = {0, 90, 270, 0, 180};
 
 - (AVMediaType)mediaType { return AVMediaTypeVideo; }
 
+// AVFoundation declares this nonnull; the port holds its input weakly, so it returns nil once the input is gone.
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wnullable-to-nonnull-conversion"
 - (AVCaptureInput *)input { return self.owningInput; }
+
+#pragma clang diagnostic pop
 
 - (CMFormatDescriptionRef)formatDescription
 {
@@ -488,7 +498,12 @@ static const CGFloat OrientationAngles[] = {0, 90, 270, 0, 180};
 
 - (NSDictionary *)metadata { return @{}; }
 
+// AVFoundation declares this nonnull; the virtual photo returns the settings it was given, nil until they are set.
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wnullable-to-nonnull-conversion"
 - (AVCaptureResolvedPhotoSettings *)resolvedSettings { return self.storedResolvedSettings; }
+
+#pragma clang diagnostic pop
 
 - (CGImageRef)CGImageRepresentation { return self.storedImage; }
 

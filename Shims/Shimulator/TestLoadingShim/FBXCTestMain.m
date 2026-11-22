@@ -44,7 +44,7 @@ __attribute__((constructor)) static void XCTestMainEntryPoint(void)
   FBDebugLog(@"[XCTestMainEntryPoint] End of XCTestMainEntryPoint");
 }
 
-BOOL FBLoadXCTestIfNeeded(void)
+static BOOL FBLoadXCTestIfNeeded(void)
 {
   FBDebugLog(@"Env: %@", [NSProcessInfo processInfo].environment);
 
@@ -83,7 +83,7 @@ BOOL FBLoadXCTestIfNeeded(void)
   return NO;
 }
 
-void FBDeployBlockWhenAppLoads(void (^mainBlock)(void))
+static void FBDeployBlockWhenAppLoads(void (^mainBlock)(void))
 {
 #if TARGET_OS_IPHONE
   NSString *notification = UIApplicationDidFinishLaunchingNotification;
@@ -94,7 +94,7 @@ void FBDeployBlockWhenAppLoads(void (^mainBlock)(void))
    addObserverForName:notification
    object:nil
    queue:[NSOperationQueue mainQueue]
-   usingBlock:^(NSNotification *note) {
+   usingBlock:^(__unused NSNotification *note) {
      mainBlock();
    }];
 }
@@ -102,7 +102,7 @@ void FBDeployBlockWhenAppLoads(void (^mainBlock)(void))
 /// Construct an XCTTestIdentifier using the same logic used to list the tests.
 /// The identifier will contain the swift module prefix for tests written in swift,
 /// as they used to in Xcode versions prior to 15.0
-static id XCTestCase__xctTestIdentifier(id self, SEL sel)
+static id XCTestCase__xctTestIdentifier(id self, __unused SEL sel)
 {
   NSString *classNameOut = nil;
   NSString *methodNameOut = nil;

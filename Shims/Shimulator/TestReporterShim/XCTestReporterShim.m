@@ -29,7 +29,7 @@ static FILE *__stderr;
 static NSMutableArray<NSDictionary<NSString *, id> *> *__testExceptions = nil;
 static int __testSuiteDepth = 0;
 
-NSDictionary<NSString *, id> *EventDictionaryWithNameAndContent(NSString *name, NSDictionary *content)
+static NSDictionary<NSString *, id> *EventDictionaryWithNameAndContent(NSString *name, NSDictionary *content)
 {
   NSMutableDictionary<NSString *, id> *eventJSON = [NSMutableDictionary dictionaryWithDictionary:@{
                                                       kReporter_Event_Key : name,
@@ -39,7 +39,7 @@ NSDictionary<NSString *, id> *EventDictionaryWithNameAndContent(NSString *name, 
   return eventJSON;
 }
 
-NSArray<XCTestCase *> *TestsFromSuite(id testSuite)
+static NSArray<XCTestCase *> *TestsFromSuite(id testSuite)
 {
   NSMutableArray<XCTestCase *> *tests = [NSMutableArray array];
   NSMutableArray<id> *queue = [NSMutableArray array];
@@ -74,10 +74,13 @@ static char *const kEventQueueLabel = "xctool.events";
                      lineNumber:(NSInteger)line
                     description:(NSString *)format, ...
 {
-  va_list vl;
-  va_start(vl, format);
-  NSString *msg = [[NSString alloc] initWithFormat:format arguments:vl];
-  va_end(vl);
+  NSString *msg = @"";
+  if (format != nil) {
+    va_list vl;
+    va_start(vl, format);
+    msg = [[NSString alloc] initWithFormat:(NSString *_Nonnull)format arguments:vl];
+    va_end(vl);
+  }
 
   [NSException raise:NSInternalInconsistencyException format:@"*** Assertion failure in %@, %@:%lld: %@", functionName, fileName, (long long)line, msg];
 }
@@ -133,7 +136,7 @@ static void XCToolLog_testSuiteDidStart(NSString *name)
   __testSuiteDepth++;
 }
 
-static void XCTestLog_testSuiteWillStart(id self, SEL sel, XCTestSuite *suite)
+static void XCTestLog_testSuiteWillStart(__unused id self, __unused SEL sel, XCTestSuite *suite)
 {
   XCToolLog_testSuiteDidStart(parseXCTestSuiteKey(suite));
 }
@@ -161,7 +164,7 @@ static void XCToolLog_testSuiteDidStop(NSString *testSuiteName, XCTestSuiteRun *
   }
 }
 
-static void XCTestLog_testSuiteDidFinish(id self, SEL sel, XCTestSuite *suite)
+static void XCTestLog_testSuiteDidFinish(__unused id self, __unused SEL sel, XCTestSuite *suite)
 {
   XCToolLog_testSuiteDidStop(parseXCTestSuiteKey(suite), (id)suite.testRun);
 }
@@ -191,7 +194,7 @@ static void XCToolLog_testCaseDidStart(XCTestCase *testCase)
   });
 }
 
-static void XCTestLog_testCaseDidStart(id self, SEL sel, XCTestCaseRun *run)
+static void XCTestLog_testCaseDidStart(__unused id self, __unused SEL sel, XCTestCaseRun *run)
 {
   XCToolLog_testCaseDidStart([run test]);
 }
@@ -243,7 +246,7 @@ static void XCToolLog_testCaseDidStop(XCTestCase *testCase, NSNumber *unexpected
   });
 }
 
-static void XCTestLog_testCaseDidStop(id self, SEL sel, XCTestCaseRun *run)
+static void XCTestLog_testCaseDidStop(__unused id self, __unused SEL sel, XCTestCaseRun *run)
 {
   XCToolLog_testCaseDidStop([run test], @([run unexpectedExceptionCount]), @([run failureCount]), @([run totalDuration]));
 }
@@ -263,7 +266,7 @@ static void XCToolLog_testCaseDidFail(NSDictionary *exceptionInfo)
   });
 }
 
-static void XCTestLog_testCaseDidFail(id self, SEL sel, XCTestCaseRun *run, NSString *description, NSString *file, NSUInteger line)
+static void XCTestLog_testCaseDidFail(__unused id self, __unused SEL sel, __unused XCTestCaseRun *run, NSString *description, NSString *file, NSUInteger line)
 {
   XCToolLog_testCaseDidFail(
     @{
@@ -295,10 +298,10 @@ static void XCPerformTestWithSuppressedExpectedAssertionFailures(id self, SEL or
   if (timeout > 0) {
     BOOL isSuite = [self isKindOfClass:objc_getClass("XCTestCaseSuite")];
     // If running in a suite, time out if we run longer than the combined timeouts of all tests + a fudge factor.
-    int64_t testCount = isSuite ? [[self tests] count] : 1;
+    int64_t testCount = isSuite ? (int64_t)[[self tests] count] : 1;
     // When in a suite, add a second per test to help account for the time required to switch tests in a suite.
     int64_t fudgeFactor = isSuite ? MAX(testCount, 1) : 0;
-    int64_t interval = (timeout * testCount + fudgeFactor) * NSEC_PER_SEC;
+    int64_t interval = (timeout * testCount + fudgeFactor) * (int64_t)NSEC_PER_SEC;
     NSString *queueName = [NSString stringWithFormat:@"test.timer.%p", self];
     dispatch_queue_t queue = dispatch_queue_create([queueName cStringUsingEncoding:NSASCIIStringEncoding], DISPATCH_QUEUE_SERIAL);
     dispatch_set_target_queue(queue, dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_BACKGROUND, 0));
@@ -309,7 +312,7 @@ static void XCPerformTestWithSuppressedExpectedAssertionFailures(id self, SEL or
         NSString *additionalInformation = @"";
         if ([self respondsToSelector:@selector(testRun)]) {
           XCTestRun *run = [self testRun];
-          NSUInteger executedTests = [run executionCount];
+          NSInteger executedTests = [run executionCount];
           if (executedTests == 0) {
             additionalInformation = [NSString stringWithFormat:@"(No tests ran, likely stalled in +[%@ setUp])", [self name]];
           } else if (executedTests == testCount) {
@@ -376,21 +379,21 @@ static void XCWaitForDebuggerIfNeeded(void)
   });
 }
 
-static void XCTestCase_performTest(id self, SEL sel, id arg1)
+static void XCTestCase_performTest(id self, __unused SEL sel, id arg1)
 {
   SEL originalSelector = @selector(__XCTestCase_performTest:);
   XCWaitForDebuggerIfNeeded();
   XCPerformTestWithSuppressedExpectedAssertionFailures(self, originalSelector, arg1);
 }
 
-static id XCTRunnerDaemonSession_sharedSession(Class cls, SEL cmd)
+static id XCTRunnerDaemonSession_sharedSession(__unused Class cls, __unused SEL cmd)
 {
   return nil;
 }
 
 #pragma mark - _enableSymbolication
 
-static BOOL XCTestCase__enableSymbolication(id self, SEL sel)
+static BOOL XCTestCase__enableSymbolication(__unused id self, __unused SEL sel)
 {
   return NO;
 }
@@ -549,7 +552,7 @@ static void listBundle(NSString *testBundlePath, NSString *outputFile)
   }
 
   [testsToReport sortUsingComparator:^NSComparisonResult (NSDictionary<NSString *, NSString *> *left, NSDictionary<NSString *, NSString *> *right) {
-    return [left[kReporter_ListTest_LegacyTestNameKey] compare:right[kReporter_ListTest_LegacyTestNameKey]];
+    return [left[kReporter_ListTest_LegacyTestNameKey] compare:right[kReporter_ListTest_LegacyTestNameKey] ?: @""];
   }];
   NSError *error = nil;
   NSData *output = [NSJSONSerialization dataWithJSONObject:testsToReport options:0 error:&error];
@@ -571,7 +574,7 @@ static void listBundle(NSString *testBundlePath, NSString *outputFile)
   exit(TestShimExitCodeSuccess);
 }
 
-static BOOL NSBundle_loadAndReturnError(id self, SEL sel, NSError **error)
+static BOOL NSBundle_loadAndReturnError(id self, __unused SEL sel, NSError **error)
 {
   BOOL (*msgsend)(id, SEL, NSError **) = (void *) objc_msgSend;
   SEL originalSelector = @selector(__NSBundle_loadAndReturnError:);
@@ -602,12 +605,12 @@ static void assignOutputFiles(void)
   }
 }
 
-void handle_signal(int signal)
+static void handle_signal(__unused int signal)
 {
   PrintNewlineAndCloseFDs();
 }
 
-static id SimServiceContext_deviceSetWithPath_error(id cls, SEL sel, NSString *path, NSError **error)
+static id SimServiceContext_deviceSetWithPath_error(id cls, __unused SEL sel, __unused NSString *path, NSError **error)
 {
   id (*msgsend)(id, SEL, NSString *, NSError **) = (void *) objc_msgSend;
   SEL originalSelector = @selector(__SimServiceContext_deviceSetWithPath:error:);

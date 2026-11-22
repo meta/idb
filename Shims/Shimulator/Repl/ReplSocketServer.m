@@ -146,6 +146,13 @@ static void WriteMessage(NSDictionary *message, int fd)
 
 // MARK: - Command Processing
 
+// A `dlerror()` message, or the fallback when there is none or it is not UTF-8.
+static NSString *ReplErrorString(const char *message, NSString *fallback)
+{
+  NSString *string = message == NULL ? nil : [NSString stringWithUTF8String:message];
+  return string ?: fallback;
+}
+
 static NSDictionary *ProcessCommand(NSDictionary *command)
 {
   NSString *dylibPath = command[@"dylib"];
@@ -157,13 +164,13 @@ static NSDictionary *ProcessCommand(NSDictionary *command)
   void *handle = dlopen(dylibPath.fileSystemRepresentation, RTLD_NOW);
   if (!handle) {
     const char *err = dlerror();
-    return @{@"success" : @NO, @"error" : [NSString stringWithUTF8String:err ?: "dlopen failed"]};
+    return @{@"success" : @NO, @"error" : ReplErrorString(err, @"dlopen failed")};
   }
 
   const char *(*func)(void) = (const char *(*)(void))dlsym(handle, symbol.UTF8String);
   if (!func) {
     const char *err = dlerror();
-    return @{@"success" : @NO, @"error" : [NSString stringWithUTF8String:err ?: "symbol not found"]};
+    return @{@"success" : @NO, @"error" : ReplErrorString(err, @"symbol not found")};
   }
 
   const char *cResult = func();

@@ -18,7 +18,7 @@ void XTSwizzleClassSelectorForFunction(Class cls, SEL sel, IMP newImp) __attribu
                             @"__%s_%s",
                             class_getName(cls),
                             sel_getName(sel)];
-  SEL newSelector = sel_registerName([selectorName UTF8String]);
+  SEL newSelector = NSSelectorFromString(selectorName);
 
   class_addMethod(clscls, newSelector, newImp, method_getTypeEncoding(originalMethod));
   Method replacedMethod = class_getClassMethod(cls, newSelector);
@@ -34,7 +34,7 @@ void XTSwizzleSelectorForFunction(Class cls, SEL sel, IMP newImp)
                             @"__%s_%s",
                             class_getName(cls),
                             sel_getName(sel)];
-  SEL newSelector = sel_registerName([selectorName UTF8String]);
+  SEL newSelector = NSSelectorFromString(selectorName);
 
   class_addMethod(cls, newSelector, newImp, typeEncoding);
 

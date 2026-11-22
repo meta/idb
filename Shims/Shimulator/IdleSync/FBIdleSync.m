@@ -202,9 +202,13 @@ static void FBIdleObserveHostReads(void)
   if (name == NULL || name[0] == '\0') {
     return;
   }
+  NSString *className = [NSString stringWithUTF8String:name];
+  if (className == nil) {
+    return;
+  }
   // An app class the host names; the shim cannot link it.
   // patternlint-disable-next-line fb-link-class-from-string
-  Class dumpClass = NSClassFromString(@(name));
+  Class dumpClass = NSClassFromString(className);
   Method method = dumpClass == Nil ? NULL : class_getInstanceMethod(dumpClass, @selector(accessibilityLabel));
   if (method != NULL) {
     sOriginalDumpLabel = (void *)method_getImplementation(method);
