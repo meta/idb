@@ -101,7 +101,7 @@ public struct SimulatorIdleSyncCommands {
     parameters: IdleSyncParameters = IdleSyncParameters(),
     quietWindowMs: UInt64,
     connectionTimeout: TimeInterval = SimulatorIdleSyncCommands.connectionTimeout,
-    isRunning: @escaping @Sendable (pid_t) -> Bool = { SimulatorIdleSyncCommands.processIsRunning($0) }
+    isRunning: @escaping @Sendable (pid_t) -> Bool = { HostProcess.isRunning($0) }
   ) async throws -> AsyncThrowingStream<QuiescenceEvent, Error> {
     // The host serves while `updates` is consumed, so the stream's end releases it.
     let (current, updates) = try await host.open(parameters)
@@ -118,10 +118,6 @@ public struct SimulatorIdleSyncCommands {
       }
       continuation.onTermination = { _ in task.cancel() }
     }
-  }
-
-  static func processIsRunning(_ pid: pid_t) -> Bool {
-    kill(pid, 0) == 0 || errno == EPERM
   }
 }
 

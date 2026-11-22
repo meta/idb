@@ -21,4 +21,9 @@ enum HostProcess {
     let start = info.kp_proc.p_starttime
     return Date(timeIntervalSince1970: TimeInterval(start.tv_sec) + TimeInterval(start.tv_usec) / 1_000_000)
   }
+
+  /// Whether `pid` is running.
+  static func isRunning(_ pid: pid_t) -> Bool {
+    kill(pid, 0) == 0 || errno == EPERM
+  }
 }
