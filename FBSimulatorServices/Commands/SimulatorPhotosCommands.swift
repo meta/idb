@@ -6,6 +6,7 @@
  */
 
 @preconcurrency import FBControlCore
+import FBSimulatorBridgeProtocol
 import FBSimulatorControl
 @preconcurrency import Foundation
 
