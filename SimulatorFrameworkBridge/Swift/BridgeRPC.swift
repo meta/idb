@@ -8,10 +8,10 @@
 import Darwin
 import FBSimulatorBridgeProtocol
 import Foundation
-@_implementationOnly import SimulatorIPC
+internal import SimulatorIPC
 
 #if canImport(SimulatorFrameworkBridgeRuntime)
-@_implementationOnly import SimulatorFrameworkBridgeRuntime
+internal import SimulatorFrameworkBridgeRuntime
 #endif
 
 public struct BridgeRPCReply {

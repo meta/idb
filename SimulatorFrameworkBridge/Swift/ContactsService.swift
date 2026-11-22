@@ -10,7 +10,7 @@ import Contacts
 import Foundation
 
 #if canImport(SimulatorFrameworkBridgeRuntime)
-@_implementationOnly import SimulatorFrameworkBridgeRuntime
+internal import SimulatorFrameworkBridgeRuntime
 #endif
 
 private func FBContactsClearWithStore(contactStore: CNContactStore, makeSaveRequest: () -> CNSaveRequest, output: BridgeOutput? = nil) -> Int {

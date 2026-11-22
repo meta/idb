@@ -10,7 +10,7 @@ import FBSimulatorBridgeProtocol
 import Foundation
 
 #if canImport(SimulatorFrameworkBridgeRuntime)
-@_implementationOnly import SimulatorFrameworkBridgeRuntime
+internal import SimulatorFrameworkBridgeRuntime
 #endif
 // HKInternalAuthorizationStatus values, as healthd expects them (from `_HKInternalAuthorizationStatusMake`
 // and `+[HDAuthorizationEntity _insertAuthorizationWith…]`). NOT the public HKAuthorizationStatus 0..4.

@@ -9,7 +9,7 @@ import FBSimulatorBridgeProtocol
 import Foundation
 
 #if canImport(SimulatorFrameworkBridgeRuntime)
-@_implementationOnly import SimulatorFrameworkBridgeRuntime
+internal import SimulatorFrameworkBridgeRuntime
 #endif
 private let UNAuthorizationStatusNotDetermined: UInt = 0
 private let UNAuthorizationStatusAuthorized: UInt = 2

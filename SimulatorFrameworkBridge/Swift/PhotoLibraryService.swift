@@ -10,7 +10,7 @@ import Foundation
 import Photos
 
 #if canImport(SimulatorFrameworkBridgeRuntime)
-@_implementationOnly import SimulatorFrameworkBridgeRuntime
+internal import SimulatorFrameworkBridgeRuntime
 #endif
 private func clearPhotoLibrary(client: FBPhotoLibraryClient, output: BridgeOutput? = nil) -> Int {
   do {

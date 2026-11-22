@@ -7,7 +7,7 @@
 
 import Darwin
 import Foundation
-@_implementationOnly import SimulatorIPC
+internal import SimulatorIPC
 
 /// Frames a response goes on writing after its request, until it ends or the peer goes away.
 public protocol BridgeResponseStream: AnyObject {

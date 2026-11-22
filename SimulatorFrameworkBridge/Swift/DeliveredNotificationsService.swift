@@ -10,7 +10,7 @@ import Darwin
 import FBSimulatorBridgeProtocol
 import Foundation
 #if canImport(SimulatorFrameworkBridgeRuntime)
-@_implementationOnly import SimulatorFrameworkBridgeRuntime
+internal import SimulatorFrameworkBridgeRuntime
 #endif
 
 private struct DeliveredNotification {
