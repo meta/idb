@@ -94,7 +94,7 @@ public final class OverlayRenderer: @unchecked Sendable {
   }
 
   private var shapes: [TimedShape] = []
-  private var effectTimer: DispatchSourceTimer?
+  private var effectTimer: (any DispatchSourceTimer)?
   private let effectQueue = DispatchQueue(label: "com.facebook.FBSimulatorControl.overlay-effects")
 
   /// Serializes access to the renderer's mutable state (`shapes`, the bar dictionaries, `statsText`,
@@ -105,7 +105,7 @@ public final class OverlayRenderer: @unchecked Sendable {
   private let stateLock = NSRecursiveLock()
 
   /// Logger for diagnostic output.
-  public var logger: ControlCoreLogger?
+  public var logger: (any ControlCoreLogger)?
 
   /// Current content mode for each bar position.
   public private(set) var barContent: [String: BarContent] = [:]

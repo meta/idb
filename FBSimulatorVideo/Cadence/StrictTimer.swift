@@ -20,13 +20,13 @@ enum StrictTimer {
   /// Resumes exactly once, whichever of the timer's handlers runs first: the continuation is taken
   /// out under the lock, so a second caller finds nothing to resume.
   private final class Resumer: Sendable {
-    private let continuation: OSAllocatedUnfairLock<CheckedContinuation<Void, Error>?>
+    private let continuation: OSAllocatedUnfairLock<CheckedContinuation<Void, any Error>?>
 
-    init(_ continuation: CheckedContinuation<Void, Error>) {
+    init(_ continuation: CheckedContinuation<Void, any Error>) {
       self.continuation = OSAllocatedUnfairLock(initialState: continuation)
     }
 
-    func resume(_ result: Result<Void, Error>) {
+    func resume(_ result: Result<Void, any Error>) {
       continuation.withLock { continuation in
         defer { continuation = nil }
         return continuation

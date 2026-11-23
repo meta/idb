@@ -62,7 +62,7 @@ final class VideoToolboxFramePusher: FramePusher, @unchecked Sendable {
   /// The scale factor between 0-1. nil for no scaling.
   let scaleFactor: Double?
   let videoCodec: CMVideoCodecType
-  let encodedSampleConsumer: EncodedSampleConsumer
+  let encodedSampleConsumer: any EncodedSampleConsumer
   let logger: any ControlCoreLogger
 
   var compressionSession: VTCompressionSession?
@@ -74,7 +74,7 @@ final class VideoToolboxFramePusher: FramePusher, @unchecked Sendable {
     settings: VideoToolboxEncoderSettings,
     scaleFactor: Double?,
     videoCodec: CMVideoCodecType,
-    encodedSampleConsumer: EncodedSampleConsumer,
+    encodedSampleConsumer: any EncodedSampleConsumer,
     logger: any ControlCoreLogger
   ) {
     self.settings = settings

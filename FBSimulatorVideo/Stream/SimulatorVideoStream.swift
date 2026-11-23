@@ -174,7 +174,7 @@ public actor SimulatorVideoStream: VideoStreamOperation {
     /// Never started; a `startStreaming` may begin.
     case idle
     /// Attached, awaiting the first surface mount; the awaiters are suspended `startStreaming` callers.
-    case starting(Session, startAwaiters: [CheckedContinuation<Void, Error>])
+    case starting(Session, startAwaiters: [CheckedContinuation<Void, any Error>])
     /// The first surface mounted; frames flow.
     case streaming(Session)
     /// Terminal; the stream cannot be restarted.
@@ -406,7 +406,7 @@ public actor SimulatorVideoStream: VideoStreamOperation {
 
   public func stopStreaming() async throws {
     let session: Session
-    let pendingStartAwaiters: [CheckedContinuation<Void, Error>]
+    let pendingStartAwaiters: [CheckedContinuation<Void, any Error>]
     switch lifecycle {
     case .stopped:
       return
@@ -424,7 +424,7 @@ public actor SimulatorVideoStream: VideoStreamOperation {
     session.attachment.cancel()
     session.eventTask.cancel()
     session.consumer.consumeEndOfFile()
-    var tearDownError: Error?
+    var tearDownError: (any Error)?
     spareFramePushers.removeAll().forEach { tearDown($0, after: "the stream stopped") }
     preparesForDisplaySwitches = false
     displayConfiguration = nil
@@ -464,14 +464,14 @@ public actor SimulatorVideoStream: VideoStreamOperation {
   /// start can never quietly self-start on a later surface. A no-op once `.streaming` — a failed
   /// mid-stream surface swap keeps streaming the previous surface.
   /// Fails the start that attached `attachment`, if it is still waiting for a surface, and not a later one.
-  private func failPendingStart(of attachment: FramebufferAttachment, with error: Error) {
+  private func failPendingStart(of attachment: FramebufferAttachment, with error: any Error) {
     guard case .starting(let session, _) = lifecycle, session.attachment === attachment else {
       return
     }
     failPendingStart(with: error)
   }
 
-  private func failPendingStart(with error: Error) {
+  private func failPendingStart(with error: any Error) {
     guard case .starting(let session, let awaiters) = lifecycle else {
       return
     }
@@ -827,7 +827,7 @@ public actor SimulatorVideoStream: VideoStreamOperation {
     configuration: VideoStreamConfiguration,
     cadence: VideoStreamCadence,
     consumer: any DataConsumer,
-    encodedSampleConsumerOverride: EncodedSampleConsumer?,
+    encodedSampleConsumerOverride: (any EncodedSampleConsumer)?,
     frameWriters: VideoStreamFrameWriters?,
     logger: any ControlCoreLogger
   ) throws -> any FramePusher {

@@ -101,7 +101,7 @@ public enum OverlayShape: Decodable {
       case fadeout, fadein, translate
     }
 
-    public init(from decoder: Decoder) throws {
+    public init(from decoder: any Decoder) throws {
       let container = try decoder.container(keyedBy: CodingKeys.self)
       if let fade = try container.decodeIfPresent(FadeEffect.self, forKey: .fadeout) {
         self = .fadeout(fade)
@@ -119,7 +119,7 @@ public enum OverlayShape: Decodable {
     case circle, rectangle, label
   }
 
-  public init(from decoder: Decoder) throws {
+  public init(from decoder: any Decoder) throws {
     let container = try decoder.container(keyedBy: CodingKeys.self)
     if let circle = try container.decodeIfPresent(Circle.self, forKey: .circle) {
       self = .circle(circle)
