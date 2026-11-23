@@ -35,15 +35,15 @@ enum FMP4 {
     }
 
     mutating func write16(_ value: UInt16) {
-      withUnsafeBytes(of: value.bigEndian) { data.append(contentsOf: $0) }
+      withUnsafeBytes(of: value.bigEndian) { unsafe data.append(contentsOf: $0) }
     }
 
     mutating func write32(_ value: UInt32) {
-      withUnsafeBytes(of: value.bigEndian) { data.append(contentsOf: $0) }
+      withUnsafeBytes(of: value.bigEndian) { unsafe data.append(contentsOf: $0) }
     }
 
     mutating func write64(_ value: UInt64) {
-      withUnsafeBytes(of: value.bigEndian) { data.append(contentsOf: $0) }
+      withUnsafeBytes(of: value.bigEndian) { unsafe data.append(contentsOf: $0) }
     }
 
     /// Writes a box: the size and type header, then `contents`, then the size patched in. Nesting
@@ -76,7 +76,7 @@ enum FMP4 {
     mutating func write32(_ value: UInt32, at offset: Int) {
       withUnsafeBytes(of: value.bigEndian) { bytes in
         for k in 0..<4 {
-          data[offset + k] = bytes[k]
+          data[offset + k] = unsafe bytes[k]
         }
       }
     }
@@ -98,31 +98,31 @@ enum FMP4 {
       var sps: UnsafePointer<UInt8>?
       var spsSize = 0
       var parameterSetCount = 0
-      let status = CMVideoFormatDescriptionGetH264ParameterSetAtIndex(formatDescription, parameterSetIndex: 0, parameterSetPointerOut: &sps, parameterSetSizeOut: &spsSize, parameterSetCountOut: &parameterSetCount, nalUnitHeaderLengthOut: nil)
-      guard status == noErr, spsSize >= 4, let sps else {
+      let status = unsafe CMVideoFormatDescriptionGetH264ParameterSetAtIndex(formatDescription, parameterSetIndex: 0, parameterSetPointerOut: &sps, parameterSetSizeOut: &spsSize, parameterSetCountOut: &parameterSetCount, nalUnitHeaderLengthOut: nil)
+      guard status == noErr, spsSize >= 4, let sps = unsafe sps else {
         return nil
       }
       var pps: UnsafePointer<UInt8>?
       var ppsSize = 0
       if parameterSetCount > 1 {
-        CMVideoFormatDescriptionGetH264ParameterSetAtIndex(formatDescription, parameterSetIndex: 1, parameterSetPointerOut: &pps, parameterSetSizeOut: &ppsSize, parameterSetCountOut: nil, nalUnitHeaderLengthOut: nil)
+        unsafe CMVideoFormatDescriptionGetH264ParameterSetAtIndex(formatDescription, parameterSetIndex: 1, parameterSetPointerOut: &pps, parameterSetSizeOut: &ppsSize, parameterSetCountOut: nil, nalUnitHeaderLengthOut: nil)
       }
       writer.write8(1) // configurationVersion
-      writer.write8(sps[1]) // AVCProfileIndication
-      writer.write8(sps[2]) // profile_compatibility
-      writer.write8(sps[3]) // AVCLevelIndication
+      unsafe writer.write8(sps[1]) // AVCProfileIndication
+      unsafe writer.write8(sps[2]) // profile_compatibility
+      unsafe writer.write8(sps[3]) // AVCLevelIndication
       writer.write8(0xFF) // lengthSizeMinusOne = 3
       writer.write8(0xE1) // numOfSequenceParameterSets = 1
       writer.write16(UInt16(spsSize))
-      writer.append(Array(UnsafeBufferPointer(start: sps, count: spsSize)))
-      writer.write8(pps != nil ? 1 : 0)
-      if let pps {
+      unsafe writer.append(Array(UnsafeBufferPointer(start: sps, count: spsSize)))
+      unsafe writer.write8(pps != nil ? 1 : 0)
+      if let pps = unsafe pps {
         writer.write16(UInt16(ppsSize))
-        writer.append(Array(UnsafeBufferPointer(start: pps, count: ppsSize)))
+        unsafe writer.append(Array(UnsafeBufferPointer(start: pps, count: ppsSize)))
       }
     case .hevc:
       var parameterSetCount = 0
-      let status = CMVideoFormatDescriptionGetHEVCParameterSetAtIndex(formatDescription, parameterSetIndex: 0, parameterSetPointerOut: nil, parameterSetSizeOut: nil, parameterSetCountOut: &parameterSetCount, nalUnitHeaderLengthOut: nil)
+      let status = unsafe CMVideoFormatDescriptionGetHEVCParameterSetAtIndex(formatDescription, parameterSetIndex: 0, parameterSetPointerOut: nil, parameterSetSizeOut: nil, parameterSetCountOut: &parameterSetCount, nalUnitHeaderLengthOut: nil)
       if status != noErr {
         return nil
       }
@@ -132,14 +132,14 @@ enum FMP4 {
       for index in 0..<parameterSetCount {
         var pointer: UnsafePointer<UInt8>?
         var size = 0
-        CMVideoFormatDescriptionGetHEVCParameterSetAtIndex(formatDescription, parameterSetIndex: index, parameterSetPointerOut: &pointer, parameterSetSizeOut: &size, parameterSetCountOut: nil, nalUnitHeaderLengthOut: nil)
-        guard let pointer, size > 0 else { continue }
-        let nalType = (pointer[0] >> 1) & 0x3F
+        unsafe CMVideoFormatDescriptionGetHEVCParameterSetAtIndex(formatDescription, parameterSetIndex: index, parameterSetPointerOut: &pointer, parameterSetSizeOut: &size, parameterSetCountOut: nil, nalUnitHeaderLengthOut: nil)
+        guard let pointer = unsafe pointer, size > 0 else { continue }
+        let nalType = unsafe (pointer[0] >> 1) & 0x3F
         if grouped[nalType] == nil {
           grouped[nalType] = []
           groupedOrder.append(nalType)
         }
-        grouped[nalType]?.append(Array(UnsafeBufferPointer(start: pointer, count: size)))
+        unsafe grouped[nalType]?.append(Array(UnsafeBufferPointer(start: pointer, count: size)))
       }
       writer.write8(1) // configurationVersion
       writer.write8(0) // general_profile_space, tier, profile_idc

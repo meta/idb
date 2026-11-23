@@ -50,7 +50,7 @@ public final class MinicapFrameWriter: EncodedFrameWriter {
   public func write(_ jpegDataBuffer: CMBlockBuffer, to consumer: any DataConsumer, logger: any ControlCoreLogger) throws {
     let dataLength = CMBlockBufferGetDataLength(jpegDataBuffer)
     var imageLength = UInt32(dataLength).littleEndian
-    let lengthData = Data(bytes: &imageLength, count: MemoryLayout<UInt32>.size)
+    let lengthData = unsafe Data(bytes: &imageLength, count: MemoryLayout<UInt32>.size)
     consumer.consumeData(lengthData)
 
     try jpegDataBuffer.write(to: consumer)
@@ -70,11 +70,11 @@ public final class MinicapFrameWriter: EncodedFrameWriter {
     header.reserveCapacity(Int(headerSize))
     header.append(1) // version = 1
     header.append(headerSize) // headerSize = 24
-    withUnsafeBytes(of: pid) { header.append(contentsOf: $0) }
-    withUnsafeBytes(of: displayWidth) { header.append(contentsOf: $0) }
-    withUnsafeBytes(of: displayHeight) { header.append(contentsOf: $0) }
-    withUnsafeBytes(of: virtualDisplayWidth) { header.append(contentsOf: $0) }
-    withUnsafeBytes(of: virtualDisplayHeight) { header.append(contentsOf: $0) }
+    withUnsafeBytes(of: pid) { unsafe header.append(contentsOf: $0) }
+    withUnsafeBytes(of: displayWidth) { unsafe header.append(contentsOf: $0) }
+    withUnsafeBytes(of: displayHeight) { unsafe header.append(contentsOf: $0) }
+    withUnsafeBytes(of: virtualDisplayWidth) { unsafe header.append(contentsOf: $0) }
+    withUnsafeBytes(of: virtualDisplayHeight) { unsafe header.append(contentsOf: $0) }
     header.append(0) // displayOrientation
     header.append(0) // quirks
 
@@ -97,14 +97,14 @@ public struct BGRAFrameWriter: EncodedFrameWriter {
   public func write(_ pixelBuffer: CVPixelBuffer, to consumer: any DataConsumer) throws {
     CVPixelBufferLockBaseAddress(pixelBuffer, .readOnly)
     defer { CVPixelBufferUnlockBaseAddress(pixelBuffer, .readOnly) }
-    guard let baseAddress = CVPixelBufferGetBaseAddress(pixelBuffer) else {
+    guard let baseAddress = unsafe CVPixelBufferGetBaseAddress(pixelBuffer) else {
       throw EncodedFrameWriterError.failedToGetDataBuffer
     }
     let size = CVPixelBufferGetDataSize(pixelBuffer)
     if case .synchronous = consumer.consumption {
-      consumer.consumeData(Data(bytesNoCopy: baseAddress, count: size, deallocator: .none))
+      unsafe consumer.consumeData(Data(bytesNoCopy: baseAddress, count: size, deallocator: .none))
     } else {
-      consumer.consumeData(Data(bytes: baseAddress, count: size))
+      unsafe consumer.consumeData(Data(bytes: baseAddress, count: size))
     }
   }
 }

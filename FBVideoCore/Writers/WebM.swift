@@ -67,7 +67,7 @@ enum EBML {
     }
 
     mutating func float(_ id: UInt32, _ value: Double) {
-      binary(id, withUnsafeBytes(of: value.bitPattern.bigEndian) { Array($0) })
+      binary(id, withUnsafeBytes(of: value.bitPattern.bigEndian) { unsafe Array($0) })
     }
 
     mutating func string(_ id: UInt32, _ value: String) {
@@ -210,7 +210,7 @@ enum WebM {
   /// A SimpleBlock on track 1, `relativeTime` milliseconds after its cluster's timestamp.
   static func simpleBlock(relativeTime: Int16, isKeyFrame: Bool, frame: [UInt8]) -> [UInt8] {
     var payload: [UInt8] = EBML.size(trackNumber)
-    payload.append(contentsOf: withUnsafeBytes(of: relativeTime.bigEndian) { Array($0) })
+    payload.append(contentsOf: withUnsafeBytes(of: relativeTime.bigEndian) { unsafe Array($0) })
     payload.append(isKeyFrame ? 0x80 : 0x00)
     payload.append(contentsOf: frame)
     var writer = EBML.Writer()
@@ -415,7 +415,7 @@ public final class WebMFileWriter {
         throw WebMFileWriterError.missingFormatDescription
       }
       for parameterSet in try formatDescription.parameterSets(for: codec) {
-        frame.append(contentsOf: withUnsafeBytes(of: UInt32(parameterSet.count).bigEndian) { Array($0) })
+        frame.append(contentsOf: withUnsafeBytes(of: UInt32(parameterSet.count).bigEndian) { unsafe Array($0) })
         frame.append(contentsOf: parameterSet)
       }
     }
@@ -724,22 +724,22 @@ public enum WebMFileReader {
     }
 
     var formatDescription: CMFormatDescription?
-    let pointers = parameterSets.map { set -> UnsafeMutablePointer<UInt8> in
+    let pointers = unsafe parameterSets.map { set -> UnsafeMutablePointer<UInt8> in
       let pointer = UnsafeMutablePointer<UInt8>.allocate(capacity: set.count)
-      pointer.initialize(from: set, count: set.count)
-      return pointer
+      unsafe pointer.initialize(from: set, count: set.count)
+      return unsafe pointer
     }
-    defer { pointers.forEach { $0.deallocate() } }
-    let constPointers = pointers.map { UnsafePointer($0) }
+    defer { unsafe pointers.forEach { unsafe $0.deallocate() } }
+    let constPointers = unsafe pointers.map { unsafe UnsafePointer($0) }
     let sizes = parameterSets.map(\.count)
     var status: OSStatus
     switch codec {
     case .h264:
-      status = CMVideoFormatDescriptionCreateFromH264ParameterSets(
+      status = unsafe CMVideoFormatDescriptionCreateFromH264ParameterSets(
         allocator: nil, parameterSetCount: parameterSets.count, parameterSetPointers: constPointers, parameterSetSizes: sizes,
         nalUnitHeaderLength: 4, formatDescriptionOut: &formatDescription)
     case .hevc:
-      status = CMVideoFormatDescriptionCreateFromHEVCParameterSets(
+      status = unsafe CMVideoFormatDescriptionCreateFromHEVCParameterSets(
         allocator: nil, parameterSetCount: parameterSets.count, parameterSetPointers: constPointers, parameterSetSizes: sizes,
         nalUnitHeaderLength: 4, extensions: nil, formatDescriptionOut: &formatDescription)
     }
@@ -748,7 +748,7 @@ public enum WebMFileReader {
     }
 
     var blockBuffer: CMBlockBuffer?
-    status = CMBlockBufferCreateWithMemoryBlock(
+    status = unsafe CMBlockBufferCreateWithMemoryBlock(
       allocator: nil, memoryBlock: nil, blockLength: sliceData.count, blockAllocator: nil, customBlockSource: nil, offsetToData: 0,
       dataLength: sliceData.count, flags: kCMBlockBufferAssureMemoryNowFlag, blockBufferOut: &blockBuffer)
     guard status == noErr, let blockBuffer else {
@@ -758,14 +758,14 @@ public enum WebMFileReader {
       guard let base = bytes.baseAddress else {
         return kCMBlockBufferBadPointerParameterErr
       }
-      return CMBlockBufferReplaceDataBytes(with: base, blockBuffer: blockBuffer, offsetIntoDestination: 0, dataLength: sliceData.count)
+      return unsafe CMBlockBufferReplaceDataBytes(with: base, blockBuffer: blockBuffer, offsetIntoDestination: 0, dataLength: sliceData.count)
     }
     guard status == noErr else {
       throw WebMFileReaderError.failedToCreateSample(status)
     }
     var sample: CMSampleBuffer?
     var size = sliceData.count
-    status = CMSampleBufferCreateReady(
+    status = unsafe CMSampleBufferCreateReady(
       allocator: nil, dataBuffer: blockBuffer, formatDescription: formatDescription, sampleCount: 1, sampleTimingEntryCount: 0,
       sampleTimingArray: nil, sampleSizeEntryCount: 1, sampleSizeArray: &size, sampleBufferOut: &sample)
     guard status == noErr, let sample else {

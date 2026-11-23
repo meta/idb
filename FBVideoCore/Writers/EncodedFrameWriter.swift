@@ -128,15 +128,15 @@ enum AnnexB {
       var lengthPointer: UnsafeMutablePointer<CChar>?
       var status = lengthBytes.withUnsafeMutableBytes { temp -> OSStatus in
         guard let tempBase = temp.baseAddress else { return kCMBlockBufferBlockAllocationFailedErr }
-        return CMBlockBufferAccessDataBytes(dataBuffer, atOffset: offset, length: lengthPrefixSize, temporaryBlock: tempBase, returnedPointerOut: &lengthPointer)
+        return unsafe CMBlockBufferAccessDataBytes(dataBuffer, atOffset: offset, length: lengthPrefixSize, temporaryBlock: tempBase, returnedPointerOut: &lengthPointer)
       }
       if status != noErr {
         throw EncodedFrameWriterError.failedToAccessBlockBufferData(offset: offset, status: status)
       }
       var nalLength: UInt32 = 0
-      if let lengthPointer {
-        lengthPointer.withMemoryRebound(to: UInt8.self, capacity: lengthPrefixSize) { bytes in
-          nalLength = (UInt32(bytes[0]) << 24) | (UInt32(bytes[1]) << 16) | (UInt32(bytes[2]) << 8) | UInt32(bytes[3])
+      if let lengthPointer = unsafe lengthPointer {
+        unsafe lengthPointer.withMemoryRebound(to: UInt8.self, capacity: lengthPrefixSize) { bytes in
+          nalLength = unsafe (UInt32(bytes[0]) << 24) | (UInt32(bytes[1]) << 16) | (UInt32(bytes[2]) << 8) | UInt32(bytes[3])
         }
       }
       let remaining = dataLength - offset - lengthPrefixSize
@@ -145,7 +145,7 @@ enum AnnexB {
       }
       status = startCode.withUnsafeBytes { start -> OSStatus in
         guard let startBase = start.baseAddress else { return kCMBlockBufferBlockAllocationFailedErr }
-        return CMBlockBufferReplaceDataBytes(with: startBase, blockBuffer: dataBuffer, offsetIntoDestination: offset, dataLength: lengthPrefixSize)
+        return unsafe CMBlockBufferReplaceDataBytes(with: startBase, blockBuffer: dataBuffer, offsetIntoDestination: offset, dataLength: lengthPrefixSize)
       }
       if status != noErr {
         throw EncodedFrameWriterError.failedToReplaceBlockBufferData(offset: offset, status: status)
@@ -174,9 +174,9 @@ extension VideoStreamCodec {
   fileprivate var parameterSetGetter: ParameterSetGetter {
     switch self {
     case .h264:
-      return CMVideoFormatDescriptionGetH264ParameterSetAtIndex
+      return unsafe CMVideoFormatDescriptionGetH264ParameterSetAtIndex
     case .hevc:
-      return CMVideoFormatDescriptionGetHEVCParameterSetAtIndex
+      return unsafe CMVideoFormatDescriptionGetHEVCParameterSetAtIndex
     }
   }
 
@@ -195,7 +195,7 @@ extension CMFormatDescription {
   /// without framing.
   func parameterSets(for codec: VideoStreamCodec) throws -> [[UInt8]] {
     var count = 0
-    var status = codec.parameterSetGetter(self, 0, nil, nil, &count, nil)
+    var status = unsafe codec.parameterSetGetter(self, 0, nil, nil, &count, nil)
     if status != noErr {
       throw EncodedFrameWriterError.failedToGetParameterSetCount(codecName: codec.displayName, status: status)
     }
@@ -204,15 +204,15 @@ extension CMFormatDescription {
     for index in 0..<count {
       var size = 0
       var pointer: UnsafePointer<UInt8>?
-      status = codec.parameterSetGetter(self, index, &pointer, &size, nil, nil)
+      status = unsafe codec.parameterSetGetter(self, index, &pointer, &size, nil, nil)
       if status != noErr {
         throw EncodedFrameWriterError.failedToGetParameterSet(codecName: codec.displayName, index: index, status: status)
       }
-      guard let pointer else {
+      guard let pointer = unsafe pointer else {
         sets.append([])
         continue
       }
-      sets.append(Array(UnsafeBufferPointer(start: pointer, count: size)))
+      unsafe sets.append(Array(UnsafeBufferPointer(start: pointer, count: size)))
     }
     return sets
   }
@@ -242,17 +242,17 @@ extension CMBlockBuffer {
     while offset < dataLength {
       var dataPointer: UnsafeMutablePointer<CChar>?
       var lengthAtOffset = 0
-      let status = CMBlockBufferGetDataPointer(self, atOffset: offset, lengthAtOffsetOut: &lengthAtOffset, totalLengthOut: nil, dataPointerOut: &dataPointer)
+      let status = unsafe CMBlockBufferGetDataPointer(self, atOffset: offset, lengthAtOffsetOut: &lengthAtOffset, totalLengthOut: nil, dataPointerOut: &dataPointer)
       if status != noErr {
         throw EncodedFrameWriterError.failedToGetDataPointer(offset: offset, status: status)
       }
-      guard let dataPointer else {
+      guard let dataPointer = unsafe dataPointer else {
         throw EncodedFrameWriterError.failedToGetDataPointer(offset: offset, status: status)
       }
       if isSyncConsumer {
-        consumer.consumeData(Data(bytesNoCopy: dataPointer, count: lengthAtOffset, deallocator: .none))
+        unsafe consumer.consumeData(Data(bytesNoCopy: dataPointer, count: lengthAtOffset, deallocator: .none))
       } else {
-        consumer.consumeData(Data(bytes: dataPointer, count: lengthAtOffset))
+        unsafe consumer.consumeData(Data(bytes: dataPointer, count: lengthAtOffset))
       }
       offset += lengthAtOffset
     }
@@ -263,9 +263,9 @@ extension CMBlockBuffer {
     let length = CMBlockBufferGetDataLength(self)
     let offset = data.count
     data.append(contentsOf: [UInt8](repeating: 0, count: length))
-    let status = data.withUnsafeMutableBytes { bytes -> OSStatus in
+    let status = unsafe data.withUnsafeMutableBytes { bytes -> OSStatus in
       guard let base = bytes.baseAddress else { return kCMBlockBufferBlockAllocationFailedErr }
-      return CMBlockBufferCopyDataBytes(self, atOffset: 0, dataLength: length, destination: base + offset)
+      return unsafe CMBlockBufferCopyDataBytes(self, atOffset: 0, dataLength: length, destination: base + offset)
     }
     if status != noErr {
       throw EncodedFrameWriterError.failedToCopyBlockBufferData(status: status)

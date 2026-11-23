@@ -85,9 +85,9 @@ extension VideoStreamRateControl: CustomStringConvertible {
     case let .bitrate(bitrate):
       let bps = Double(bitrate)
       if bps >= 1_000_000.0 {
-        return String(format: "Bitrate %.1f Mbps", bps / 1_000_000.0)
+        return unsafe String(format: "Bitrate %.1f Mbps", bps / 1_000_000.0)
       } else {
-        return String(format: "Bitrate %.0f kbps", bps / 1000.0)
+        return unsafe String(format: "Bitrate %.0f kbps", bps / 1000.0)
       }
     }
   }
