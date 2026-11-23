@@ -339,7 +339,7 @@ targets:
     settings:
       base:
         MACOSX_DEPLOYMENT_TARGET: "15.0"
-        SWIFT_VERSION: "5.0"
+        SWIFT_VERSION: "6.0"
         SWIFT_OBJC_BRIDGING_HEADER: $(SRCROOT)/../FBDeviceControlTests/Support/DeviceControlTestHelpers.h
         GENERATE_INFOPLIST_FILE: YES
         SYSTEM_HEADER_SEARCH_PATHS: $(inherited) $(SRCROOT)/../PrivateHeaders
@@ -388,7 +388,7 @@ targets:
     settings:
       base:
         MACOSX_DEPLOYMENT_TARGET: "15.0"
-        SWIFT_VERSION: "5.0"
+        SWIFT_VERSION: "6.0"
         GENERATE_INFOPLIST_FILE: YES
         SYSTEM_HEADER_SEARCH_PATHS: $(inherited) $(SRCROOT)/../PrivateHeaders
         FRAMEWORK_SEARCH_PATHS: $(inherited) $(SRCROOT)/../Build/Products/Release
