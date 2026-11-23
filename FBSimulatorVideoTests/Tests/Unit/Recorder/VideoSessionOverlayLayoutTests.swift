@@ -84,12 +84,18 @@ final class VideoSessionOverlayLayoutTests: XCTestCase {
     buffer.map { CGSize(width: CVPixelBufferGetWidth($0), height: CVPixelBufferGetHeight($0)) }
   }
 
+  /// The size of the overlay `stream` composites. Read on the stream's executor, because the
+  /// compositor does not leave it.
+  private static func overlaySize(of stream: isolated SimulatorVideoStream) -> CGSize? {
+    stream.compositor.overlayBuffer.map { CGSize(width: CVPixelBufferGetWidth($0), height: CVPixelBufferGetHeight($0)) }
+  }
+
   func testTheOverlayAfterASwitchToALargerSurface() async throws {
     let session = try await startSession()
     session.surface.ioSurfaceChanged?(makeTestIOSurface(width: 40, height: 60))
     try await waitUntil { await session.stream.mountedSource?.width == 40 }
 
-    let composited = await size(session.stream.compositor.overlayBuffer)
+    let composited = await Self.overlaySize(of: session.stream)
     XCTAssertEqual(size(session.renderer.buffer), CGSize(width: 40, height: 68))
     XCTAssertEqual(composited, CGSize(width: 40, height: 68))
     try await session.stream.stopStreaming()
@@ -101,7 +107,7 @@ final class VideoSessionOverlayLayoutTests: XCTestCase {
     session.surface.configurationChanged?(SimulatorDisplayConfiguration(generation: 1, displays: [turned], active: .identified(turned), phase: .settled))
     try await waitUntil { await session.stream.mountedSource?.width == 30 }
 
-    let composited = await size(session.stream.compositor.overlayBuffer)
+    let composited = await Self.overlaySize(of: session.stream)
     XCTAssertEqual(size(session.renderer.buffer), CGSize(width: 30, height: 28))
     XCTAssertEqual(composited, CGSize(width: 30, height: 28))
     try await session.stream.stopStreaming()
@@ -113,7 +119,7 @@ final class VideoSessionOverlayLayoutTests: XCTestCase {
     session.surface.configurationChanged?(SimulatorDisplayConfiguration(generation: 2, displays: [turned], active: .identified(turned), phase: .settled))
     try await waitUntil { await session.stream.mountedSource?.width == 30 }
 
-    let composited = await size(session.stream.compositor.overlayBuffer)
+    let composited = await Self.overlaySize(of: session.stream)
     let screenOrigin = session.renderer.transform.bufferPoint(x: 0, y: 4)
     XCTAssertEqual(size(session.renderer.buffer), CGSize(width: 20, height: 38))
     XCTAssertEqual(composited, CGSize(width: 20, height: 38))

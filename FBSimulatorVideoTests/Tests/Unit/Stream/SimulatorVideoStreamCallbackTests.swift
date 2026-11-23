@@ -485,7 +485,7 @@ final class SimulatorVideoStreamDeliveryTests: XCTestCase {
     await stream.updateOverlayBuffer(overlay)
     try await expectEventually("an overlay swap over an idle screen pushes a frame") { consumer.data().count > before }
     before = try await settledCount(of: consumer)
-    await stream.updateOverlayBuffer(overlay)
+    await Self.updateOverlayInPlace(stream)
     try await expectEventually("an in-place overlay update over an idle screen pushes a frame") { consumer.data().count > before }
 
     try await stream.stopStreaming()
@@ -635,8 +635,14 @@ final class SimulatorVideoStreamDeliveryTests: XCTestCase {
   private static let h264Configuration = VideoStreamConfiguration(
     format: .compressedVideo(withCodec: .h264, transport: .annexB), framesPerSecond: nil, rateControl: nil, scaleFactor: nil, keyFrameRate: nil)
 
+  /// Updates `stream`'s overlay in place, as an overlay effect timer does: with the buffer it already composites,
+  /// which does not leave the stream's executor.
+  private static func updateOverlayInPlace(_ stream: isolated SimulatorVideoStream) {
+    stream.updateOverlayBuffer(stream.compositor.overlayBuffer)
+  }
+
   /// A small BGRA overlay buffer for compositing over the fake surface's frames.
-  private func makeOverlayBuffer() -> CVPixelBuffer {
+  private static func makeOverlayBuffer() -> CVPixelBuffer {
     let attrs: [String: Any] = [kCVPixelBufferIOSurfacePropertiesKey as String: [:]]
     var pixelBuffer: CVPixelBuffer?
     let status = CVPixelBufferCreate(nil, 128, 128, kCVPixelFormatType_32BGRA, attrs as CFDictionary, &pixelBuffer)
@@ -687,7 +693,7 @@ final class SimulatorVideoStreamDeliveryTests: XCTestCase {
     }
 
     // Phase 1: setting an overlay swaps the buffer in — a keyframe so a decoder can show it whole.
-    let overlay = makeOverlayBuffer()
+    let overlay = Self.makeOverlayBuffer()
     var before = consumer.data().count
     await stream.updateOverlayBuffer(overlay)
     try await expectEventually("an overlay swap pushes a frame") { consumer.data().count > before }
@@ -697,14 +703,14 @@ final class SimulatorVideoStreamDeliveryTests: XCTestCase {
     // timer animates), each awaited so trigger coalescing cannot merge them.
     for _ in 0..<4 {
       before = consumer.data().count
-      await stream.updateOverlayBuffer(overlay)
+      await Self.updateOverlayInPlace(stream)
       try await expectEventually("an in-place overlay update pushes a frame") { consumer.data().count > before }
     }
     let idrAfterInPlace = countIDRNALUnits(in: consumer.data())
 
     // Phase 3: swapping to a different buffer.
     before = consumer.data().count
-    await stream.updateOverlayBuffer(makeOverlayBuffer())
+    await stream.updateOverlayBuffer(Self.makeOverlayBuffer())
     try await expectEventually("an overlay buffer swap pushes a frame") { consumer.data().count > before }
     let idrAfterSecondSwap = countIDRNALUnits(in: consumer.data())
 

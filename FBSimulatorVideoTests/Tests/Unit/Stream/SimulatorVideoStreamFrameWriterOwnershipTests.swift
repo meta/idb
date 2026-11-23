@@ -50,20 +50,26 @@ final class SimulatorVideoStreamFrameWriterOwnershipTests: XCTestCase {
     let framebuffer = Framebuffer(surface: surface, logger: CapturingLogger())
     let stream = SimulatorVideoStream(framebuffer: framebuffer, configuration: configuration, logger: CapturingLogger())
     try await stream.startStreaming(AccumulatingBuffer())
-    let firstWriter = await stream.frameWriters?.timedMetadataWriter as AnyObject?
-    let first = try XCTUnwrap(firstWriter)
+    try await Self.assertKeepsTransportWriter(of: stream, acrossSwapOf: surface)
+    try await stream.stopStreaming()
+  }
+
+  /// Runs on the stream's executor, because the writers and pixel buffers it compares do not leave
+  /// it; the stream mounts the swapped surface while this is suspended.
+  private static func assertKeepsTransportWriter(
+    of stream: isolated SimulatorVideoStream,
+    acrossSwapOf surface: FakeFramebufferSurface
+  ) async throws {
+    let first = try XCTUnwrap(stream.frameWriters?.timedMetadataWriter as AnyObject?)
 
     surface.ioSurfaceChanged?(makeTestIOSurface(width: 256, height: 256))
     for _ in 0..<500 {
       try await Task.sleep(nanoseconds: 10_000_000)
-      if await stream.pixelBuffer.map(CVPixelBufferGetWidth) == 256 { break }
+      if stream.pixelBuffer.map(CVPixelBufferGetWidth) == 256 { break }
     }
-    let width = await stream.pixelBuffer.map(CVPixelBufferGetWidth)
-    XCTAssertEqual(width, 256, "precondition: the swapped surface must have mounted")
+    XCTAssertEqual(stream.pixelBuffer.map(CVPixelBufferGetWidth), 256, "precondition: the swapped surface must have mounted")
 
-    let secondWriter = await stream.frameWriters?.timedMetadataWriter as AnyObject?
-    let second = try XCTUnwrap(secondWriter)
+    let second = try XCTUnwrap(stream.frameWriters?.timedMetadataWriter as AnyObject?)
     XCTAssertTrue(first === second)
-    try await stream.stopStreaming()
   }
 }

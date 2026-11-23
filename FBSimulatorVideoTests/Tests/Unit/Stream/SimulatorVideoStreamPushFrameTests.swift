@@ -58,7 +58,7 @@ final class SimulatorVideoStreamPushFrameTests: XCTestCase {
 
   func testASignalDuringAPushIsStillPushed() async throws {
     let started = try await startStream()
-    defer { Task { try? await started.stream.stopStreaming() } }
+    defer { Task { [stream = started.stream] in try? await stream.stopStreaming() } }
     let pushInProgress = DispatchSemaphore(value: 0)
     started.pusher.onWrite = {
       pushInProgress.signal()
@@ -82,7 +82,7 @@ final class SimulatorVideoStreamPushFrameTests: XCTestCase {
 
   func testFrameTimingReferenceIsTheMonotonicClock() async throws {
     let started = try await startStream()
-    defer { Task { try? await started.stream.stopStreaming() } }
+    defer { Task { [stream = started.stream] in try? await stream.stopStreaming() } }
 
     await started.stream.pushFrame(forceKeyFrame: false)
     await started.stream.pushFrame(forceKeyFrame: false)
@@ -97,7 +97,7 @@ final class SimulatorVideoStreamPushFrameTests: XCTestCase {
 
   func testEncodeSubmissionFailureIsLogged() async throws {
     let started = try await startStream()
-    defer { Task { try? await started.stream.stopStreaming() } }
+    defer { Task { [stream = started.stream] in try? await stream.stopStreaming() } }
     started.pusher.error = VideoToolboxFramePusherError.failedToCompress(status: -12902)
 
     await started.stream.pushFrame(forceKeyFrame: false)
@@ -120,7 +120,7 @@ final class SimulatorVideoStreamPushFrameTests: XCTestCase {
   func testMediaOriginIsTheWallClockAtTheFirstFramePlusTheFileSAnchor() async throws {
     let clock = SettableClock(uptime: 100, wallClock: 1_000_000)
     let started = try await startStream(clock: clock)
-    defer { Task { try? await started.stream.stopStreaming() } }
+    defer { Task { [stream = started.stream] in try? await stream.stopStreaming() } }
 
     await started.stream.pushFrame(forceKeyFrame: false)
     // A minute of recording on both clocks, and a file anchored on a sample muxed 2 seconds after
@@ -135,7 +135,7 @@ final class SimulatorVideoStreamPushFrameTests: XCTestCase {
   func testMediaOriginWhenTheWallClockIsSetDuringTheRecording() async throws {
     let clock = SettableClock(uptime: 100, wallClock: 1_000_000)
     let started = try await startStream(clock: clock)
-    defer { Task { try? await started.stream.stopStreaming() } }
+    defer { Task { [stream = started.stream] in try? await stream.stopStreaming() } }
 
     await started.stream.pushFrame(forceKeyFrame: false)
     // A minute of recording, during which the wall clock was also set forward by a minute.
@@ -152,7 +152,7 @@ final class SimulatorVideoStreamPushFrameTests: XCTestCase {
   func testMediaOriginOnTheHostClockIsTheHostTimeAtTheFirstFramePlusTheFileSAnchor() async throws {
     let clock = SettableClock(uptime: 100, wallClock: 1_000_000, hostTime: 5_000_000_000)
     let started = try await startStream(clock: clock)
-    defer { Task { try? await started.stream.stopStreaming() } }
+    defer { Task { [stream = started.stream] in try? await stream.stopStreaming() } }
 
     await started.stream.pushFrame(forceKeyFrame: false)
     clock.advance(by: 60)
@@ -164,7 +164,7 @@ final class SimulatorVideoStreamPushFrameTests: XCTestCase {
 
   func testSurfaceWrittenDuringPushIsCountedAsTorn() async throws {
     let started = try await startStream()
-    defer { Task { try? await started.stream.stopStreaming() } }
+    defer { Task { [stream = started.stream] in try? await stream.stopStreaming() } }
     let ioSurface = started.ioSurface
     started.pusher.onWrite = {
       // The render server writing into the surface while the frame is being read.
@@ -182,7 +182,7 @@ final class SimulatorVideoStreamPushFrameTests: XCTestCase {
 
   func testAnOverlayOnlyPushOverThePresentedScreenIsPushed() async throws {
     let started = try await startStream()
-    defer { Task { try? await started.stream.stopStreaming() } }
+    defer { Task { [stream = started.stream] in try? await stream.stopStreaming() } }
 
     let pushed = await started.stream.pushTriggered(FrameTrigger(forceKeyFrame: false, overran: false, overlayOnly: true))
 
@@ -192,7 +192,7 @@ final class SimulatorVideoStreamPushFrameTests: XCTestCase {
 
   func testAnOverlayOnlyPushWaitsForTheFrameTheSimulatorIsDrawing() async throws {
     let started = try await startStream()
-    defer { Task { try? await started.stream.stopStreaming() } }
+    defer { Task { [stream = started.stream] in try? await stream.stopStreaming() } }
     // The render server drawing into the surface before it reports the frame
     try started.ioSurface.lock(options: [], seed: nil)
     started.ioSurface.baseAddress.assumingMemoryBound(to: UInt8.self)[0] ^= 0xFF
