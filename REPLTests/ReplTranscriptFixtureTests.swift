@@ -6,7 +6,7 @@
  */
 
 import Foundation
-@_implementationOnly import IDBGRPCSwift
+import IDBGRPCSwift
 import SwiftProtobuf
 import Testing
 
