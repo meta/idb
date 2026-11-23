@@ -21,7 +21,7 @@ public enum SimulatorXCTestError: Error {
   case socketConnectionFailed
   case unexpectedReporter(reporterDescription: String)
   case testManagerAlreadyRunning(configurationDescription: String)
-  case environmentVariableUnavailable(key: String, underlying: Error?)
+  case environmentVariableUnavailable(key: String, underlying: (any Error)?)
 }
 
 extension SimulatorXCTestError: LocalizedError {
@@ -201,7 +201,7 @@ public final class SimulatorXCTestCommands: XCTestExtendedCommands {
       throw WeakTargetError.simulator
     }
     let deadline = Date().addingTimeInterval(testmanagerdSimSockTimeout)
-    var lastError: Error?
+    var lastError: (any Error)?
     while true {
       do {
         let socketPath = try simulator.device.getenv(simSockEnvKey)
