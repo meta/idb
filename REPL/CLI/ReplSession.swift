@@ -84,7 +84,7 @@ final class ReplSession {
   private(set) var nextRunIndex: Int
 
   private let config: ReplSessionConfig
-  private let reporter: EventReporter
+  private let reporter: any EventReporter
   /// When the session began connecting; the `session_end` event's duration
   /// measures from here.
   private let startedAt: Date
@@ -97,7 +97,7 @@ final class ReplSession {
 
   private init(
     config: ReplSessionConfig,
-    reporter: EventReporter,
+    reporter: any EventReporter,
     startedAt: Date,
     connection: ReplConnection,
     deviceType: String,

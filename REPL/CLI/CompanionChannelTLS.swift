@@ -35,7 +35,7 @@ func planCompanionClientTLS(
 func replClientTLSIdentity(
   for address: CompanionAddress,
   tls: CompanionClientTLS,
-  provider: CompanionTLSProvider?
+  provider: (any CompanionTLSProvider)?
 ) -> CompanionTLSIdentity? {
   guard case .tcp = address, tls == .metaIdentity else {
     return nil

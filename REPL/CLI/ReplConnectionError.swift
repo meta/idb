@@ -68,9 +68,9 @@ enum ReplConnectionError: Error, Equatable, CustomStringConvertible {
 }
 
 func actionableCompanionConnectionError(
-  _ error: Error,
+  _ error: any Error,
   companion: ResolvedCompanion
-) -> Error {
+) -> any Error {
   if error is CancellationError {
     return error
   }

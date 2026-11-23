@@ -10,7 +10,7 @@ import IDBTelemetry
 
 enum ReplTelemetry {
 
-  static func makeReporter() -> EventReporter {
+  static func makeReporter() -> any EventReporter {
     // @oss-disable
       // @oss-disable
     // @oss-disable
