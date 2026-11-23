@@ -111,7 +111,7 @@ public struct AccessibilityProfilingData: Sendable, Equatable, Encodable {
 
 extension AccessibilityProfilingData: CustomStringConvertible {
   public var description: String {
-    String(
+    unsafe String(
       format: "<AccessibilityProfilingData: elements=%lld, total=%.2fms, acquire=%.2fms, read=%.2fms, serialize=%.2fms>",
       elementCount,
       totalDuration * 1000,

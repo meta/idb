@@ -38,7 +38,7 @@ struct AXHostSnapshot {
     let wall = clock_gettime_nsec_np(CLOCK_REALTIME) / 1000
     let ticks = AXHostCPUTicks.read()
     var timebase = mach_timebase_info_data_t()
-    mach_timebase_info(&timebase)
+    unsafe mach_timebase_info(&timebase)
     let pids = pids(ownedBy: geteuid())
     var processes = [pid_t: AXHostProcess](minimumCapacity: pids.count)
     for (index, pid) in pids.enumerated() {
@@ -62,7 +62,7 @@ struct AXHostSnapshot {
     // Room for processes started since the estimate.
     var pids = [pid_t](repeating: 0, count: Int(estimate) / MemoryLayout<pid_t>.size + 64)
     let bytes = pids.withUnsafeMutableBytes { buffer in
-      proc_listpids(UInt32(PROC_UID_ONLY), uid, buffer.baseAddress, Int32(buffer.count))
+      unsafe proc_listpids(UInt32(PROC_UID_ONLY), uid, buffer.baseAddress, Int32(buffer.count))
     }
     guard bytes > 0 else {
       return []
@@ -73,7 +73,7 @@ struct AXHostSnapshot {
   static func process(_ pid: pid_t, timebase: mach_timebase_info_data_t) -> AXHostProcess? {
     var info = proc_taskallinfo()
     let size = Int32(MemoryLayout<proc_taskallinfo>.size)
-    guard proc_pidinfo(pid, PROC_PIDTASKALLINFO, 0, &info, size) == size else {
+    guard unsafe proc_pidinfo(pid, PROC_PIDTASKALLINFO, 0, &info, size) == size else {
       return nil
     }
     let machTime = info.ptinfo.pti_total_user &+ info.ptinfo.pti_total_system
@@ -86,7 +86,7 @@ struct AXHostSnapshot {
 
   private static func cString<Tuple>(_ tuple: Tuple) -> String {
     withUnsafeBytes(of: tuple) { raw in
-      String(decoding: raw.prefix { $0 != 0 }, as: UTF8.self)
+      unsafe String(decoding: raw.prefix { $0 != 0 }, as: UTF8.self)
     }
   }
 
@@ -97,15 +97,15 @@ struct AXHostSnapshot {
     }
     var mib: [Int32] = [CTL_KERN, KERN_PROCARGS2, pid]
     var size = 0
-    guard sysctl(&mib, 3, nil, &size, nil, 0) == 0, size > MemoryLayout<Int32>.size else {
+    guard unsafe sysctl(&mib, 3, nil, &size, nil, 0) == 0, size > MemoryLayout<Int32>.size else {
       return nil
     }
     var bytes = [UInt8](repeating: 0, count: size)
-    guard sysctl(&mib, 3, &bytes, &size, nil, 0) == 0, size > MemoryLayout<Int32>.size else {
+    guard unsafe sysctl(&mib, 3, &bytes, &size, nil, 0) == 0, size > MemoryLayout<Int32>.size else {
       return nil
     }
     // The argument count, the executable's path, padding, then the arguments, each ending in a zero byte.
-    let count = bytes.withUnsafeBytes { $0.loadUnaligned(as: Int32.self) }
+    let count = bytes.withUnsafeBytes { unsafe $0.loadUnaligned(as: Int32.self) }
     var index = MemoryLayout<Int32>.size
     while index < size, bytes[index] != 0 {
       index += 1

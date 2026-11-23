@@ -54,7 +54,7 @@ final class IdleSyncHost: Sendable {
     mutating func wakeServer() {
       guard let wake else { return }
       var byte: UInt8 = 0
-      _ = Darwin.write(wake.write, &byte, 1)
+      _ = unsafe Darwin.write(wake.write, &byte, 1)
     }
   }
 
@@ -122,8 +122,8 @@ final class IdleSyncHost: Sendable {
 
   private func startServer(_ state: inout State) throws {
     var descriptors: [Int32] = [0, 0]
-    guard pipe(&descriptors) == 0 else {
-      throw IdleSyncError.socketUnavailable(path: path, reason: "pipe: \(String(cString: strerror(errno)))")
+    guard unsafe pipe(&descriptors) == 0 else {
+      throw IdleSyncError.socketUnavailable(path: path, reason: unsafe "pipe: \(String(cString: strerror(errno)))")
     }
     for descriptor in descriptors {
       _ = fcntl(descriptor, F_SETFL, fcntl(descriptor, F_GETFL) | O_NONBLOCK)
@@ -198,7 +198,7 @@ final class IdleSyncHost: Sendable {
         guard let server else { continue }
         server.wait(timeoutMilliseconds: timeoutMilliseconds, wakeDescriptor: wake)
         var drain = [UInt8](repeating: 0, count: 64)
-        while Darwin.read(wake, &drain, drain.count) > 0 {}
+        while unsafe Darwin.read(wake, &drain, drain.count) > 0 {}
         receive(server.poll())
       }
     }

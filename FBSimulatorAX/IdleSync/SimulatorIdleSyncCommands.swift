@@ -7,7 +7,7 @@
 
 import Darwin
 import FBControlCore
-@preconcurrency import FBSimulatorControl
+import FBSimulatorControl
 import Foundation
 internal import ShimulatorIdleSyncCore
 internal import ShimulatorProtocol

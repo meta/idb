@@ -37,7 +37,7 @@ struct AXProcessCounters {
     }
     var info = proc_taskallinfo()
     let size = Int32(MemoryLayout<proc_taskallinfo>.size)
-    guard proc_pidinfo(pid, PROC_PIDTASKALLINFO, 0, &info, size) == size else {
+    guard unsafe proc_pidinfo(pid, PROC_PIDTASKALLINFO, 0, &info, size) == size else {
       return nil
     }
     let task = info.ptinfo
@@ -68,7 +68,7 @@ struct AXThreadCPU {
     // Room for threads started since `count` was read.
     var ids = [UInt64](repeating: 0, count: min(max(count, 0), 4096) + 64)
     let bytes = ids.withUnsafeMutableBytes { buffer in
-      proc_pidinfo(pid, PROC_PIDLISTTHREADS, 0, buffer.baseAddress, Int32(buffer.count))
+      unsafe proc_pidinfo(pid, PROC_PIDLISTTHREADS, 0, buffer.baseAddress, Int32(buffer.count))
     }
     guard bytes > 0 else {
       return []
@@ -76,7 +76,7 @@ struct AXThreadCPU {
     return ids.prefix(Int(bytes) / MemoryLayout<UInt64>.size).compactMap { id in
       var info = proc_threadinfo()
       let size = Int32(MemoryLayout<proc_threadinfo>.size)
-      guard proc_pidinfo(pid, PROC_PIDTHREADINFO, id, &info, size) == size else {
+      guard unsafe proc_pidinfo(pid, PROC_PIDTHREADINFO, id, &info, size) == size else {
         return nil
       }
       return AXThreadCPU(
@@ -130,8 +130,8 @@ struct AXHostCPUTicks {
     var info = host_cpu_load_info()
     var count = mach_msg_type_number_t(MemoryLayout<host_cpu_load_info>.size / MemoryLayout<integer_t>.size)
     let result = withUnsafeMutablePointer(to: &info) { pointer in
-      pointer.withMemoryRebound(to: integer_t.self, capacity: Int(count)) {
-        host_statistics(host, HOST_CPU_LOAD_INFO, $0, &count)
+      unsafe pointer.withMemoryRebound(to: integer_t.self, capacity: Int(count)) {
+        unsafe host_statistics(host, HOST_CPU_LOAD_INFO, $0, &count)
       }
     }
     guard result == KERN_SUCCESS else {
@@ -181,7 +181,7 @@ struct AXMemoryState {
   static func read() -> AXMemoryState {
     var swap = xsw_usage()
     var size = MemoryLayout<xsw_usage>.size
-    let swapped = sysctlbyname("vm.swapusage", &swap, &size, nil, 0) == 0 && size == MemoryLayout<xsw_usage>.size
+    let swapped = unsafe sysctlbyname("vm.swapusage", &swap, &size, nil, 0) == 0 && size == MemoryLayout<xsw_usage>.size
     return AXMemoryState(
       pressure: AXSysctl.integer("kern.memorystatus_vm_pressure_level", as: Int32.self).map(pressureName),
       freePercent: AXSysctl.integer("kern.memorystatus_level", as: UInt32.self).map { Int($0) },
@@ -201,11 +201,11 @@ struct AXMemoryState {
 enum AXSysctl {
   static func string(_ name: String) -> String? {
     var size = 0
-    guard sysctlbyname(name, nil, &size, nil, 0) == 0, size > 0 else {
+    guard unsafe sysctlbyname(name, nil, &size, nil, 0) == 0, size > 0 else {
       return nil
     }
     var bytes = [UInt8](repeating: 0, count: size)
-    guard sysctlbyname(name, &bytes, &size, nil, 0) == 0 else {
+    guard unsafe sysctlbyname(name, &bytes, &size, nil, 0) == 0 else {
       return nil
     }
     return String(decoding: bytes.prefix { $0 != 0 }, as: UTF8.self)
@@ -214,7 +214,7 @@ enum AXSysctl {
   static func integer<Value: FixedWidthInteger>(_ name: String, as type: Value.Type) -> Value? {
     var value = Value.zero
     var size = MemoryLayout<Value>.size
-    guard sysctlbyname(name, &value, &size, nil, 0) == 0, size == MemoryLayout<Value>.size else {
+    guard unsafe sysctlbyname(name, &value, &size, nil, 0) == 0, size == MemoryLayout<Value>.size else {
       return nil
     }
     return value
@@ -247,7 +247,7 @@ struct AXStallEndReading {
 
   static func read(_ pid: pid_t) -> AXStallEndReading {
     var load = [Double](repeating: 0, count: 3)
-    return AXStallEndReading(
+    return unsafe AXStallEndReading(
       reading: .read(pid), usage: pid > 0 ? AXStallProbe.usage(pid) : nil,
       hostLoad: getloadavg(&load, 3) == 3 ? load[0] : nil, memory: .read())
   }
@@ -258,7 +258,7 @@ enum AXStallProbe {
   static let threshold: TimeInterval = 1
   /// Whether requests may be watched at all: `IDB_AX_STALL_PROBE` set to `0`, `false`, `no` or `off` in the
   /// process's environment turns watching off.
-  static let isEnabled = isEnabled(environmentValue: getenv("IDB_AX_STALL_PROBE").map { String(cString: $0) })
+  static let isEnabled = unsafe isEnabled(environmentValue: getenv("IDB_AX_STALL_PROBE").map { unsafe String(cString: $0) })
   /// Writes `ax_stall_probe` lines off the request's thread.
   static let logQueue = DispatchQueue(label: "com.facebook.FBSimulatorAX.AXStallProbe.log", qos: .utility)
   private static let busiestThreadCount = 3
@@ -352,7 +352,7 @@ enum AXStallProbe {
       fields += ["footprint_mb=\(footprint)", "resident_mb=\(resident)"]
     }
     if let load = observation.hostLoad {
-      fields.append(String(format: "host_load=%.1f", load))
+      unsafe fields.append(String(format: "host_load=%.1f", load))
     }
     fields.append(describe(observation.host))
     if let pressure = observation.memory.pressure {
@@ -398,7 +398,7 @@ enum AXStallProbe {
 
   static func name(of thread: proc_threadinfo) -> String {
     withUnsafeBytes(of: thread.pth_name) { raw in
-      String(decoding: raw.prefix { $0 != 0 }, as: UTF8.self)
+      unsafe String(decoding: raw.prefix { $0 != 0 }, as: UTF8.self)
     }
   }
 
@@ -406,7 +406,7 @@ enum AXStallProbe {
   static func usage(_ pid: pid_t) -> rusage_info_v4? {
     var usage = rusage_info_v4()
     let result = withUnsafeMutablePointer(to: &usage) { pointer in
-      pointer.withMemoryRebound(to: rusage_info_t?.self, capacity: 1) { proc_pid_rusage(pid, RUSAGE_INFO_V4, $0) }
+      unsafe pointer.withMemoryRebound(to: rusage_info_t?.self, capacity: 1) { unsafe proc_pid_rusage(pid, RUSAGE_INFO_V4, $0) }
     }
     return result == 0 ? usage : nil
   }
@@ -436,7 +436,7 @@ enum AXStallProbe {
 
   static func nanoseconds(machTime: UInt64) -> UInt64 {
     var timebase = mach_timebase_info_data_t()
-    mach_timebase_info(&timebase)
+    unsafe mach_timebase_info(&timebase)
     guard timebase.denom != 0 else {
       return machTime
     }

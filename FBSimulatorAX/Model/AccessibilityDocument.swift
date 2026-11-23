@@ -773,7 +773,7 @@ public enum AccessibilityAttributeValue: Sendable, Equatable, Encodable {
       if CFGetTypeID(value) == CFBooleanGetTypeID() {
         self = .bool(value.boolValue)
       } else {
-        let objCType = String(cString: value.objCType)
+        let objCType = unsafe String(cString: value.objCType)
         self = (objCType == "f" || objCType == "d") ? .double(value.doubleValue) : .int(value.int64Value)
       }
     case let value as [Any]:

@@ -55,41 +55,41 @@ func invokeAccessibilityCustomAction(_ action: NSAccessibilityCustomAction) -> B
   guard
     object.responds(to: selector),
     let cls = object_getClass(object),
-    let method = class_getInstanceMethod(cls, selector)
+    let method = unsafe class_getInstanceMethod(cls, selector)
   else {
     return false
   }
-  let implementation = method_getImplementation(method)
+  let implementation = unsafe method_getImplementation(method)
   var returnType = [CChar](repeating: 0, count: 16)
-  method_getReturnType(method, &returnType, returnType.count)
+  unsafe method_getReturnType(method, &returnType, returnType.count)
   let returnTypeName = String(
     decoding: returnType.prefix { $0 != 0 }.map { UInt8(bitPattern: $0) },
     as: UTF8.self
   )
-  let argumentCount = method_getNumberOfArguments(method)
+  let argumentCount = unsafe method_getNumberOfArguments(method)
   if argumentCount == 3 {
-    guard let argumentType = method_copyArgumentType(method, 2) else {
+    guard let argumentType = unsafe method_copyArgumentType(method, 2) else {
       return false
     }
-    defer { free(argumentType) }
-    guard String(cString: argumentType) == "@" else {
+    defer { unsafe free(argumentType) }
+    guard unsafe String(cString: argumentType) == "@" else {
       return false
     }
   }
   switch (argumentCount, returnTypeName) {
   case (2, "B"), (2, "c"):
     typealias Action = @convention(c) (AnyObject, Selector) -> Bool
-    return unsafeBitCast(implementation, to: Action.self)(object, selector)
+    return unsafe unsafeBitCast(implementation, to: Action.self)(object, selector)
   case (3, "B"), (3, "c"):
     typealias Action = @convention(c) (AnyObject, Selector, NSAccessibilityCustomAction) -> Bool
-    return unsafeBitCast(implementation, to: Action.self)(object, selector, action)
+    return unsafe unsafeBitCast(implementation, to: Action.self)(object, selector, action)
   case (2, "v"):
     typealias Action = @convention(c) (AnyObject, Selector) -> Void
-    unsafeBitCast(implementation, to: Action.self)(object, selector)
+    unsafe unsafeBitCast(implementation, to: Action.self)(object, selector)
     return true
   case (3, "v"):
     typealias Action = @convention(c) (AnyObject, Selector, NSAccessibilityCustomAction) -> Void
-    unsafeBitCast(implementation, to: Action.self)(object, selector, action)
+    unsafe unsafeBitCast(implementation, to: Action.self)(object, selector, action)
     return true
   default:
     return false
@@ -103,7 +103,7 @@ extension AXPMacPlatformElement: AXWritableElement {
     // class member of the same name on `AXPMacPlatformElement` in this context.
     let selector = NSSelectorFromString("accessibilityActionNames")
     guard responds(to: selector),
-      let raw = perform(selector)?.takeUnretainedValue() as? NSArray
+      let raw = unsafe perform(selector)?.takeUnretainedValue() as? NSArray
     else {
       return []
     }

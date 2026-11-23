@@ -119,7 +119,7 @@ final class AXTranslationRequest {
   /// translator's element cache, without a request.
   func platformElement(for reference: any AXTranslationReference) -> (any AXWritableElement)? {
     // Sent by message: the translation is typed by protocol here, so test doubles can stand in for it.
-    translator?.perform(NSSelectorFromString("macPlatformElementFromTranslation:"), with: reference)?
+    unsafe translator?.perform(NSSelectorFromString("macPlatformElementFromTranslation:"), with: reference)?
       .takeUnretainedValue() as? any AXWritableElement
   }
 

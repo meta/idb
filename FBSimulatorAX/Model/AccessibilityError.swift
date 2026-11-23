@@ -92,15 +92,15 @@ public enum AccessibilityError: LocalizedError, Sendable {
     case .noTranslationObject(nil):
       return "The simulator's accessibility service no longer has this element"
     case let .springBoardRestarting(exitedProcessIdentifier, restartedAgo):
-      return String(
+      return unsafe String(
         format: "SpringBoard restarted %.1f seconds ago. The simulator's accessibility service still answers for the SpringBoard that exited (pid %d) until it refreshes, which takes a few seconds; retry the read.",
         restartedAgo, exitedProcessIdentifier)
     case let .serviceNotAnswering(.request(kind, timeout), elapsed, _):
-      return String(
+      return unsafe String(
         format: "The simulator's accessibility service did not answer a %@ request within %.1fs, %.1fs into the read; retry the read.",
         kind, timeout, elapsed)
     case let .serviceNotAnswering(.query(timeout), elapsed, _):
-      return String(
+      return unsafe String(
         format: "The simulator's accessibility service did not answer within the query's %.1fs timeout, %.1fs into the read; retry the read.",
         timeout, elapsed)
     case .springBoardNotRunning:

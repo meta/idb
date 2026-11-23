@@ -5,11 +5,11 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-@preconcurrency internal import AccessibilityPlatformTranslation
+internal import AccessibilityPlatformTranslation
 import CoreSimulator
 import FBSimulatorControl
 import Foundation
-@preconcurrency import XPC
+import XPC
 
 /// Carries one translator request to the simulator's accessibility service and brings back its answer.
 ///
@@ -176,25 +176,25 @@ enum AXTranslationWire {
 
   static func envelope(className: String, key: String, data: Data) -> xpc_object_t {
     let payload = xpc_dictionary_create(nil, nil, 0)
-    xpc_dictionary_set_value(payload, key, data.withUnsafeBytes { xpc_data_create($0.baseAddress, $0.count) })
+    unsafe xpc_dictionary_set_value(payload, key, data.withUnsafeBytes { unsafe xpc_data_create($0.baseAddress, $0.count) })
     let message = xpc_dictionary_create(nil, nil, 0)
-    xpc_dictionary_set_string(message, payloadClassNameKey, className)
-    xpc_dictionary_set_value(message, payloadKey, payload)
+    unsafe xpc_dictionary_set_string(message, payloadClassNameKey, className)
+    unsafe xpc_dictionary_set_value(message, payloadKey, payload)
     return message
   }
 
   static func payload(of message: xpc_object_t, className: String, key: String) -> Data? {
-    guard xpc_get_type(message) == XPC_TYPE_DICTIONARY,
-      let name = xpc_dictionary_get_string(message, payloadClassNameKey), String(cString: name) == className,
-      let payload = xpc_dictionary_get_value(message, payloadKey), xpc_get_type(payload) == XPC_TYPE_DICTIONARY
+    guard unsafe xpc_get_type(message) == XPC_TYPE_DICTIONARY,
+      let name = unsafe xpc_dictionary_get_string(message, payloadClassNameKey), unsafe String(cString: name) == className,
+      let payload = unsafe xpc_dictionary_get_value(message, payloadKey), unsafe xpc_get_type(payload) == XPC_TYPE_DICTIONARY
     else {
       return nil
     }
     var length = 0
-    guard let bytes = xpc_dictionary_get_data(payload, key, &length) else {
+    guard let bytes = unsafe xpc_dictionary_get_data(payload, key, &length) else {
       return nil
     }
-    return Data(bytes: bytes, count: length)
+    return unsafe Data(bytes: bytes, count: length)
   }
 }
 

@@ -5,7 +5,7 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-@preconcurrency internal import AccessibilityPlatformTranslation
+internal import AccessibilityPlatformTranslation
 import AppKit
 import FBControlCore
 import FBSimulatorBridgeProtocol

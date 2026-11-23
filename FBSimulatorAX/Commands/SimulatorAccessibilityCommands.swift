@@ -5,7 +5,7 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-@preconcurrency internal import AccessibilityPlatformTranslation
+internal import AccessibilityPlatformTranslation
 import AppKit
 import CoreSimulator
 import FBControlCore
@@ -22,7 +22,7 @@ extension Simulator {
   /// translator's token delegate. `translator` is typed `Any` so tests can pass
   /// a mock `AXPTranslator`.
   static func createAccessibilityTranslationDispatcher(withTranslator translator: Any) -> AXTranslationDispatcher {
-    let axTranslator = unsafeBitCast(translator as AnyObject, to: AXPTranslator.self)
+    let axTranslator = unsafe unsafeBitCast(translator as AnyObject, to: AXPTranslator.self)
     let dispatcher = AXTranslationDispatcher(translator: axTranslator)
     axTranslator.bridgeTokenDelegate = dispatcher
     return dispatcher
@@ -32,7 +32,7 @@ extension Simulator {
   // bridgeTokenDelegate slot, so exactly one dispatcher backs every simulator (it
   // disambiguates concurrent requests by token, guarded internally by a lock).
   private static let sharedAccessibilityTranslationDispatcher: AXTranslationDispatcher = {
-    let translator = unsafeBitCast(AXPTranslator.sharedInstance() as AnyObject, to: AXPTranslator.self)
+    let translator = unsafe unsafeBitCast(AXPTranslator.sharedInstance() as AnyObject, to: AXPTranslator.self)
     return Simulator.createAccessibilityTranslationDispatcher(withTranslator: translator)
   }()
 
