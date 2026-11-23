@@ -23,7 +23,7 @@ struct ResultRecord {
   /// Reads a property list file, or returns nil when there is none to read.
   init?(contentsOfPropertyList path: String) {
     guard let data = FileManager.default.contents(atPath: path),
-      let fields = (try? PropertyListSerialization.propertyList(from: data, format: nil)) as? [String: Any]
+      let fields = unsafe (try? PropertyListSerialization.propertyList(from: data, format: nil)) as? [String: Any]
     else {
       return nil
     }
@@ -285,7 +285,7 @@ enum XCTestResultBundleParser {
       }
     }
 
-    logs.append("Test Case '\(testCaseFullName)' \(outcome) in \(String(format: "%.3f", duration)) seconds")
+    logs.append(unsafe "Test Case '\(testCaseFullName)' \(outcome) in \(String(format: "%.3f", duration)) seconds")
     return logs
   }
 
@@ -293,7 +293,7 @@ enum XCTestResultBundleParser {
     let message = try activitySummary.string("Title")
     let elapsed = try activitySummary.double("StartTimeInterval") - testStartTimeInterval
     let indentString = "".padding(toLength: 1 + Int(indent) * 4, withPad: " ", startingAt: 0)
-    logs.append(String(format: "    t = %8.2fs%@%@", elapsed, indentString, message))
+    unsafe logs.append(String(format: "    t = %8.2fs%@%@", elapsed, indentString, message))
 
     for subActivity in activitySummary.optionalRecords("SubActivities") ?? [] {
       try addTestLogsFromLegacyActivitySummary(subActivity, logs: &logs, testStartTimeInterval: testStartTimeInterval, indent: indent + 1)
@@ -429,7 +429,7 @@ enum XCTestResultBundleParser {
       }
     }
 
-    logs.append("Test Case '\(testCaseFullName)' \(outcome) in \(String(format: "%.3f", duration)) seconds")
+    logs.append(unsafe "Test Case '\(testCaseFullName)' \(outcome) in \(String(format: "%.3f", duration)) seconds")
     return logs
   }
 
@@ -438,7 +438,7 @@ enum XCTestResultBundleParser {
     let startTimeInterval = dateFromString(activitySummary.unwrappedString("start", logger: logger) ?? "")?.timeIntervalSince1970 ?? 0
     let elapsed = startTimeInterval - testStartTimeInterval
     let indentString = "".padding(toLength: 1 + Int(indent) * 4, withPad: " ", startingAt: 0)
-    logs.append(String(format: "    t = %8.2fs%@%@", elapsed, indentString, message))
+    unsafe logs.append(String(format: "    t = %8.2fs%@%@", elapsed, indentString, message))
 
     for subActivity in activitySummary.silentlyUnwrappedRecords("subactivities") ?? [] {
       addTestLogsFromActivitySummary(subActivity, logs: &logs, testStartTimeInterval: testStartTimeInterval, indent: indent + 1, logger: logger)
@@ -467,7 +467,7 @@ enum XCTestResultBundleParser {
     let fileManager = FileManager.default
     let subdirectoryFullPath = (resultBundlePath as NSString).appendingPathComponent(subdirectory)
     var isDirectory: ObjCBool = false
-    if fileManager.fileExists(atPath: subdirectoryFullPath, isDirectory: &isDirectory) {
+    if unsafe fileManager.fileExists(atPath: subdirectoryFullPath, isDirectory: &isDirectory) {
       if !isDirectory.boolValue {
         throw XCTestResultBundleError.notADirectory(path: subdirectoryFullPath)
       }

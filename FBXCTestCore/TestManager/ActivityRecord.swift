@@ -37,7 +37,7 @@ public final class ActivityRecord: CustomStringConvertible {
   }
 
   public var description: String {
-    String(format: "Title %@ | Duration %f | Start %@ | Finish %@ | Uuid %@", title, duration, start as NSDate, finish as NSDate, uuid as NSUUID)
+    unsafe String(format: "Title %@ | Duration %f | Start %@ | Finish %@ | Uuid %@", title, duration, start as NSDate, finish as NSDate, uuid as NSUUID)
   }
 }
 

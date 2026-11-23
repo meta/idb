@@ -187,18 +187,18 @@ public final class MacDevice: Target {
   // MARK: - Device UDID
 
   private static func resolveDeviceUDID() -> String {
-    let platformExpert = IOServiceGetMatchingService(kIOMainPortDefault, IOServiceMatching("IOPlatformExpertDevice"))
+    let platformExpert = unsafe IOServiceGetMatchingService(kIOMainPortDefault, IOServiceMatching("IOPlatformExpertDevice"))
     guard platformExpert != 0 else {
       return ""
     }
-    let serialNumberAsCFString = IORegistryEntryCreateCFProperty(
+    let serialNumberAsCFString = unsafe IORegistryEntryCreateCFProperty(
       platformExpert,
       kIOPlatformSerialNumberKey as CFString,
       kCFAllocatorDefault,
       0
     )
     IOObjectRelease(platformExpert)
-    return serialNumberAsCFString?.takeRetainedValue() as? String ?? ""
+    return unsafe serialNumberAsCFString?.takeRetainedValue() as? String ?? ""
   }
 
   // MARK: - Transport

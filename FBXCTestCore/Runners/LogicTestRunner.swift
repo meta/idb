@@ -101,7 +101,7 @@ public final class LogicTestRunner {
     // serial queue.
     nonisolated(unsafe) let report = report
     await target.workQueue.perform {
-      report()
+      unsafe report()
     }
   }
 

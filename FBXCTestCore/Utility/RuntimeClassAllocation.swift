@@ -34,6 +34,6 @@ enum RuntimeClassAllocation {
   /// The class itself, as the object `+alloc` and `+new` are sent to. Converted through `AnyObject`:
   /// a Swift metatype for an Objective-C class can be a wrapper around the class, not the class.
   private static func classObject(_ className: String) -> (any RuntimeClassAllocating)? {
-    objc_lookUpClass(className).map { unsafeBitCast($0 as AnyObject, to: (any RuntimeClassAllocating).self) }
+    unsafe objc_lookUpClass(className).map { unsafe unsafeBitCast($0 as AnyObject, to: (any RuntimeClassAllocating).self) }
   }
 }

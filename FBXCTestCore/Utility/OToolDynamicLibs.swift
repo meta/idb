@@ -111,7 +111,7 @@ enum OToolOperation {
     }
     var libs: [String] = []
     let nsString = otoolOutput as NSString
-    regex.enumerateMatches(in: otoolOutput, options: [], range: NSRange(location: 0, length: nsString.length)) { result, _, _ in
+    unsafe regex.enumerateMatches(in: otoolOutput, options: [], range: NSRange(location: 0, length: nsString.length)) { result, _, _ in
       guard let result else { return }
       let range = result.range(at: 1)
       libs.append(nsString.substring(with: range))

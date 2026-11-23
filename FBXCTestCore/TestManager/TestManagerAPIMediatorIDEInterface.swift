@@ -35,7 +35,7 @@ final class PendingReceipt: @unchecked Sendable {
 
 /// A new `DTXRemoteInvocationReceipt`, or nil when DTXConnectionServices is not loaded.
 func makeRemoteInvocationReceipt() -> (any DTXRemoteInvocationReceiptMessaging)? {
-  RuntimeClassAllocation.new("DTXRemoteInvocationReceipt").map { unsafeBitCast($0, to: (any DTXRemoteInvocationReceiptMessaging).self) }
+  RuntimeClassAllocation.new("DTXRemoteInvocationReceipt").map { unsafe unsafeBitCast($0, to: (any DTXRemoteInvocationReceiptMessaging).self) }
 }
 
 /// The private XCTest `XCTestManager_IDEInterface` / `XCTMessagingChannel_RunnerToIDE` callbacks the
@@ -58,7 +58,7 @@ final class TestManagerAPIMediatorIDEInterface: NSObject {
   }
 
   private static func identifier(_ identifier: NSObject) -> any XCTTestIdentifierReading {
-    unsafeBitCast(identifier, to: (any XCTTestIdentifierReading).self)
+    unsafe unsafeBitCast(identifier, to: (any XCTTestIdentifierReading).self)
   }
 }
 

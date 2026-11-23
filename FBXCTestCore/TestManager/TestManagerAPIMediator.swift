@@ -5,7 +5,7 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-@preconcurrency import FBControlCore
+@unsafe @preconcurrency import FBControlCore
 import Foundation
 
 enum TestManagerError: Error {

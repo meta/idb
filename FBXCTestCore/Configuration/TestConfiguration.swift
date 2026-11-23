@@ -123,7 +123,7 @@ public enum TestConfigurationError: Error, LocalizedError {
     guard let capabilitiesBuilderInstance = RuntimeClassAllocation.new("XCTCapabilitiesBuilder") else {
       throw TestConfigurationError.classUnavailable(className: "XCTCapabilitiesBuilder")
     }
-    let capabilitiesBuilder = unsafeBitCast(capabilitiesBuilderInstance, to: (any XCTCapabilitiesBuilderMessaging).self)
+    let capabilitiesBuilder = unsafe unsafeBitCast(capabilitiesBuilderInstance, to: (any XCTCapabilitiesBuilderMessaging).self)
     capabilitiesBuilder.registerCapability("XCTIssue capability")
     capabilitiesBuilder.registerCapability("ubiquitous test identifiers")
     return capabilitiesBuilder.capabilities()
@@ -135,15 +135,15 @@ public enum TestConfigurationError: Error, LocalizedError {
     }
     guard
       let allocatedBuilder = RuntimeClassAllocation.alloc("XCTTestIdentifierSetBuilder"),
-      let builderInstance = unsafeBitCast(allocatedBuilder, to: (any XCTTestIdentifierSetBuilderMessaging).self).initialize()
+      let builderInstance = unsafe unsafeBitCast(allocatedBuilder, to: (any XCTTestIdentifierSetBuilderMessaging).self).initialize()
     else {
       throw TestConfigurationError.classUnavailable(className: "XCTTestIdentifierSetBuilder")
     }
-    let builder = unsafeBitCast(builderInstance, to: (any XCTTestIdentifierSetBuilderMessaging).self)
+    let builder = unsafe unsafeBitCast(builderInstance, to: (any XCTTestIdentifierSetBuilderMessaging).self)
     for test in tests {
       guard
         let allocatedIdentifier = RuntimeClassAllocation.alloc("XCTTestIdentifier"),
-        let identifier = unsafeBitCast(allocatedIdentifier, to: (any XCTTestIdentifierMessaging).self)
+        let identifier = unsafe unsafeBitCast(allocatedIdentifier, to: (any XCTTestIdentifierMessaging).self)
           .initialize(stringRepresentation: test as NSString, preserveModulePrefix: true)
       else {
         throw TestConfigurationError.classUnavailable(className: "XCTTestIdentifier")

@@ -125,14 +125,14 @@ final class TestBundleDTXConnection: NSObject {
       connection = try FBObjCExceptionGuard.guarded {
         guard
           let allocatedTransport = RuntimeClassAllocation.alloc("DTXSocketTransport"),
-          let transport = unsafeBitCast(allocatedTransport, to: (any DTXSocketTransportMessaging).self)
+          let transport = unsafe unsafeBitCast(allocatedTransport, to: (any DTXSocketTransportMessaging).self)
             .initialize(connectedSocket: socket, disconnectAction: { logger.log("Notified that daemon socket disconnected") }),
           let allocatedConnection = RuntimeClassAllocation.alloc("DTXConnection"),
-          let connection = unsafeBitCast(allocatedConnection, to: (any DTXConnectionMessaging).self).initialize(transport: transport)
+          let connection = unsafe unsafeBitCast(allocatedConnection, to: (any DTXConnectionMessaging).self).initialize(transport: transport)
         else {
           throw XCTestBootstrapErrors.testFailure("DTXConnectionServices is not loaded")
         }
-        return unsafeBitCast(connection, to: (any DTXConnectionMessaging).self)
+        return unsafe unsafeBitCast(connection, to: (any DTXConnectionMessaging).self)
       }
     } catch {
       throw XCTestBootstrapErrors.testFailure("Failed to wrap testmanagerd socket \(socket) in DTXConnection: \(error)")
@@ -180,9 +180,9 @@ final class TestBundleDTXConnection: NSObject {
       peerInterface: Self.protocolNamed("XCTMessagingChannel_IDEToRunner")
     ) { [self] channel in
       logger.log("Got proxy channel request from test bundle")
-      let channel = unsafeBitCast(channel, to: (any DTXProxyChannelMessaging).self)
+      let channel = unsafe unsafeBitCast(channel, to: (any DTXProxyChannelMessaging).self)
       channel.setExportedObject(self, queue: workQueue)
-      let proxy = unsafeBitCast(channel.remoteObjectProxy(), to: (any XCTestDriverMessaging).self)
+      let proxy = unsafe unsafeBitCast(channel.remoteObjectProxy(), to: (any XCTestDriverMessaging).self)
       testBundleProxyLock.withLock { testBundleProxy = proxy }
       delegate.testBundleConnectionDidOpenProxyChannel()
     }
@@ -192,14 +192,14 @@ final class TestBundleDTXConnection: NSObject {
 
   private func sendStartSessionRequest(_ connection: any DTXConnectionMessaging) {
     logger.log("Checking test manager availability...")
-    let proxyChannel = unsafeBitCast(
+    let proxyChannel = unsafe unsafeBitCast(
       connection.makeProxyChannel(
         remoteInterface: Self.protocolNamed("XCTMessagingChannel_IDEToDaemon"),
         exportedInterface: Self.protocolNamed("XCTMessagingChannel_DaemonToIDE")),
       to: (any DTXProxyChannelMessaging).self)
     proxyChannel.setAllowedClassesForTestingProtocols()
     proxyChannel.setExportedObject(self, queue: workQueue)
-    let remoteProxy = unsafeBitCast(proxyChannel.remoteObjectProxy(), to: (any XCTestManagerDaemonConnectionMessaging).self)
+    let remoteProxy = unsafe unsafeBitCast(proxyChannel.remoteObjectProxy(), to: (any XCTestManagerDaemonConnectionMessaging).self)
 
     logger.log("Starting test session with ID \(context.sessionIdentifier.uuidString)")
     let sessionStartMethod: String
@@ -224,7 +224,7 @@ final class TestBundleDTXConnection: NSObject {
         path: Self.clientProcessDisplayPath as NSString,
         protocolVersion: NSNumber(value: protocolVersion))
     }
-    let receipt = unsafeBitCast(request, to: (any DTXRemoteInvocationReceiptCompletion).self)
+    let receipt = unsafe unsafeBitCast(request, to: (any DTXRemoteInvocationReceiptCompletion).self)
     receipt.handleCompletion { [self] result, error in
       proxyChannel.cancel()
       if let error {
@@ -254,7 +254,7 @@ final class TestBundleDTXConnection: NSObject {
   /// The protocol XCTest registered under `name`. XCTest's private framework vends the DTX categories
   /// this connection calls, so it is loaded whenever they are.
   private static func protocolNamed(_ name: String) -> Protocol {
-    guard let resolved = objc_getProtocol(name) else {
+    guard let resolved = unsafe objc_getProtocol(name) else {
       preconditionFailure("XCTest has not registered \(name); its private framework is not loaded")
     }
     return resolved
@@ -268,7 +268,7 @@ extension TestBundleDTXConnection {
   @objc(_XCT_didFinishExecutingTestPlan)
   func didFinishExecutingTestPlan() -> Any? {
     delegate.testBundleConnectionDidFinishTestPlan()
-    return interface.perform(NSSelectorFromString("_XCT_didFinishExecutingTestPlan"))?.takeUnretainedValue()
+    return unsafe interface.perform(NSSelectorFromString("_XCT_didFinishExecutingTestPlan"))?.takeUnretainedValue()
   }
 
   @objc(_XCT_testBundleReadyWithProtocolVersion:minimumVersion:)
@@ -286,7 +286,7 @@ extension TestBundleDTXConnection {
     }
     logger.log("Test Bundle is Ready")
     delegate.testBundleConnectionBundleDidBecomeReady()
-    return interface.perform(NSSelectorFromString("_XCT_testBundleReadyWithProtocolVersion:minimumVersion:"), with: bundleVersion, with: minimumVersion)?.takeUnretainedValue()
+    return unsafe interface.perform(NSSelectorFromString("_XCT_testBundleReadyWithProtocolVersion:minimumVersion:"), with: bundleVersion, with: minimumVersion)?.takeUnretainedValue()
   }
 
   @objc(_XCT_initializationForUITestingDidFailWithError:)
