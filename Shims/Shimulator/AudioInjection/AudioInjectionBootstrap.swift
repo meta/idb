@@ -33,16 +33,16 @@ private let captureStart: any DispatchSourceUserDataOr = {
   return source
 }()
 
-private let realHAL = AudioHAL(
+private let realHAL = unsafe AudioHAL(
   armed: IDBAudioInjectionIsArmed(),
   captureArmed: IDBAudioCaptureIsArmed(),
   createIOProcID: AudioDeviceCreateIOProcID,
   destroyIOProcID: AudioDeviceDestroyIOProcID,
   getPropertyData: AudioObjectGetPropertyData,
   getPropertyDataSize: AudioObjectGetPropertyDataSize,
-  hasProperty: { object, address in AudioObjectHasProperty(object, address) },
-  addPropertyListener: AudioObjectAddPropertyListener,
-  addPropertyListenerBlock: AudioObjectAddPropertyListenerBlock,
+  hasProperty: { object, address in unsafe AudioObjectHasProperty(object, address) },
+  addPropertyListener: unsafe AudioObjectAddPropertyListener,
+  addPropertyListenerBlock: unsafe AudioObjectAddPropertyListenerBlock,
   startController: { controllerStart.or(data: 1) },
   startCapture: { captureStart.or(data: 1) })
 
@@ -95,14 +95,14 @@ func IDBAudioDeviceCreateIOProcID(
   if realHAL.captureArmed {
     _ = captureStart
   }
-  return AudioInjectionHAL.createIOProcID(
+  return unsafe AudioInjectionHAL.createIOProcID(
     realHAL, device: device, proc: proc, clientData: clientData, outIOProcID: outIOProcID)
 }
 
 // patternlint-disable-next-line cdecl-unsupported
 @_cdecl("IDBAudioDeviceDestroyIOProcID")
 func IDBAudioDeviceDestroyIOProcID(_ device: IDBAudioObjectID, _ ioProcID: UnsafeMutableRawPointer?) -> OSStatus {
-  AudioInjectionHAL.destroyIOProcID(realHAL, device: device, ioProcID: ioProcID)
+  unsafe AudioInjectionHAL.destroyIOProcID(realHAL, device: device, ioProcID: ioProcID)
 }
 
 // patternlint-disable-next-line cdecl-unsupported
@@ -115,7 +115,7 @@ func IDBAudioObjectGetPropertyData(
   _ dataSize: UnsafeMutablePointer<UInt32>?,
   _ data: UnsafeMutableRawPointer?
 ) -> OSStatus {
-  AudioInjectionHAL.getPropertyData(
+  unsafe AudioInjectionHAL.getPropertyData(
     realHAL, object: object, address: address, qualifierDataSize: qualifierDataSize, qualifierData: qualifierData,
     dataSize: dataSize, data: data)
 }
@@ -129,7 +129,7 @@ func IDBAudioObjectGetPropertyDataSize(
   _ qualifierData: UnsafeRawPointer?,
   _ dataSize: UnsafeMutablePointer<UInt32>?
 ) -> OSStatus {
-  AudioInjectionHAL.getPropertyDataSize(
+  unsafe AudioInjectionHAL.getPropertyDataSize(
     realHAL, object: object, address: address, qualifierDataSize: qualifierDataSize, qualifierData: qualifierData,
     dataSize: dataSize)
 }
@@ -137,7 +137,7 @@ func IDBAudioObjectGetPropertyDataSize(
 // patternlint-disable-next-line cdecl-unsupported
 @_cdecl("IDBAudioObjectHasProperty")
 func IDBAudioObjectHasProperty(_ object: IDBAudioObjectID, _ address: UnsafePointer<IDBAudioObjectPropertyAddress>?) -> Bool {
-  AudioInjectionHAL.hasProperty(realHAL, object: object, address: address)
+  unsafe AudioInjectionHAL.hasProperty(realHAL, object: object, address: address)
 }
 
 // patternlint-disable-next-line cdecl-unsupported
@@ -148,7 +148,7 @@ func IDBAudioObjectAddPropertyListener(
   _ listener: UnsafeMutableRawPointer?,
   _ clientData: UnsafeMutableRawPointer?
 ) -> OSStatus {
-  AudioInjectionHAL.addPropertyListener(
+  unsafe AudioInjectionHAL.addPropertyListener(
     realHAL, object: object, address: address, listener: listener, clientData: clientData)
 }
 
@@ -160,12 +160,12 @@ func IDBAudioObjectAddPropertyListenerBlock(
   _ queue: UnsafeMutableRawPointer?,
   _ listener: UnsafeMutableRawPointer?
 ) -> OSStatus {
-  AudioInjectionHAL.addPropertyListenerBlock(realHAL, object: object, address: address, queue: queue, listener: listener)
+  unsafe AudioInjectionHAL.addPropertyListenerBlock(realHAL, object: object, address: address, queue: queue, listener: listener)
 }
 
 private func componentDescription(_ component: UnsafeMutableRawPointer?) -> IDBAudioComponentDescription? {
   var description = IDBAudioComponentDescription()
-  guard realHAL.armed, let component, AudioComponentGetDescription(component, &description) == noErr else {
+  guard realHAL.armed, let component = unsafe component, unsafe AudioComponentGetDescription(component, &description) == noErr else {
     return nil
   }
   return description
@@ -176,9 +176,9 @@ private func componentDescription(_ component: UnsafeMutableRawPointer?) -> IDBA
 func IDBAudioComponentInstanceNew(
   _ component: UnsafeMutableRawPointer?, _ outInstance: UnsafeMutablePointer<UnsafeMutableRawPointer?>?
 ) -> OSStatus {
-  let counted = AudioInjectionHAL.willCreateComponentInstance(realHAL, description: componentDescription(component))
-  let status = AudioComponentInstanceNew(component, outInstance)
-  AudioInjectionHAL.didCreateComponentInstance(counted: counted, instance: outInstance?.pointee, status: status)
+  let counted = unsafe AudioInjectionHAL.willCreateComponentInstance(realHAL, description: componentDescription(component))
+  let status = unsafe AudioComponentInstanceNew(component, outInstance)
+  unsafe AudioInjectionHAL.didCreateComponentInstance(counted: counted, instance: outInstance?.pointee, status: status)
   return status
 }
 
@@ -188,17 +188,17 @@ func IDBAudioComponentInstantiate(
   _ component: UnsafeMutableRawPointer?, _ options: UInt32,
   _ completionHandler: @escaping @convention(block) (UnsafeMutableRawPointer?, OSStatus) -> Void
 ) {
-  let counted = AudioInjectionHAL.willCreateComponentInstance(realHAL, description: componentDescription(component))
-  AudioComponentInstantiate(component, options) { instance, status in
-    AudioInjectionHAL.didCreateComponentInstance(counted: counted, instance: instance, status: status)
-    completionHandler(instance, status)
+  let counted = unsafe AudioInjectionHAL.willCreateComponentInstance(realHAL, description: componentDescription(component))
+  unsafe AudioComponentInstantiate(component, options) { instance, status in
+    unsafe AudioInjectionHAL.didCreateComponentInstance(counted: counted, instance: instance, status: status)
+    unsafe completionHandler(instance, status)
   }
 }
 
 // patternlint-disable-next-line cdecl-unsupported
 @_cdecl("IDBAudioComponentInstanceDispose")
 func IDBAudioComponentInstanceDispose(_ instance: UnsafeMutableRawPointer?) -> OSStatus {
-  AudioInjectionHAL.disposeComponentInstance(realHAL, instance: instance) {
-    AudioComponentInstanceDispose(instance)
+  unsafe AudioInjectionHAL.disposeComponentInstance(realHAL, instance: instance) {
+    unsafe AudioComponentInstanceDispose(instance)
   }
 }

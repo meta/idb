@@ -226,7 +226,7 @@ public final class AudioCaptureFileWriter {
 
   public init(directory: String, processIdentifier: Int32) throws {
     var metadata = stat()
-    guard lstat(directory, &metadata) == 0, metadata.st_mode & S_IFMT == S_IFDIR, metadata.st_uid == getuid(),
+    guard unsafe lstat(directory, &metadata) == 0, metadata.st_mode & S_IFMT == S_IFDIR, metadata.st_uid == getuid(),
       metadata.st_mode & 0o077 == 0
     else {
       throw AudioCaptureFileError.directoryNotPrivate(path: directory)
@@ -234,16 +234,16 @@ public final class AudioCaptureFileWriter {
     path = (directory as NSString).appendingPathComponent(
       "\(processIdentifier)-\(UUID().uuidString).\(AudioCaptureFile.pathExtension)")
     partialPath = (path as NSString).appendingPathExtension(AudioCaptureFile.partialPathExtension) ?? path
-    descriptor = open(partialPath, O_WRONLY | O_CREAT | O_EXCL | O_CLOEXEC | O_NOFOLLOW, 0o600)
+    descriptor = unsafe open(partialPath, O_WRONLY | O_CREAT | O_EXCL | O_CLOEXEC | O_NOFOLLOW, 0o600)
     guard descriptor >= 0 else {
-      throw AudioCaptureFileError.unwritable(path: partialPath, reason: String(cString: strerror(errno)))
+      throw unsafe AudioCaptureFileError.unwritable(path: partialPath, reason: String(cString: strerror(errno)))
     }
     var timebase = mach_timebase_info_data_t()
-    mach_timebase_info(&timebase)
+    unsafe mach_timebase_info(&timebase)
     write(AudioCaptureFile.header(processIdentifier: processIdentifier, timebase: timebase))
     if let failure {
       close(descriptor)
-      unlink(partialPath)
+      unsafe unlink(partialPath)
       throw AudioCaptureFileError.unwritable(path: partialPath, reason: failure)
     }
   }
@@ -274,8 +274,8 @@ public final class AudioCaptureFileWriter {
     write(AudioCaptureFile.summary(droppedFrames: droppedFrames))
     close(descriptor)
     descriptor = -1
-    if rename(partialPath, path) != 0, failure == nil {
-      failure = "Could not rename \(partialPath) into place: \(String(cString: strerror(errno)))"
+    if unsafe rename(partialPath, path) != 0, failure == nil {
+      failure = unsafe "Could not rename \(partialPath) into place: \(String(cString: strerror(errno)))"
     }
   }
 
@@ -283,13 +283,13 @@ public final class AudioCaptureFileWriter {
     guard failure == nil, descriptor >= 0 else {
       return
     }
-    let complete = data.withUnsafeBytes { buffer -> Bool in
+    let complete = unsafe data.withUnsafeBytes { buffer -> Bool in
       var offset = 0
       while offset < buffer.count {
         guard let base = buffer.baseAddress else {
           return false
         }
-        let written = Darwin.write(descriptor, base + offset, buffer.count - offset)
+        let written = unsafe Darwin.write(descriptor, base + offset, buffer.count - offset)
         if written < 0 {
           if errno == EINTR {
             continue
@@ -301,7 +301,7 @@ public final class AudioCaptureFileWriter {
       return true
     }
     if !complete {
-      failure = "Could not write \(partialPath): \(String(cString: strerror(errno)))"
+      failure = unsafe "Could not write \(partialPath): \(String(cString: strerror(errno)))"
     }
   }
 }
@@ -314,9 +314,9 @@ public final class AudioCaptureFileReader {
   private let descriptor: Int32
 
   public init(path: String) throws {
-    descriptor = open(path, O_RDONLY | O_CLOEXEC | O_NOFOLLOW)
+    descriptor = unsafe open(path, O_RDONLY | O_CLOEXEC | O_NOFOLLOW)
     guard descriptor >= 0 else {
-      throw AudioCaptureFileError.unreadable(path: path, reason: String(cString: strerror(errno)))
+      throw unsafe AudioCaptureFileError.unreadable(path: path, reason: String(cString: strerror(errno)))
     }
     do {
       index = try Self.index(descriptor, path: path)
@@ -334,7 +334,7 @@ public final class AudioCaptureFileReader {
   public func samples(of chunk: AudioCaptureFile.ChunkRecord) throws -> [Float] {
     var samples = [Float](repeating: 0, count: chunk.frames * chunk.channels)
     let complete = samples.withUnsafeMutableBytes { buffer in
-      Self.read(descriptor, into: buffer, at: chunk.samplesOffset)
+      unsafe Self.read(descriptor, into: buffer, at: chunk.samplesOffset)
     }
     guard complete else {
       throw AudioCaptureFileError.malformedRecord
@@ -344,8 +344,8 @@ public final class AudioCaptureFileReader {
 
   private static func index(_ descriptor: Int32, path: String) throws -> AudioCaptureFile.Index {
     var metadata = stat()
-    guard fstat(descriptor, &metadata) == 0 else {
-      throw AudioCaptureFileError.unreadable(path: path, reason: String(cString: strerror(errno)))
+    guard unsafe fstat(descriptor, &metadata) == 0 else {
+      throw unsafe AudioCaptureFileError.unreadable(path: path, reason: String(cString: strerror(errno)))
     }
     let size = Int(metadata.st_size)
     let header = try AudioCaptureFile.index(header: read(descriptor, count: AudioCaptureFile.headerSize, at: 0) ?? Data())
@@ -376,17 +376,17 @@ public final class AudioCaptureFileReader {
 
   private static func read(_ descriptor: Int32, count: Int, at offset: Int) -> Data? {
     var data = Data(count: count)
-    let complete = data.withUnsafeMutableBytes { read(descriptor, into: $0, at: offset) }
+    let complete = unsafe data.withUnsafeMutableBytes { unsafe read(descriptor, into: $0, at: offset) }
     return complete ? data : nil
   }
 
   private static func read(_ descriptor: Int32, into buffer: UnsafeMutableRawBufferPointer, at offset: Int) -> Bool {
     guard let base = buffer.baseAddress else {
-      return buffer.isEmpty
+      return unsafe buffer.isEmpty
     }
     var done = 0
     while done < buffer.count {
-      let count = pread(descriptor, base + done, buffer.count - done, off_t(offset + done))
+      let count = unsafe pread(descriptor, base + done, buffer.count - done, off_t(offset + done))
       if count < 0, errno == EINTR {
         continue
       }
@@ -436,10 +436,10 @@ private struct LittleEndianReader {
 
 extension Data {
   fileprivate mutating func appendLittleEndian<Value: FixedWidthInteger>(_ value: Value) {
-    Swift.withUnsafeBytes(of: value.littleEndian) { append(contentsOf: $0) }
+    Swift.withUnsafeBytes(of: value.littleEndian) { unsafe append(contentsOf: $0) }
   }
 
   fileprivate mutating func appendLittleEndian(_ samples: ArraySlice<Float>) {
-    samples.withUnsafeBytes { append(contentsOf: $0) }
+    samples.withUnsafeBytes { unsafe append(contentsOf: $0) }
   }
 }
