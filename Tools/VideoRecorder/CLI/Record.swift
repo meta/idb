@@ -167,7 +167,7 @@ struct RecordingReport: Encodable {
   private static func decodedSize(of sample: CMSampleBuffer) throws -> (Int, Int) {
     guard let format = CMSampleBufferGetFormatDescription(sample) else { throw RecordingError.unreadable }
     var session: VTDecompressionSession?
-    guard VTDecompressionSessionCreate(allocator: nil, formatDescription: format, decoderSpecification: nil, imageBufferAttributes: nil, outputCallback: nil, decompressionSessionOut: &session) == noErr, let session else {
+    guard unsafe VTDecompressionSessionCreate(allocator: nil, formatDescription: format, decoderSpecification: nil, imageBufferAttributes: nil, outputCallback: nil, decompressionSessionOut: &session) == noErr, let session else {
       throw RecordingError.unreadable
     }
     defer { VTDecompressionSessionInvalidate(session) }

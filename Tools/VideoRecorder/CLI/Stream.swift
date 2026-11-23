@@ -43,7 +43,7 @@ struct Stream: AsyncParsableCommand {
     if output == "-" {
       consumer = FileWriter.syncWriter(withFileDescriptor: FileHandle.standardOutput.fileDescriptor, closeOnEndOfFile: false)
     } else {
-      let descriptor = open(output, O_WRONLY | O_CREAT | O_EXCL, 0o644)
+      let descriptor = unsafe open(output, O_WRONLY | O_CREAT | O_EXCL, 0o644)
       guard descriptor >= 0 else { throw NSError(domain: NSPOSIXErrorDomain, code: Int(errno)) }
       consumer = FileWriter.syncWriter(withFileDescriptor: descriptor, closeOnEndOfFile: true)
     }

@@ -192,7 +192,7 @@ private struct TerminalRenderer {
     let elapsed = ContinuousClock.now - windowStart
     if elapsed >= .seconds(1) {
       let seconds = Double(elapsed.components.seconds) + Double(elapsed.components.attoseconds) / 1e18
-      measurementText = String(
+      measurementText = unsafe String(
         format: "gpu %.2f ms | %.0f fps, %.1f KB/s", sampler.lastGPUDuration * 1000, Double(windowFrames) / seconds,
         Double(windowBytes) / 1024 / seconds)
       windowStart = .now
@@ -205,7 +205,7 @@ private struct TerminalRenderer {
 
 private func terminalSize() -> (columns: Int, rows: Int) {
   var size = winsize()
-  guard ioctl(STDOUT_FILENO, TIOCGWINSZ, &size) == 0, size.ws_col > 0, size.ws_row > 0 else {
+  guard unsafe ioctl(STDOUT_FILENO, TIOCGWINSZ, &size) == 0, size.ws_col > 0, size.ws_row > 0 else {
     return (80, 24)
   }
   return (Int(size.ws_col), Int(size.ws_row))
