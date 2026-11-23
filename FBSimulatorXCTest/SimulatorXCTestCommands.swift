@@ -5,10 +5,10 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-@preconcurrency import CoreSimulator
-@preconcurrency import FBControlCore
-@preconcurrency import FBSimulatorControl
-@preconcurrency import FBXCTestCore
+import CoreSimulator
+import FBControlCore
+import FBSimulatorControl
+import FBXCTestCore
 import Foundation
 
 private let testmanagerdSimSockTimeout: TimeInterval = 5
@@ -93,15 +93,15 @@ public final class SimulatorXCTestCommands: XCTestExtendedCommands {
         return
       }
       withUnsafeMutablePointer(to: &remote.sun_path) { sunPathPtr in
-        sunPathPtr.withMemoryRebound(to: CChar.self, capacity: Int(buffer.count)) { dest in
-          _ = memcpy(dest, baseAddress, buffer.count)
+        unsafe sunPathPtr.withMemoryRebound(to: CChar.self, capacity: Int(buffer.count)) { dest in
+          _ = unsafe memcpy(dest, baseAddress, buffer.count)
         }
       }
     }
-    let length = socklen_t(MemoryLayout<sa_family_t>.size + MemoryLayout.size(ofValue: remote.sun_len) + strlen(testManagerSocketString))
+    let length = unsafe socklen_t(MemoryLayout<sa_family_t>.size + MemoryLayout.size(ofValue: remote.sun_len) + strlen(testManagerSocketString))
     let connectResult = withUnsafePointer(to: &remote) { remotePtr in
-      remotePtr.withMemoryRebound(to: sockaddr.self, capacity: 1) { sockaddrPtr in
-        connect(socketFD, sockaddrPtr, length)
+      unsafe remotePtr.withMemoryRebound(to: sockaddr.self, capacity: 1) { sockaddrPtr in
+        unsafe connect(socketFD, sockaddrPtr, length)
       }
     }
     if connectResult == -1 {
