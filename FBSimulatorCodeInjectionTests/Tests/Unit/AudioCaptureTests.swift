@@ -294,14 +294,15 @@ struct AudioCaptureSessionTests {
 
     // The guest: the shim's client and controller in this process, playing a scripted engine.
     let (reported, reportedContinuation) = AsyncStream<Void>.makeStream()
-    let engine = ScriptedEngine(
-      first: chunk(at: start, frames: 4, value: 0.25), last: chunk(at: start + ticks(frames: 4), frames: 2, value: 0.5),
-      reported: reportedContinuation)
-    let client = ShimulatorClient(
-      socketPath: socketPath, handler: AudioCaptureController(engine: engine), processName: "Player",
-      pollIntervalMilliseconds: 10, log: { _ in })
+    let first = chunk(at: start, frames: 4, value: 0.25)
+    let last = chunk(at: start + ticks(frames: 4), frames: 2, value: 0.5)
     let served = AsyncStream<Bool> { continuation in
       Thread.detachNewThread {
+        // Built on the guest's thread, the only one that uses them.
+        let engine = ScriptedEngine(first: first, last: last, reported: reportedContinuation)
+        let client = ShimulatorClient(
+          socketPath: socketPath, handler: AudioCaptureController(engine: engine), processName: "Player",
+          pollIntervalMilliseconds: 10, log: { _ in })
         continuation.yield(client.serveOnce())
         continuation.finish()
       }

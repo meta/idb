@@ -92,9 +92,9 @@ private final class HeldSpawnDevice: @unchecked Sendable {
     withPath path: String,
     options: [String: Any],
     terminationQueue: DispatchQueue,
-    terminationHandler: @escaping (Int32) -> Void,
+    terminationHandler: @escaping @Sendable (Int32) -> Void,
     completionQueue: DispatchQueue,
-    completionHandler: @escaping (NSError?, pid_t) -> Void
+    completionHandler: @escaping @Sendable (NSError?, pid_t) -> Void
   ) {
     lock.withLock {
       self.options = options
