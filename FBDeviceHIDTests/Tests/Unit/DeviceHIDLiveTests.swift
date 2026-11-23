@@ -979,7 +979,7 @@ struct DeviceHIDLiveTests {
 
   @Test func heldLiveOperationDoesNotKeepItsDeviceAlive() async throws {
     var device = Optional(DeviceHIDRetentionTests.makeInertDevice())
-    weak var weakDevice = device
+    weak let weakDevice = device
     let fixture = LiveHIDFixture()
     let command = DeviceHIDCommands(device: try #require(device), checkRuntime: {}, makeTransport: { _ in fixture.transport }, prepareLive: { _ in fixture.preparation() })
     let (events, writer) = AsyncThrowingStream<DeviceHIDLiveEvent, any Error>.makeStream(bufferingPolicy: .bufferingOldest(1))
