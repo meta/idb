@@ -2499,10 +2499,12 @@ final class AXBridgeReadsTests: XCTestCase {
 
   // Safari's address field is identified exactly `URL`, and while it is being typed into, a suggestion
   // identified `SearchSuggestion?destination=URL` comes before it in the tree.
-  private static let addressBarChildren = [
-    leaf(.identifier, "SearchSuggestion?destination=URL", suggestionRect),
-    leaf(.identifier, "URL", childRect),
-  ]
+  private static var addressBarChildren: [[String: Any]] {
+    [
+      leaf(.identifier, "SearchSuggestion?destination=URL", suggestionRect),
+      leaf(.identifier, "URL", childRect),
+    ]
+  }
 
   func testAMarkerDescribesTheElementEqualToItOverOneContainingIt() async throws {
     let response = try await Self.reader(children: Self.addressBarChildren).describeTree(

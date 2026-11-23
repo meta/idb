@@ -613,15 +613,15 @@ final class SimulatorAccessibilityCommandsTests: XCTestCase {
     let observations = OSAllocatedUnfairLock<[AccessibilityStallObservation]>(initialState: [])
     let accessibility = try XCTUnwrap(simulator).accessibility
     let resolving = Task {
-      try await accessibility.resolveElement(
+      let element = try await accessibility.resolveElement(
         for: query, clientType: .noClient, stallObserver: { observation in observations.withLock { $0.append(observation) } })
+      element.close()
     }
     await Task.detached { hold.waitUntilHolding() }.value
     host.runDue()
     host.advance(by: 1_200_000_000)
     hold.release()
-    let element = try await resolving.value
-    element.close()
+    try await resolving.value
     return observations.withLock { $0.first }
   }
 
@@ -1992,19 +1992,21 @@ final class SimulatorAccessibilityCommandsTests: XCTestCase {
     let sim = simulator!
     let okMatch = try await sim.accessibility.resolveElement(for: .marker(value: "OK", key: .label, depth: 10, ignoresCase: false))
     let cancelMatch = try await sim.accessibility.resolveElement(for: .marker(value: "Cancel", key: .label, depth: 10, ignoresCase: false))
-    defer {
-      okMatch.close()
-      cancelMatch.close()
-    }
 
-    async let first: Void = okMatch.tap()
-    async let second: Void = cancelMatch.tap()
+    async let first: Void = Self.tapThenClose(okMatch)
+    async let second: Void = Self.tapThenClose(cancelMatch)
     _ = try await (first, second)
 
     // The translator singleton's internal state is not synchronized, so an action — which goes through the
     // translator's platform element — runs on its one serial queue, even with the first held open waiting
     // for a peer.
     XCTAssertEqual(tracker.maxActive, 1, "actions enter the shared translator strictly one at a time")
+  }
+
+  /// Each concurrent tap owns its element, so it closes it too.
+  private static func tapThenClose(_ element: AccessibilityElement) async throws {
+    defer { element.close() }
+    try await element.tap()
   }
 
   func testConcurrentRawResolutionsDoNotWaitForEachOther() async throws {

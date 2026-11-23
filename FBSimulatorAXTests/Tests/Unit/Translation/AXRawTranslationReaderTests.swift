@@ -342,7 +342,7 @@ final class AXRawTranslationReaderTests: XCTestCase {
     }
   }
 
-  private static let oneElement: [UInt64: [BridgeAXTranslatorAttribute: Any]] = [1: [.frame: NSValue(rect: .zero), .role: 1]]
+  private static var oneElement: [UInt64: [BridgeAXTranslatorAttribute: Any]] { [1: [.frame: NSValue(rect: .zero), .role: 1]] }
 
   /// Reads element 1 of this process with its one request held, runs `whileHeld` on another thread before letting it
   /// go, and returns what the stall observer was told and the error the read threw, if any.

@@ -310,13 +310,13 @@ final class AXReadTimeTests {
     let root = Self.reference(1)
 
     let read = Task {
-      try await dispatcher.performUnserialized(cancelling: request.cancellation) {
+      _ = try await dispatcher.performUnserialized(cancelling: request.cancellation) {
         try request.snapshot(of: root, plan: AXReadPlan(attributes: [.role], depth: .unlimited))
       }
     }
     try await Task.sleep(nanoseconds: 60 * NSEC_PER_MSEC)
     read.cancel()
-    await #expect(throws: CancellationError.self) { _ = try await read.value }
+    await #expect(throws: CancellationError.self) { try await read.value }
     #expect(transport.requests.count < 6, "the walk stopped rather than reading every element")
   }
 }

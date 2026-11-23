@@ -532,15 +532,19 @@ class SimDeviceAccessibilityDouble: NSObject {
 
 // MARK: - AXPTranslator Swizzling
 
-class AccessibilityTranslatorSwizzler {
-  private static var installedMockTranslator: AXPTranslatorDouble?
-  private static var originalSharedInstanceIMP: IMP?
-  private static var swizzleInstalled = false
+/// Answers `+[AXPTranslator sharedInstance]` with a translator double from `init` until `uninstall()`.
+final class AccessibilityTranslatorSwizzle {
+  private static let installed = OSAllocatedUnfairLock(initialState: false)
 
-  class func installMockTranslator(_ mockTranslator: AXPTranslatorDouble) {
-    precondition(!swizzleInstalled, "Mock translator already installed. Call uninstall first.")
+  private let method: Method
+  private let originalIMP: IMP
 
-    installedMockTranslator = mockTranslator
+  init(installing mockTranslator: AXPTranslatorDouble) {
+    let alreadyInstalled = Self.installed.withLock { installed in
+      defer { installed = true }
+      return installed
+    }
+    precondition(!alreadyInstalled, "Mock translator already installed. Call uninstall first.")
 
     guard let axpTranslatorClass: AnyClass = objc_getClass("AXPTranslator") as? AnyClass else {
       fatalError("AXPTranslator class not found. Ensure AccessibilityPlatformTranslation framework is loaded.")
@@ -550,30 +554,21 @@ class AccessibilityTranslatorSwizzler {
       fatalError("+[AXPTranslator sharedInstance] method not found")
     }
 
-    originalSharedInstanceIMP = method_getImplementation(originalMethod)
+    method = originalMethod
+    originalIMP = method_getImplementation(originalMethod)
 
-    let mockBlock: @convention(block) (AnyObject) -> AnyObject? = { _ in
-      return AccessibilityTranslatorSwizzler.installedMockTranslator
+    // Weak, because the block outlives the swizzle: a caller may still be running it after `uninstall()`, so it
+    // is never freed, and answers nil once the fixture that owns the translator is gone.
+    let mockBlock: @convention(block) (AnyObject) -> AnyObject? = { [weak mockTranslator] _ in
+      return mockTranslator
     }
     let mockIMP = imp_implementationWithBlock(mockBlock)
     method_setImplementation(originalMethod, mockIMP)
-
-    swizzleInstalled = true
   }
 
-  class func uninstallMockTranslator() {
-    guard swizzleInstalled else { return }
-
-    guard let axpTranslatorClass: AnyClass = objc_getClass("AXPTranslator") as? AnyClass else { return }
-    guard let originalMethod = class_getClassMethod(axpTranslatorClass, NSSelectorFromString("sharedInstance")) else { return }
-
-    if let originalIMP = originalSharedInstanceIMP {
-      method_setImplementation(originalMethod, originalIMP)
-    }
-
-    installedMockTranslator = nil
-    originalSharedInstanceIMP = nil
-    swizzleInstalled = false
+  func uninstall() {
+    method_setImplementation(method, originalIMP)
+    Self.installed.withLock { $0 = false }
   }
 }
 
@@ -642,6 +637,7 @@ class AccessibilityTestFixture: NSObject {
   private(set) var translator: AXPTranslatorDouble
   private(set) var device: SimDeviceAccessibilityDouble
   var rootElement: AXPMacPlatformElementDouble?
+  private var translatorSwizzle: AccessibilityTranslatorSwizzle?
 
   private override init() {
     self.translator = AXPTranslatorDouble()
@@ -674,11 +670,12 @@ class AccessibilityTestFixture: NSObject {
     }
     serveTranslatorRequests()
 
-    AccessibilityTranslatorSwizzler.installMockTranslator(translator)
+    translatorSwizzle = AccessibilityTranslatorSwizzle(installing: translator)
   }
 
   func tearDown() {
-    AccessibilityTranslatorSwizzler.uninstallMockTranslator()
+    translatorSwizzle?.uninstall()
+    translatorSwizzle = nil
   }
 
   /// Answers multiple-attribute requests as CoreSimulatorBridge's accessibility service does, from the tree
