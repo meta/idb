@@ -44,16 +44,16 @@ func write(_ path: String, _ width: Int, _ height: Int, _ seconds: Double, _ col
       while !input.isReadyForMoreMediaData && writer.status == .writing { Thread.sleep(forTimeInterval: 0.005) }
       guard writer.status == .writing else { throw failure("cannot write \(path)") }
       var buffer: CVPixelBuffer?
-      guard let pool = adaptor.pixelBufferPool, CVPixelBufferPoolCreatePixelBuffer(nil, pool, &buffer) == kCVReturnSuccess, let buffer else {
+      guard let pool = adaptor.pixelBufferPool, unsafe CVPixelBufferPoolCreatePixelBuffer(nil, pool, &buffer) == kCVReturnSuccess, let buffer else {
         throw failure("no pixel buffer")
       }
       CVPixelBufferLockBaseAddress(buffer, [])
-      guard let base = CVPixelBufferGetBaseAddress(buffer) else { throw failure("no pixel buffer") }
+      guard let base = unsafe CVPixelBufferGetBaseAddress(buffer) else { throw failure("no pixel buffer") }
       let stride = CVPixelBufferGetBytesPerRow(buffer)
       for y in 0..<height {
-        let row = (base + y * stride).assumingMemoryBound(to: UInt32.self)
+        let row = unsafe (base + y * stride).assumingMemoryBound(to: UInt32.self)
         // BGRA in memory is 0xAARRGGBB as a little-endian word.
-        for x in 0..<width { row[x] = 0xFF00_0000 | (x < width / 2 ? colour : 0xFF_FFFF) }
+        for x in 0..<width { unsafe row[x] = 0xFF00_0000 | (x < width / 2 ? colour : 0xFF_FFFF) }
       }
       CVPixelBufferUnlockBaseAddress(buffer, [])
       guard adaptor.append(buffer, withPresentationTime: CMTime(value: frame, timescale: 30)) else { throw failure("append failed") }
@@ -77,22 +77,22 @@ enum MakeVideo {
     guard width > 0, height > 0, width % 2 == 0, height % 2 == 0, seconds.isFinite,
       (seconds * 30).rounded() >= 1, (seconds * 30).rounded() < Double(Int64.max)
     else {
-      fputs("usage: makevideo <out.mov> <even width> <even height> <seconds-per-colour> <hex colour>...\n", stderr)
+      unsafe fputs("usage: makevideo <out.mov> <even width> <even height> <seconds-per-colour> <hex colour>...\n", stderr)
       exit(2)
     }
     var colours: [UInt32] = []
     for colour in arguments[5...] {
       guard let rgb = UInt32(colour, radix: 16), rgb <= 0xFF_FFFF else {
-        fputs("not a hex RGB colour: \(colour)\n", stderr)
+        unsafe fputs("not a hex RGB colour: \(colour)\n", unsafe stderr)
         exit(2)
       }
       colours.append(rgb)
     }
     do {
       let frames = try write(arguments[1], width, height, seconds, colours)
-      fputs("\(arguments[1]) \(width)x\(height) \(frames) frames at 30 fps\n", stdout)
+      unsafe fputs("\(arguments[1]) \(width)x\(height) \(frames) frames at 30 fps\n", unsafe stdout)
     } catch {
-      fputs("\((error as? Failure)?.message ?? "\(error)")\n", stderr)
+      unsafe fputs("\((error as? Failure)?.message ?? "\(error)")\n", unsafe stderr)
       exit(1)
     }
   }

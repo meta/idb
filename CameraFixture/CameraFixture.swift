@@ -32,8 +32,8 @@ import ImageIO
 import os
 
 func report(_ line: String) {
-  fputs("CAMFIXTURE \(line)\n", stdout)
-  fflush(stdout)
+  unsafe fputs("CAMFIXTURE \(line)\n", unsafe stdout)
+  unsafe fflush(stdout)
 }
 
 func samplePoints(_ width: Int, _ height: Int, _ at: (Int, Int) -> String) -> String {
@@ -41,10 +41,10 @@ func samplePoints(_ width: Int, _ height: Int, _ at: (Int, Int) -> String) -> St
 }
 
 func bgraColours(_ base: UnsafeRawPointer?, _ stride: Int, _ width: Int, _ height: Int) -> String {
-  guard let base else { return "\(width)x\(height) unreadable" }
+  guard let base = unsafe base else { return "\(width)x\(height) unreadable" }
   return samplePoints(width, height) { x, y in
-    let pixel = base.advanced(by: y * stride + x * 4).assumingMemoryBound(to: UInt8.self)
-    return String(format: "0x%02x%02x%02x", pixel[2], pixel[1], pixel[0])
+    let pixel = unsafe base.advanced(by: y * stride + x * 4).assumingMemoryBound(to: UInt8.self)
+    return unsafe String(format: "0x%02x%02x%02x", pixel[2], pixel[1], pixel[0])
   }
 }
 
@@ -58,16 +58,16 @@ func bufferColours(_ image: CVPixelBuffer) -> String {
     CVPixelBufferLockBaseAddress(image, .readOnly) == kCVReturnSuccess
   else { return "\(width)x\(height) unreadable fmt=\(format)" }
   defer { CVPixelBufferUnlockBaseAddress(image, .readOnly) }
-  guard biplanar else { return bgraColours(CVPixelBufferGetBaseAddress(image), CVPixelBufferGetBytesPerRow(image), width, height) }
-  guard let luma = CVPixelBufferGetBaseAddressOfPlane(image, 0)?.assumingMemoryBound(to: UInt8.self),
-    let chroma = CVPixelBufferGetBaseAddressOfPlane(image, 1)?.assumingMemoryBound(to: UInt8.self)
+  guard biplanar else { return unsafe bgraColours(CVPixelBufferGetBaseAddress(image), CVPixelBufferGetBytesPerRow(image), width, height) }
+  guard let luma = unsafe CVPixelBufferGetBaseAddressOfPlane(image, 0)?.assumingMemoryBound(to: UInt8.self),
+    let chroma = unsafe CVPixelBufferGetBaseAddressOfPlane(image, 1)?.assumingMemoryBound(to: UInt8.self)
   else { return "\(width)x\(height) unreadable fmt=\(format)" }
   let lumaStride = CVPixelBufferGetBytesPerRowOfPlane(image, 0)
   let chromaStride = CVPixelBufferGetBytesPerRowOfPlane(image, 1)
   let fourCC = String((0..<4).map { Character(UnicodeScalar(UInt8(truncatingIfNeeded: format >> (24 - $0 * 8)))) })
   return samplePoints(width, height) { x, y in
-    let cbcr = chroma + (y / 2) * chromaStride + (x / 2) * 2
-    return "yuv(\(luma[y * lumaStride + x]),\(cbcr[0]),\(cbcr[1]))"
+    let cbcr = unsafe chroma + (y / 2) * chromaStride + (x / 2) * 2
+    return unsafe "yuv(\(luma[y * lumaStride + x]),\(cbcr[0]),\(cbcr[1]))"
   }.replacingOccurrences(of: " centre=", with: " fmt=\(fourCC) centre=")
 }
 
@@ -75,12 +75,12 @@ func imageColours(_ image: CGImage) -> String {
   let width = image.width
   let height = image.height
   guard width > 0, height > 0, let space = CGColorSpace(name: CGColorSpace.sRGB),
-    let context = CGContext(
+    let context = unsafe CGContext(
       data: nil, width: width, height: height, bitsPerComponent: 8, bytesPerRow: width * 4, space: space,
       bitmapInfo: CGImageAlphaInfo.premultipliedFirst.rawValue | CGBitmapInfo.byteOrder32Little.rawValue)
   else { return "\(width)x\(height) unreadable" }
   context.draw(image, in: CGRect(x: 0, y: 0, width: width, height: height))
-  return bgraColours(context.data, width * 4, width, height)
+  return unsafe bgraColours(context.data, width * 4, width, height)
 }
 
 final class FrameObserver: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate {
@@ -100,7 +100,7 @@ final class FrameObserver: NSObject, AVCaptureVideoDataOutputSampleBufferDelegat
       count += 1
       return count - 1
     }
-    if !quiet { report(String(format: "frame %ld pts=%.3f ", index, CMSampleBufferGetPresentationTimeStamp(sampleBuffer).seconds) + colours) }
+    if !quiet { unsafe report(String(format: "frame %ld pts=%.3f ", index, CMSampleBufferGetPresentationTimeStamp(sampleBuffer).seconds) + colours) }
     if wanted > 0 && index + 1 == wanted { done.signal() }
   }
 }
@@ -259,12 +259,12 @@ func recordMovie(_ session: AVCaptureSession, _ seconds: TimeInterval, _ path: S
     report("result movie unreadable")
     return 7
   }
-  report(String(format: "result movie duration=%.2fs size=%.0fx%.0f", duration, size.width, size.height))
+  unsafe report(String(format: "result movie duration=%.2fs size=%.0fx%.0f", duration, size.width, size.height))
   let generator = AVAssetImageGenerator(asset: asset)
   generator.appliesPreferredTrackTransform = true
   (generator.requestedTimeToleranceBefore, generator.requestedTimeToleranceAfter) = (.zero, .zero)
   for second in stride(from: 0, to: Int(duration.rounded(.up)), by: 1) {
-    let image = try? generator.copyCGImage(at: CMTime(value: CMTimeValue(second), timescale: 1), actualTime: nil)
+    let image = unsafe try? generator.copyCGImage(at: CMTime(value: CMTimeValue(second), timescale: 1), actualTime: nil)
     report("movie t=\(second)s \(image.map(imageColours) ?? "no frame")")
   }
   return duration >= max(0.1, seconds - 0.75) ? 0 : 7
@@ -318,7 +318,7 @@ func run(_ arguments: [String]) -> Int32 {
     session.startRunning()
     for tick in 1...4 {
       RunLoop.current.run(until: Date(timeIntervalSinceNow: 1))
-      let image = layer.contents.flatMap { CFGetTypeID($0 as AnyObject) == CGImage.typeID ? unsafeBitCast($0 as AnyObject, to: CGImage.self) : nil }
+      let image = layer.contents.flatMap { unsafe CFGetTypeID($0 as AnyObject) == CGImage.typeID ? unsafeBitCast($0 as AnyObject, to: CGImage.self) : nil }
       report("preview t=\(tick)s \(image.map(imageColours) ?? "no image")")
     }
     session.stopRunning()
@@ -359,7 +359,7 @@ func run(_ arguments: [String]) -> Int32 {
     let connection = output.connection(with: .video)
     if connection?.isVideoRotationAngleSupported(angle) == true { connection?.videoRotationAngle = angle }
     let reported = connection?.videoRotationAngle ?? -1
-    report(String(format: "rotation requested=%.0f reported=%.0f", angle, reported))
+    unsafe report(String(format: "rotation requested=%.0f reported=%.0f", angle, reported))
     return observer.wanted > 0 ? runFrames(mode, session, observer, 8) : 2
   default:
     report("unknown mode \(mode)")
