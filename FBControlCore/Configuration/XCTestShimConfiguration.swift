@@ -31,10 +31,10 @@ private enum CanonicalShim: CaseIterable {
 
 enum XCTestShimError: Error {
   case shimMissing(path: String)
-  case shimUnsigned(path: String, underlying: Error)
+  case shimUnsigned(path: String, underlying: any Error)
   case searchPathUnresolvable
   case shimDirectoryMissing(directory: String)
-  case shimsMissingInDirectory(shimNames: [String], directory: String, underlying: Error)
+  case shimsMissingInDirectory(shimNames: [String], directory: String, underlying: any Error)
 }
 
 extension XCTestShimError: LocalizedError {
@@ -117,7 +117,7 @@ public struct XCTestShimConfiguration: Sendable {
   // Caches the first resolution for the life of the process; actor isolation ensures exactly one resolution
   // runs even when first callers race.
   private actor SharedResolution {
-    private var task: Task<XCTestShimConfiguration, Error>?
+    private var task: Task<XCTestShimConfiguration, any Error>?
 
     func configuration() async throws -> XCTestShimConfiguration {
       if let task {

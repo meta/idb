@@ -13,7 +13,7 @@ enum ProcessTerminatorError: Error, LocalizedError {
   case processDoesNotExist(processIdentifier: pid_t)
   case killFailed(processIdentifier: pid_t, message: String)
   case processDidNotDisappear(processIdentifier: pid_t, processInfo: String)
-  case sigkillAfterFailedKill(processIdentifier: pid_t, signo: Int32, underlying: Error)
+  case sigkillAfterFailedKill(processIdentifier: pid_t, signo: Int32, underlying: any Error)
 
   public var errorDescription: String? {
     switch self {
@@ -36,7 +36,7 @@ public final class ProcessTerminator: Sendable {
   private let configuration: Configuration
   private let processFetcher: ProcessFetcher
   private let workQueue: DispatchQueue
-  private let logger: ControlCoreLogger
+  private let logger: any ControlCoreLogger
 
   // MARK: - Initializers
 
@@ -44,7 +44,7 @@ public final class ProcessTerminator: Sendable {
     configuration: Configuration = .default,
     processFetcher: ProcessFetcher,
     workQueue: DispatchQueue,
-    logger: ControlCoreLogger
+    logger: any ControlCoreLogger
   ) {
     precondition(
       configuration.signo > 0 && configuration.signo < 32,

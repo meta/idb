@@ -17,7 +17,7 @@ public enum TargetDetail<Value> {
   /// This kind of target has no such detail.
   case unsupported
   case read(Value)
-  case failed(Error)
+  case failed(any Error)
 }
 
 /// A display as a target describes it.

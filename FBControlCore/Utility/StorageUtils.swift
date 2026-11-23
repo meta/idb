@@ -10,7 +10,7 @@ import Foundation
 enum StorageUtilsError: Error {
   case notExactlyOneFileWithExtension(count: Int, fileExtension: String, url: URL)
   case notExactlyOneFile(found: [URL])
-  case directoryListFailed(directory: URL, underlying: Error)
+  case directoryListFailed(directory: URL, underlying: any Error)
 }
 
 extension StorageUtilsError: LocalizedError {

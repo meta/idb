@@ -10,7 +10,7 @@ import Foundation
 
 enum ProcessFetcherError: Error, LocalizedError {
   case processInfoUnavailable(processIdentifier: pid_t)
-  case stackshotFailed(processIdentifier: pid_t, underlying: Error)
+  case stackshotFailed(processIdentifier: pid_t, underlying: any Error)
 
   var errorDescription: String? {
     switch self {

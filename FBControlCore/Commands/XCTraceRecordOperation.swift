@@ -8,7 +8,7 @@
 import Foundation
 
 enum XCTraceError: Error {
-  case outputDirectoryCreationFailed(underlying: Error)
+  case outputDirectoryCreationFailed(underlying: any Error)
   case shimMissing
   case recordFailed(exitCode: Int32)
   case xctraceMissing(path: String)
@@ -34,9 +34,9 @@ public final class XCTraceRecordOperation: @unchecked Sendable {
   public let running: RunningSubprocess
   public let traceDir: URL
   public let configuration: XCTraceRecordConfiguration
-  public let logger: ControlCoreLogger
+  public let logger: any ControlCoreLogger
 
-  public init(running: RunningSubprocess, traceDir: URL, configuration: XCTraceRecordConfiguration, logger: ControlCoreLogger) {
+  public init(running: RunningSubprocess, traceDir: URL, configuration: XCTraceRecordConfiguration, logger: any ControlCoreLogger) {
     self.running = running
     self.traceDir = traceDir
     self.configuration = configuration
@@ -44,7 +44,7 @@ public final class XCTraceRecordOperation: @unchecked Sendable {
   }
 
   /// Starts `xctrace record` against `target` in a new trace directory under its auxillary directory.
-  public convenience init(target: any Target, configuration: XCTraceRecordConfiguration, logger: ControlCoreLogger) async throws {
+  public convenience init(target: any Target, configuration: XCTraceRecordConfiguration, logger: any ControlCoreLogger) async throws {
     let traceDir = (target.auxillaryDirectory as NSString).appendingPathComponent("xctrace-" + UUID().uuidString)
     do {
       try FileManager.default.createDirectory(atPath: traceDir, withIntermediateDirectories: false, attributes: nil)

@@ -13,7 +13,7 @@ enum ConcatedJsonParser {
     var bracketCounter = 0
     var characterEscaped = false
     var inString = false
-    var parseError: Error?
+    var parseError: (any Error)?
 
     var concatenatedJson: [String: Any] = [:]
     var json = ""

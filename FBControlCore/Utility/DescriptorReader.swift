@@ -43,7 +43,7 @@ public final class DescriptorReader: @unchecked Sendable {
   }
 
   private let queue = DispatchQueue(label: "com.facebook.fbcontrolcore.descriptorreader")
-  private let consumer: DataConsumer
+  private let consumer: any DataConsumer
   private var io: DispatchIO?
   private var readError: Int32 = 0
   private var deliveredEndOfFile = false
@@ -54,7 +54,7 @@ public final class DescriptorReader: @unchecked Sendable {
 
   /// With `closeOnEndOfFile`, the descriptor is closed once the channel relinquishes it; otherwise
   /// it stays open and owned by the caller.
-  public init(fileDescriptor: Int32, closeOnEndOfFile: Bool, consumer: DataConsumer) {
+  public init(fileDescriptor: Int32, closeOnEndOfFile: Bool, consumer: any DataConsumer) {
     self.consumer = consumer
     // Set O_NONBLOCK before DispatchIO snapshots the descriptor flags: libdispatch restores that
     // snapshot asynchronously on teardown through the shared open file description (or a recycled

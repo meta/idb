@@ -179,8 +179,8 @@ private final class SocketReadiness: @unchecked Sendable {
   private let lock = NSLock()
   private let source: any DispatchSourceProtocol
   private var cancellation: Bool = false
-  private var outcome: Result<Void, Error>?
-  private var continuation: CheckedContinuation<Void, Error>?
+  private var outcome: Result<Void, any Error>?
+  private var continuation: CheckedContinuation<Void, any Error>?
 
   init(descriptor: Int32, read: Bool) {
     let queue = DispatchQueue(label: "idb.socket.readiness")
@@ -200,7 +200,7 @@ private final class SocketReadiness: @unchecked Sendable {
   func wait() async throws {
     try await withTaskCancellationHandler {
       try await withCheckedThrowingContinuation { continuation in
-        let immediate: Result<Void, Error>? = lock.withLock {
+        let immediate: Result<Void, any Error>? = lock.withLock {
           if let outcome { return outcome }
           self.continuation = continuation
           return nil
@@ -215,8 +215,8 @@ private final class SocketReadiness: @unchecked Sendable {
   }
 
   private func finished() {
-    let result: Result<Void, Error>
-    let waiter: CheckedContinuation<Void, Error>?
+    let result: Result<Void, any Error>
+    let waiter: CheckedContinuation<Void, any Error>?
     lock.lock()
     result = cancellation ? .failure(CancellationError()) : .success(())
     outcome = result

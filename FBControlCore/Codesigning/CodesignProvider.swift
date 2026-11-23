@@ -27,10 +27,10 @@ enum CodesignError: Error, LocalizedError {
 public final class CodesignProvider {
 
   public let identityName: String
-  private let logger: ControlCoreLogger?
+  private let logger: (any ControlCoreLogger)?
 
   /// Signs with the identity named `identityName`; `-` signs ad hoc.
-  public init(identityName: String, logger: ControlCoreLogger?) {
+  public init(identityName: String, logger: (any ControlCoreLogger)?) {
     self.identityName = identityName
     self.logger = logger
   }

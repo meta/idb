@@ -52,9 +52,9 @@ public extension DataConsumerLifecycle {
 
 /// A consumer that logs each received chunk, trimmed of newlines, to `logger`.
 public struct LoggingDataConsumer: DataConsumer {
-  public let logger: ControlCoreLogger
+  public let logger: any ControlCoreLogger
 
-  public init(logger: ControlCoreLogger) {
+  public init(logger: any ControlCoreLogger) {
     self.logger = logger
   }
 
@@ -70,10 +70,10 @@ public struct LoggingDataConsumer: DataConsumer {
 
 /// A consumer that forwards everything it receives to each of `consumers`, in order.
 public struct CompositeDataConsumer: DataConsumer, DataConsumerLifecycle, CustomStringConvertible {
-  private let consumers: [DataConsumer]
+  private let consumers: [any DataConsumer]
   public let finishedConsuming = AsyncEvent<Void>()
 
-  public init(consumers: [DataConsumer]) {
+  public init(consumers: [any DataConsumer]) {
     self.consumers = consumers
   }
 

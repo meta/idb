@@ -91,7 +91,7 @@ public struct BundleDescriptor: Hashable, Sendable, CustomStringConvertible {
     "Name: \(name) | ID: \(identifier)"
   }
 
-  public func updatePathsForRelocation(codesign: CodesignProvider, logger: ControlCoreLogger) async throws {
+  public func updatePathsForRelocation(codesign: CodesignProvider, logger: any ControlCoreLogger) async throws {
     let replacements = try replacementsForBinary()
     if !replacements.isEmpty {
       var arguments: [String] = []
@@ -151,7 +151,7 @@ public struct BundleDescriptor: Hashable, Sendable, CustomStringConvertible {
 
 extension BundleDescriptor {
 
-  public static func findAppPath(fromDirectory directory: URL, logger: ControlCoreLogger?) throws -> BundleDescriptor {
+  public static func findAppPath(fromDirectory directory: URL, logger: (any ControlCoreLogger)?) throws -> BundleDescriptor {
     let directoryEnumerator = FileManager.default.enumerator(
       at: directory,
       includingPropertiesForKeys: [.isDirectoryKey],

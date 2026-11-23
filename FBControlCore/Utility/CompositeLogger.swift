@@ -11,14 +11,14 @@ import Foundation
 public final class CompositeLogger: ControlCoreLogger, Sendable {
 
   /// The loggers to log to.
-  public let loggers: [ControlCoreLogger]
+  public let loggers: [any ControlCoreLogger]
 
-  public init(loggers: [ControlCoreLogger]) {
+  public init(loggers: [any ControlCoreLogger]) {
     self.loggers = loggers
   }
 
   @discardableResult
-  public func log(_ message: String) -> ControlCoreLogger {
+  public func log(_ message: String) -> any ControlCoreLogger {
     guard let message = loggableStringLine(message) else {
       return self
     }
@@ -28,23 +28,23 @@ public final class CompositeLogger: ControlCoreLogger, Sendable {
     return self
   }
 
-  public func info() -> ControlCoreLogger {
+  public func info() -> any ControlCoreLogger {
     applying { $0.info() }
   }
 
-  public func debug() -> ControlCoreLogger {
+  public func debug() -> any ControlCoreLogger {
     applying { $0.debug() }
   }
 
-  public func error() -> ControlCoreLogger {
+  public func error() -> any ControlCoreLogger {
     applying { $0.error() }
   }
 
-  public func withName(_ name: String) -> ControlCoreLogger {
+  public func withName(_ name: String) -> any ControlCoreLogger {
     applying { $0.withName(name) }
   }
 
-  public func withDateFormatEnabled(_ enabled: Bool) -> ControlCoreLogger {
+  public func withDateFormatEnabled(_ enabled: Bool) -> any ControlCoreLogger {
     applying { $0.withDateFormatEnabled(enabled) }
   }
 
@@ -56,7 +56,7 @@ public final class CompositeLogger: ControlCoreLogger, Sendable {
     .multiple
   }
 
-  private func applying(_ transform: (ControlCoreLogger) -> ControlCoreLogger) -> ControlCoreLogger {
+  private func applying(_ transform: (any ControlCoreLogger) -> any ControlCoreLogger) -> any ControlCoreLogger {
     CompositeLogger(loggers: loggers.map(transform))
   }
 }

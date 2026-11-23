@@ -8,7 +8,7 @@
 import Foundation
 
 enum TemporaryDirectoryError: Error, LocalizedError {
-  case creationFailed(directory: URL, underlying: Error)
+  case creationFailed(directory: URL, underlying: any Error)
 
   public var errorDescription: String? {
     switch self {

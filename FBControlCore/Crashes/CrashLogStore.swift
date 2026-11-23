@@ -132,7 +132,7 @@ public final class CrashLogStore {
 public final class CrashLogListener: @unchecked Sendable {
   private let appeared = AsyncEvent<CrashLogInfo>()
   private let lock = NSLock()
-  private var observer: NSObjectProtocol?
+  private var observer: (any NSObjectProtocol)?
 
   init(predicate: CrashLogPredicate) {
     lock.lock()
@@ -160,8 +160,8 @@ public final class CrashLogListener: @unchecked Sendable {
     }
   }
 
-  private func resolve(_ result: Result<CrashLogInfo, Error>) {
-    let observer: NSObjectProtocol? = lock.withLock {
+  private func resolve(_ result: Result<CrashLogInfo, any Error>) {
+    let observer: (any NSObjectProtocol)? = lock.withLock {
       defer { self.observer = nil }
       return self.observer
     }

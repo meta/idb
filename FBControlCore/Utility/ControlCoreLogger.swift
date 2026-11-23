@@ -22,22 +22,22 @@ public enum ControlCoreLogLevel: Sendable {
 public protocol ControlCoreLogger: AnyObject, Sendable {
   /// Logs a Message with the provided String.
   @discardableResult
-  func log(_ message: String) -> ControlCoreLogger
+  func log(_ message: String) -> any ControlCoreLogger
 
   /// Returns the Info Logger variant.
-  func info() -> ControlCoreLogger
+  func info() -> any ControlCoreLogger
 
   /// Returns the Debug Logger variant.
-  func debug() -> ControlCoreLogger
+  func debug() -> any ControlCoreLogger
 
   /// Returns the Error Logger variant.
-  func error() -> ControlCoreLogger
+  func error() -> any ControlCoreLogger
 
   /// Returns a Logger for a named 'facility' or 'tag'.
-  func withName(_ name: String) -> ControlCoreLogger
+  func withName(_ name: String) -> any ControlCoreLogger
 
   /// Enables or Disables date formatting in the logger.
-  func withDateFormatEnabled(_ enabled: Bool) -> ControlCoreLogger
+  func withDateFormatEnabled(_ enabled: Bool) -> any ControlCoreLogger
 
   /// The Prefix for the Logger, if set.
   var name: String? { get }
@@ -69,28 +69,28 @@ final class OSLogLogger: ControlCoreLogger, Sendable {
   }
 
   @discardableResult
-  func log(_ message: String) -> ControlCoreLogger {
+  func log(_ message: String) -> any ControlCoreLogger {
     os_log("%{public}s", log: client, type: logType, message)
     return self
   }
 
-  func info() -> ControlCoreLogger {
+  func info() -> any ControlCoreLogger {
     OSLogLogger(client: client, name: name, level: .info)
   }
 
-  func debug() -> ControlCoreLogger {
+  func debug() -> any ControlCoreLogger {
     OSLogLogger(client: client, name: name, level: .debug)
   }
 
-  func error() -> ControlCoreLogger {
+  func error() -> any ControlCoreLogger {
     OSLogLogger(client: client, name: name, level: .error)
   }
 
-  func withName(_ name: String) -> ControlCoreLogger {
+  func withName(_ name: String) -> any ControlCoreLogger {
     OSLogLogger(client: OSLog(subsystem: OSLogLogger.subsystem, category: name), name: name, level: level)
   }
 
-  func withDateFormatEnabled(_ enabled: Bool) -> ControlCoreLogger {
+  func withDateFormatEnabled(_ enabled: Bool) -> any ControlCoreLogger {
     self
   }
 
@@ -113,7 +113,7 @@ final class OSLogLogger: ControlCoreLogger, Sendable {
 /// Logs each message as a line of text to a data consumer.
 public final class ConsumerLogger: ControlCoreLogger, Sendable {
 
-  private let consumer: DataConsumer
+  private let consumer: any DataConsumer
   private let writeLock: NSLock
   private let dateFormatter: DateFormatter?
   public let name: String?
@@ -124,7 +124,7 @@ public final class ConsumerLogger: ControlCoreLogger, Sendable {
   }
 
   /// Logs to `consumer`.
-  public convenience init(consumer: DataConsumer) {
+  public convenience init(consumer: any DataConsumer) {
     self.init(consumer: consumer, name: nil, dateFormatter: nil)
   }
 
@@ -133,7 +133,7 @@ public final class ConsumerLogger: ControlCoreLogger, Sendable {
     self.init(consumer: FileWriter.syncWriter(withFileDescriptor: fileDescriptor, closeOnEndOfFile: closeOnEndOfFile))
   }
 
-  init(consumer: DataConsumer, name: String?, dateFormatter: DateFormatter?, writeLock: NSLock = NSLock()) {
+  init(consumer: any DataConsumer, name: String?, dateFormatter: DateFormatter?, writeLock: NSLock = NSLock()) {
     self.consumer = consumer
     self.writeLock = writeLock
     self.name = name
@@ -141,7 +141,7 @@ public final class ConsumerLogger: ControlCoreLogger, Sendable {
   }
 
   @discardableResult
-  public func log(_ message: String) -> ControlCoreLogger {
+  public func log(_ message: String) -> any ControlCoreLogger {
     guard let message = loggableStringLine(message) else {
       return self
     }
@@ -159,23 +159,23 @@ public final class ConsumerLogger: ControlCoreLogger, Sendable {
     return self
   }
 
-  public func info() -> ControlCoreLogger {
+  public func info() -> any ControlCoreLogger {
     self
   }
 
-  public func debug() -> ControlCoreLogger {
+  public func debug() -> any ControlCoreLogger {
     self
   }
 
-  public func error() -> ControlCoreLogger {
+  public func error() -> any ControlCoreLogger {
     self
   }
 
-  public func withName(_ name: String) -> ControlCoreLogger {
+  public func withName(_ name: String) -> any ControlCoreLogger {
     ConsumerLogger(consumer: consumer, name: name, dateFormatter: dateFormatter, writeLock: writeLock)
   }
 
-  public func withDateFormatEnabled(_ enabled: Bool) -> ControlCoreLogger {
+  public func withDateFormatEnabled(_ enabled: Bool) -> any ControlCoreLogger {
     guard enabled else {
       return ConsumerLogger(consumer: consumer, name: name, dateFormatter: nil, writeLock: writeLock)
     }

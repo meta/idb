@@ -11,8 +11,8 @@ import Foundation
 /// counts, and every waiter, before or after it, receives it.
 public final class AsyncEvent<Value: Sendable>: @unchecked Sendable {
   private enum State {
-    case pending(waiters: [UUID: CheckedContinuation<Value, Error>])
-    case happened(Result<Value, Error>)
+    case pending(waiters: [UUID: CheckedContinuation<Value, any Error>])
+    case happened(Result<Value, any Error>)
   }
 
   private let lock = NSLock()
@@ -33,7 +33,7 @@ public final class AsyncEvent<Value: Sendable>: @unchecked Sendable {
   }
 
   /// The outcome, without waiting: nil until the event has happened.
-  public var result: Result<Value, Error>? {
+  public var result: Result<Value, any Error>? {
     lock.withLock {
       guard case let .happened(result) = state else {
         return nil
@@ -46,7 +46,7 @@ public final class AsyncEvent<Value: Sendable>: @unchecked Sendable {
     resolve(.success(value))
   }
 
-  public func fail(_ error: Error) {
+  public func fail(_ error: any Error) {
     resolve(.failure(error))
   }
 
@@ -72,7 +72,7 @@ public final class AsyncEvent<Value: Sendable>: @unchecked Sendable {
         }
       }
     } onCancel: {
-      let waiter: CheckedContinuation<Value, Error>? = lock.withLock {
+      let waiter: CheckedContinuation<Value, any Error>? = lock.withLock {
         guard case var .pending(waiters) = state, let waiter = waiters.removeValue(forKey: id) else {
           return nil
         }
@@ -109,8 +109,8 @@ public final class AsyncEvent<Value: Sendable>: @unchecked Sendable {
     }
   }
 
-  private func resolve(_ result: Result<Value, Error>) {
-    let waiters: [UUID: CheckedContinuation<Value, Error>] = lock.withLock {
+  private func resolve(_ result: Result<Value, any Error>) {
+    let waiters: [UUID: CheckedContinuation<Value, any Error>] = lock.withLock {
       guard case let .pending(waiters) = state else {
         return [:]
       }

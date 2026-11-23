@@ -37,7 +37,7 @@ public final class SocketServer {
   public private(set) var port: in_port_t
 
   private let delegate: any SocketServerDelegate
-  private var acceptSource: DispatchSourceRead?
+  private var acceptSource: (any DispatchSourceRead)?
 
   /// Creates a socket server for the provided port and delegate.
   public init(onPort port: in_port_t, delegate: any SocketServerDelegate) {

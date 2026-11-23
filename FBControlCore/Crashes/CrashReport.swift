@@ -55,11 +55,11 @@ private let CrashReportDateFormatter: DateFormatter = {
 enum CrashLogError: Error {
   case fileDoesNotExist(path: String)
   case fileNotReadable(path: String)
-  case dataReadFailed(path: String, underlying: Error)
+  case dataReadFailed(path: String, underlying: any Error)
   case fileEmpty(path: String)
   case stringExtractionFailed(path: String)
-  case readFailed(path: String, underlying: Error)
-  case parseFailed(underlying: Error)
+  case readFailed(path: String, underlying: any Error)
+  case parseFailed(underlying: any Error)
   case missingField(field: String)
 }
 
@@ -207,7 +207,7 @@ public final class CrashLogInfo: CustomStringConvertible, Sendable {
 
   /// Directory listings and modification dates are read synchronously: Foundation has no async
   /// form of either, and both are metadata lookups rather than reads of a log's contents.
-  public static func crashInfo(afterDate date: Date, logger: ControlCoreLogger?) async -> [CrashLogInfo] {
+  public static func crashInfo(afterDate date: Date, logger: (any ControlCoreLogger)?) async -> [CrashLogInfo] {
     var allCrashInfos: [CrashLogInfo] = []
     for basePath in diagnosticReportsPaths {
       let fileNames = (try? FileManager.default.contentsOfDirectory(atPath: basePath)) ?? []
@@ -243,7 +243,7 @@ public final class CrashLogInfo: CustomStringConvertible, Sendable {
 
   // MARK: - Private
 
-  private static func getPreferredCrashLogParser(forCrashString crashString: String) -> CrashLogParser {
+  private static func getPreferredCrashLogParser(forCrashString crashString: String) -> any CrashLogParser {
     if !crashString.isEmpty && crashString.first == "{" {
       return ConcatedJSONCrashLogParser()
     } else {
@@ -251,7 +251,7 @@ public final class CrashLogInfo: CustomStringConvertible, Sendable {
     }
   }
 
-  private static func fromCrashLogString(_ crashString: String, crashPath: String, parser: CrashLogParser) throws -> CrashLogInfo {
+  private static func fromCrashLogString(_ crashString: String, crashPath: String, parser: any CrashLogParser) throws -> CrashLogInfo {
     let parsed: ParsedCrashLog
     do {
       parsed = try parser.parse(crashString)

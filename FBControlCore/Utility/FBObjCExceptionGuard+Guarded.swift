@@ -16,7 +16,7 @@ extension FBObjCExceptionGuard {
   public static func guarded<T>(_ closure: () throws -> T) throws -> T {
     // swiftlint:disable:next implicitly_unwrapped_optional
     var capturedResult: T!
-    var capturedSwiftError: Error?
+    var capturedSwiftError: (any Error)?
     try self.run {
       do {
         capturedResult = try closure()

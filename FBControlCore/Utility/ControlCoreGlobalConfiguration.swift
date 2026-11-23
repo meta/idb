@@ -90,7 +90,7 @@ public enum ControlCoreGlobalConfiguration {
   /// A logger backed by os_log.
   /// `writeToStdErr` additionally mirrors output to stderr unless os_log already does so in this environment.
   /// `debugLogging` selects the debug level rather than info.
-  public static func systemLogger(writingToStderr writeToStdErr: Bool, debugLogging: Bool) -> ControlCoreLogger {
+  public static func systemLogger(writingToStderr writeToStdErr: Bool, debugLogging: Bool) -> any ControlCoreLogger {
     let systemLogger = OSLogLogger(client: OSLog(subsystem: OSLogLogger.subsystem, category: ""), name: nil, level: debugLogging ? .debug : .info)
     guard writeToStdErr, !systemLoggerWillLogToStdErr else {
       return systemLogger

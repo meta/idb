@@ -21,13 +21,13 @@ public protocol ContainedFile: Sendable {
 
   func fileExists() -> (exists: Bool, isDirectory: Bool)
 
-  func move(to destination: ContainedFile) throws
+  func move(to destination: any ContainedFile) throws
 
   func populate(withContentsOfHostPath path: String) throws
 
   func populateHostPath(withContents path: String) throws
 
-  func file(byAppendingPathComponent component: String) throws -> ContainedFile
+  func file(byAppendingPathComponent component: String) throws -> any ContainedFile
 
   var pathOnHostFileSystem: String? { get }
 
@@ -35,15 +35,15 @@ public protocol ContainedFile: Sendable {
 }
 
 enum FileContainerError: Error {
-  case copyIntoContainerFailed(source: String, destination: String, underlying: Error)
+  case copyIntoContainerFailed(source: String, destination: String, underlying: any Error)
   case sourceDoesNotExist(source: String)
-  case temporaryDirectoryCreationFailed(underlying: Error)
-  case removalBeforeOverwriteFailed(path: String, underlying: Error)
-  case copyOutOfContainerFailed(source: String, destination: String, underlying: Error)
+  case temporaryDirectoryCreationFailed(underlying: any Error)
+  case removalBeforeOverwriteFailed(path: String, underlying: any Error)
+  case copyOutOfContainerFailed(source: String, destination: String, underlying: any Error)
   case notOnLocalFilesystem(file: String)
-  case directoryCreationFailed(directory: String, underlying: Error)
-  case moveFailed(source: String, destination: String, underlying: Error)
-  case removalFailed(path: String, underlying: Error)
+  case directoryCreationFailed(directory: String, underlying: any Error)
+  case moveFailed(source: String, destination: String, underlying: any Error)
+  case removalFailed(path: String, underlying: any Error)
   case unsupportedForProvisioningProfiles(operation: String)
   case destinationNotOnHostFilesystem(destination: String)
   case unsupportedOnVirtualRoot(operation: String)
@@ -161,7 +161,7 @@ public struct HostFile: ContainedFile, CustomStringConvertible {
     return (exists, isDirectory.boolValue)
   }
 
-  public func move(to destination: ContainedFile) throws {
+  public func move(to destination: any ContainedFile) throws {
     guard let hostDestination = destination as? HostFile else {
       throw FileContainerError.destinationNotOnHostFilesystem(destination: String(describing: destination))
     }
@@ -176,7 +176,7 @@ public struct HostFile: ContainedFile, CustomStringConvertible {
     try FileManager.default.copyItem(atPath: self.path, toPath: path)
   }
 
-  public func file(byAppendingPathComponent component: String) throws -> ContainedFile {
+  public func file(byAppendingPathComponent component: String) throws -> any ContainedFile {
     HostFile(path: (path as NSString).appendingPathComponent(component))
   }
 
@@ -219,7 +219,7 @@ public struct MappedHostFile: ContainedFile, CustomStringConvertible {
     (false, false)
   }
 
-  public func move(to destination: ContainedFile) throws {
+  public func move(to destination: any ContainedFile) throws {
     throw FileContainerError.movingUnsupportedOnVirtualRoot
   }
 
@@ -231,7 +231,7 @@ public struct MappedHostFile: ContainedFile, CustomStringConvertible {
     throw FileContainerError.unsupportedOnVirtualRoot(operation: #function)
   }
 
-  public func file(byAppendingPathComponent component: String) throws -> ContainedFile {
+  public func file(byAppendingPathComponent component: String) throws -> any ContainedFile {
     // The root of the mapping itself has nothing further to resolve.
     let pathComponents = (component as NSString).pathComponents
     if Self.isRootPathOfContainer(pathComponents) {

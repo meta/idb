@@ -45,17 +45,17 @@ public class FileWriter: @unchecked Sendable {
     return fd
   }
 
-  public static func syncWriter(withFileDescriptor fileDescriptor: Int32, closeOnEndOfFile: Bool) -> DataConsumer & DataConsumerLifecycle {
+  public static func syncWriter(withFileDescriptor fileDescriptor: Int32, closeOnEndOfFile: Bool) -> any DataConsumer & DataConsumerLifecycle {
     return Sync(fileDescriptor: fileDescriptor, closeOnEndOfFile: closeOnEndOfFile)
   }
 
-  public static func asyncWriter(withFileDescriptor fileDescriptor: Int32, closeOnEndOfFile: Bool, queue: DispatchQueue) throws -> DataConsumer & DataConsumerLifecycle {
+  public static func asyncWriter(withFileDescriptor fileDescriptor: Int32, closeOnEndOfFile: Bool, queue: DispatchQueue) throws -> any DataConsumer & DataConsumerLifecycle {
     let writer = Async(fileDescriptor: fileDescriptor, closeOnEndOfFile: closeOnEndOfFile, writeQueue: queue)
     try writer.startWriting()
     return writer
   }
 
-  public static func asyncWriter(withFileDescriptor fileDescriptor: Int32, closeOnEndOfFile: Bool) throws -> DataConsumer & DataConsumerLifecycle {
+  public static func asyncWriter(withFileDescriptor fileDescriptor: Int32, closeOnEndOfFile: Bool) throws -> any DataConsumer & DataConsumerLifecycle {
     try asyncWriter(withFileDescriptor: fileDescriptor, closeOnEndOfFile: closeOnEndOfFile, queue: createWorkQueue())
   }
 
@@ -67,18 +67,18 @@ public class FileWriter: @unchecked Sendable {
     return Draining(writer: writer)
   }
 
-  public static func syncWriter(forFilePath filePath: String) throws -> DataConsumer & DataConsumerLifecycle {
+  public static func syncWriter(forFilePath filePath: String) throws -> any DataConsumer & DataConsumerLifecycle {
     FileWriter.syncWriter(withFileDescriptor: try fileDescriptor(forPath: filePath), closeOnEndOfFile: true)
   }
 
-  public static func asyncWriter(forFilePath filePath: String) async throws -> DataConsumer & DataConsumerLifecycle {
+  public static func asyncWriter(forFilePath filePath: String) async throws -> any DataConsumer & DataConsumerLifecycle {
     let queue = createWorkQueue()
     // Opening a FIFO for writing blocks until something opens it for reading, so the open must not
     // hold a Swift concurrency thread.
     return try await withCheckedThrowingContinuation { continuation in
       queue.async {
         continuation.resume(
-          with: Result<DataConsumer & DataConsumerLifecycle, Error> {
+          with: Result<any DataConsumer & DataConsumerLifecycle, any Error> {
             let writer = Async(fileDescriptor: try fileDescriptor(forPath: filePath), closeOnEndOfFile: true, writeQueue: queue)
             try writer.startWriting()
             return writer
