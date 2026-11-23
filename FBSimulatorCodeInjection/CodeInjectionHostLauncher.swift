@@ -145,7 +145,7 @@ final class ReplNullReporter: LogicXCTestReporter {
   func didFinishExecutingTestPlan() {}
   func testHadOutput(_ output: String) {}
   func handleEventJSONData(_ data: Data) {}
-  func didCrashDuringTest(_ error: Error) {}
+  func didCrashDuringTest(_ error: any Error) {}
 }
 
 // MARK: - App-context REPL socket helpers
