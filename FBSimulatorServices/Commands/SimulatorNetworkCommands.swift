@@ -5,10 +5,10 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-@preconcurrency import FBControlCore
+import FBControlCore
 import FBSimulatorBridgeProtocol
 import FBSimulatorControl
-@preconcurrency import Foundation
+import Foundation
 
 public enum SimulatorNetworkError: Error, LocalizedError {
   case noDnsServers

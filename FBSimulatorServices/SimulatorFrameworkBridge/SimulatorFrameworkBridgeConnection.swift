@@ -6,7 +6,7 @@
  */
 
 import Darwin
-@preconcurrency import FBControlCore
+import FBControlCore
 import FBSimulatorBridgeProtocol
 import FBSimulatorControl
 import Foundation
@@ -113,7 +113,7 @@ final class SimulatorFrameworkBridgeConnection: BridgeConnection, @unchecked Sen
       queue.async { [self] in
         do {
           var noDeadline = timeval()
-          setsockopt(fileDescriptor, SOL_SOCKET, SO_RCVTIMEO, &noDeadline, socklen_t(MemoryLayout<timeval>.size))
+          unsafe setsockopt(fileDescriptor, SOL_SOCKET, SO_RCVTIMEO, &noDeadline, socklen_t(MemoryLayout<timeval>.size))
           try SimulatorFrameworkBridgeConnection.writeFrame(fileDescriptor, request.encoded())
           while let frame = try SimulatorFrameworkBridgeConnection.readFrameUnlessClosed(fileDescriptor, guest: ownership.process) {
             continuation.yield(try BridgeResponse.decode(frame, for: request).result)
@@ -174,7 +174,7 @@ final class SimulatorFrameworkBridgeConnection: BridgeConnection, @unchecked Sen
     } catch IPCError.closed {
       throw AXBridgeError.guestFailure("socket write returned 0")
     } catch let IPCError.failed(_, code) {
-      throw AXBridgeError.guestFailure("socket write failed: \(String(cString: strerror(code)))")
+      throw AXBridgeError.guestFailure(unsafe "socket write failed: \(String(cString: strerror(code)))")
     } catch {
       throw AXBridgeError.guestFailure("socket write failed: \(error)")
     }
@@ -182,8 +182,8 @@ final class SimulatorFrameworkBridgeConnection: BridgeConnection, @unchecked Sen
 
   private func setReceiveWindow(_ timeout: TimeInterval) throws {
     var window = SimulatorFrameworkBridgePersistentTransport.receiveWindow(timeout)
-    guard setsockopt(fileDescriptor, SOL_SOCKET, SO_RCVTIMEO, &window, socklen_t(MemoryLayout<timeval>.size)) == 0 else {
-      throw AXBridgeError.guestFailure("could not set the socket's receive timeout: \(String(cString: strerror(errno)))")
+    guard unsafe setsockopt(fileDescriptor, SOL_SOCKET, SO_RCVTIMEO, &window, socklen_t(MemoryLayout<timeval>.size)) == 0 else {
+      throw AXBridgeError.guestFailure(unsafe "could not set the socket's receive timeout: \(String(cString: strerror(errno)))")
     }
   }
 
@@ -202,7 +202,7 @@ final class SimulatorFrameworkBridgeConnection: BridgeConnection, @unchecked Sen
       }
       throw AXBridgeError.guestFailure("serve read timed out after \(receiveTimeoutSeconds)s with no data")
     } catch let IPCError.failed(_, code) {
-      throw AXBridgeError.guestFailure("socket read failed: \(String(cString: strerror(code)))")
+      throw AXBridgeError.guestFailure(unsafe "socket read failed: \(String(cString: strerror(code)))")
     } catch {
       throw AXBridgeError.guestFailure("socket read failed: \(error)")
     }
@@ -216,7 +216,7 @@ final class SimulatorFrameworkBridgeConnection: BridgeConnection, @unchecked Sen
   ) throws -> Data? {
     var byte: UInt8 = 0
     while true {
-      let peeked = recv(fileDescriptor, &byte, 1, MSG_PEEK)
+      let peeked = unsafe recv(fileDescriptor, &byte, 1, MSG_PEEK)
       if peeked == 0 {
         return nil
       }
@@ -224,7 +224,7 @@ final class SimulatorFrameworkBridgeConnection: BridgeConnection, @unchecked Sen
         return try readFrame(fileDescriptor, guest: guest)
       }
       if errno != EINTR {
-        throw AXBridgeError.guestFailure("socket read failed: \(String(cString: strerror(errno)))")
+        throw AXBridgeError.guestFailure(unsafe "socket read failed: \(String(cString: strerror(errno)))")
       }
     }
   }

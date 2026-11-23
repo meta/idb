@@ -5,10 +5,10 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-@preconcurrency import FBControlCore
+import FBControlCore
 import FBSimulatorBridgeProtocol
 import FBSimulatorControl
-@preconcurrency import Foundation
+import Foundation
 
 /// Manages the contents of the simulated device's photo library.
 public struct SimulatorPhotosCommands {

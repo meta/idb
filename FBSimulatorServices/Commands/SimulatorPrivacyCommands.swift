@@ -5,11 +5,11 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-@preconcurrency import CoreSimulator
-@preconcurrency import FBControlCore
+import CoreSimulator
+import FBControlCore
 import FBSimulatorBridgeProtocol
 import FBSimulatorControl
-@preconcurrency import Foundation
+import Foundation
 import os
 
 public enum SimulatorPrivacyError: Error {
@@ -441,7 +441,7 @@ final class SchemeApprovalLastWrite: Sendable {
   /// The app the plist approves for `urlKey` and the identity of the file that says so, both from one open file. Nil
   /// when the file cannot be read or parsed, or changes while it is read.
   private static func approval(forKey urlKey: String, inPlistAt path: String) -> (bundleID: String?, plist: FileVersion)? {
-    let descriptor = open(path, O_RDONLY | O_CLOEXEC)
+    let descriptor = unsafe open(path, O_RDONLY | O_CLOEXEC)
     guard descriptor >= 0 else {
       return nil
     }
@@ -449,7 +449,7 @@ final class SchemeApprovalLastWrite: Sendable {
     guard let before = FileVersion(ofOpenFile: descriptor),
       let data = try? file.readToEnd(),
       FileVersion(ofOpenFile: descriptor) == before,
-      let plist = try? PropertyListSerialization.propertyList(from: data, format: nil) as? NSDictionary
+      let plist = unsafe try? PropertyListSerialization.propertyList(from: data, format: nil) as? NSDictionary
     else {
       return nil
     }
@@ -468,7 +468,7 @@ struct FileVersion: Equatable, Sendable {
 
   init?(ofFileAtPath path: String) {
     var status = stat()
-    guard stat(path, &status) == 0 else {
+    guard unsafe stat(path, &status) == 0 else {
       return nil
     }
     self.init(status)
@@ -476,7 +476,7 @@ struct FileVersion: Equatable, Sendable {
 
   init?(ofOpenFile descriptor: Int32) {
     var status = stat()
-    guard fstat(descriptor, &status) == 0 else {
+    guard unsafe fstat(descriptor, &status) == 0 else {
       return nil
     }
     self.init(status)

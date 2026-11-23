@@ -6,7 +6,7 @@
  */
 
 import Darwin
-@preconcurrency import FBControlCore
+import FBControlCore
 import FBSimulatorBridgeProtocol
 import FBSimulatorControl
 import Foundation
@@ -248,7 +248,7 @@ package actor SimulatorFrameworkBridgePersistentTransport: AXBridgeStreamingTran
     // A successful connect only means the listen backlog accepted us. The guest serves one connection
     // at a time, so a round trip is the only way to distinguish an adoptable guest from a busy one.
     var window = receiveWindow(adoptionTimeout)
-    setsockopt(fileDescriptor, SOL_SOCKET, SO_RCVTIMEO, &window, socklen_t(MemoryLayout<timeval>.size))
+    unsafe setsockopt(fileDescriptor, SOL_SOCKET, SO_RCVTIMEO, &window, socklen_t(MemoryLayout<timeval>.size))
     do {
       let request = BridgeRequest(command: .ping)
       try SimulatorFrameworkBridgeConnection.writeFrame(fileDescriptor, request.encoded())
@@ -259,7 +259,7 @@ package actor SimulatorFrameworkBridgePersistentTransport: AXBridgeStreamingTran
       return .busy
     }
     var readTimeout = timeval(tv_sec: SimulatorFrameworkBridgeConnection.receiveTimeoutSeconds, tv_usec: 0)
-    setsockopt(fileDescriptor, SOL_SOCKET, SO_RCVTIMEO, &readTimeout, socklen_t(MemoryLayout<timeval>.size))
+    unsafe setsockopt(fileDescriptor, SOL_SOCKET, SO_RCVTIMEO, &readTimeout, socklen_t(MemoryLayout<timeval>.size))
     return .adopted(fileDescriptor)
   }
 

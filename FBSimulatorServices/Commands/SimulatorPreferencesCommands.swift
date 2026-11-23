@@ -5,11 +5,11 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-@preconcurrency import CoreSimulator
-@preconcurrency import FBControlCore
+import CoreSimulator
+import FBControlCore
 import FBSimulatorBridgeProtocol
 import FBSimulatorControl
-@preconcurrency import Foundation
+import Foundation
 
 /// Dark/Light mode appearance.
 /// Values match UIUserInterfaceStyle used by SimDevice's setUIInterfaceStyle:error:.
