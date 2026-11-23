@@ -5,7 +5,7 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-@preconcurrency import FBControlCore
+import FBControlCore
 import Foundation
 
 // MARK: - DTX Internals
@@ -108,7 +108,7 @@ private struct WireReader {
   private mutating func read<T: FixedWidthInteger>() -> T {
     var value: T = 0
     withUnsafeMutableBytes(of: &value) { destination in
-      destination.copyBytes(from: data.prefix(MemoryLayout<T>.size))
+      unsafe destination.copyBytes(from: data.prefix(MemoryLayout<T>.size))
     }
     data = data.dropFirst(MemoryLayout<T>.size)
     return value
@@ -117,7 +117,7 @@ private struct WireReader {
 
 extension Data {
   fileprivate mutating func appendValue<T: FixedWidthInteger>(_ value: T) {
-    Swift.withUnsafeBytes(of: value) { append(contentsOf: $0) }
+    Swift.withUnsafeBytes(of: value) { unsafe append(contentsOf: $0) }
   }
 }
 

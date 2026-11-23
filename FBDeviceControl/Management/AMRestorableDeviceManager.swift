@@ -5,11 +5,12 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-@preconcurrency import FBControlCore
+import FBControlCore
 import Foundation
 import MobileDeviceAPI
 
-private final class RestorableDeviceNotificationPayload {
+// @safe: Retains the device in `init` and releases it in `deinit`; callers only see the object.
+@safe private final class RestorableDeviceNotificationPayload {
   private let reference: Unmanaged<AnyObject>
   let status: AMRestorableDeviceNotificationType
   let identifier: String
@@ -17,19 +18,19 @@ private final class RestorableDeviceNotificationPayload {
   let values: [String: Any]
 
   var device: AMRestorableDevice {
-    reference.takeUnretainedValue()
+    unsafe reference.takeUnretainedValue()
   }
 
   init(device: AMRestorableDevice, status: AMRestorableDeviceNotificationType, calls: AMDCalls) {
-    self.reference = Unmanaged.passRetained(device as AnyObject)
+    unsafe self.reference = unsafe Unmanaged.passRetained(device as AnyObject)
     self.status = status
     let ecid = calls.RestorableDeviceGetECID(device)
     self.identifier = String(ecid)
-    self.state = RestorableDeviceNotificationState(
+    self.state = unsafe RestorableDeviceNotificationState(
       state: RestorableDevice.targetState(forRawValue: calls.RestorableDeviceGetState(device)),
       recoveryDevice: calls.RestorableDeviceGetRecoveryModeDevice(device)?.takeUnretainedValue())
     if status == .connected {
-      self.values = [
+      self.values = unsafe [
         DeviceKey.chipID.rawValue: Int(calls.RestorableDeviceGetChipID(device)),
         DeviceKey.deviceClass.rawValue: Int(calls.RestorableDeviceGetDeviceClass(device)),
         DeviceKey.locationID.rawValue: Int(calls.RestorableDeviceGetLocationID(device)),
@@ -44,7 +45,7 @@ private final class RestorableDeviceNotificationPayload {
   }
 
   deinit {
-    reference.release()
+    unsafe reference.release()
   }
 }
 
@@ -69,10 +70,10 @@ private func restorableDeviceListenerCallback(
   _ status: AMRestorableDeviceNotificationType,
   _ context: UnsafeMutableRawPointer?
 ) {
-  guard let device, let context else {
+  guard let device, let context = unsafe context else {
     return
   }
-  let manager = Unmanaged<AMRestorableDeviceManager>.fromOpaque(context).takeUnretainedValue()
+  let manager = unsafe Unmanaged<AMRestorableDeviceManager>.fromOpaque(context).takeUnretainedValue()
   let payload = manager.captureNotification(device: device, status: status)
   manager.notifications.enqueue {
     manager.handleNotification(payload)
@@ -80,7 +81,8 @@ private func restorableDeviceListenerCallback(
 }
 
 /// Obtains `RestorableDevice` instances.
-final class AMRestorableDeviceManager: DeviceManager<RestorableDevice> {
+// @safe: The notification context is created at registration and released at unregistration, only here.
+@safe final class AMRestorableDeviceManager: DeviceManager<RestorableDevice> {
 
   private let calls: AMDCalls
   private let workQueue: DispatchQueue
@@ -145,20 +147,20 @@ final class AMRestorableDeviceManager: DeviceManager<RestorableDevice> {
     // Retained for as long as the registration lasts: the callback bridges this back unretained, so
     // the manager must not be deallocated while MobileDevice can still deliver a notification.
     // Balanced in `stopListening`, and below if the registration itself fails.
-    let context = Unmanaged.passRetained(self).toOpaque()
+    let context = unsafe Unmanaged.passRetained(self).toOpaque()
     notifications.resume()
-    let registrationID = calls.RestorableDeviceRegisterForNotifications(
+    let registrationID = unsafe calls.RestorableDeviceRegisterForNotifications(
       restorableDeviceListenerCallback,
       context,
       0,
       0)
     guard registrationID >= 1 else {
       notifications.pause()
-      Unmanaged<AMRestorableDeviceManager>.fromOpaque(context).release()
+      unsafe Unmanaged<AMRestorableDeviceManager>.fromOpaque(context).release()
       throw AMRestorableDeviceManagerError.registrationFailed(status: registrationID)
     }
     self.registrationID = registrationID
-    self.notificationContext = context
+    unsafe self.notificationContext = unsafe context
   }
 
   override func stopListening() throws {
@@ -173,9 +175,9 @@ final class AMRestorableDeviceManager: DeviceManager<RestorableDevice> {
     // However, giving an invalid registrationID is fine and we still get logging.
     _ = calls.RestorableDeviceUnregisterForNotifications(registrationID)
     // No further notification can be delivered, so the callback's context can be given back.
-    if let context = notificationContext {
-      notificationContext = nil
-      Unmanaged<AMRestorableDeviceManager>.fromOpaque(context).release()
+    if let context = unsafe notificationContext {
+      unsafe notificationContext = nil
+      unsafe Unmanaged<AMRestorableDeviceManager>.fromOpaque(context).release()
     }
   }
 
@@ -204,7 +206,7 @@ final class AMRestorableDeviceManager: DeviceManager<RestorableDevice> {
   }
 
   override class func extractPrivateReference(_ publicDevice: RestorableDevice) -> Unmanaged<AnyObject>? {
-    Unmanaged.passUnretained(publicDevice.restorableDevice)
+    unsafe Unmanaged.passUnretained(publicDevice.restorableDevice)
   }
 
 }

@@ -5,7 +5,7 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-@preconcurrency import FBControlCore
+import FBControlCore
 import Foundation
 
 private let ExtraDeviceSupportDirEnv = "IDB_EXTRA_DEVICE_SUPPORT_DIR"
@@ -140,14 +140,14 @@ public struct DeveloperDiskImage: Sendable, CustomStringConvertible {
       for supportName in supportPaths {
         let supportPath = (searchPath as NSString).appendingPathComponent(supportName)
         var isDirectory: ObjCBool = false
-        if !FileManager.default.fileExists(atPath: supportPath, isDirectory: &isDirectory) {
+        if unsafe !FileManager.default.fileExists(atPath: supportPath, isDirectory: &isDirectory) {
           continue
         }
         if !isDirectory.boolValue {
           continue
         }
         let symbolsPath = (supportPath as NSString).appendingPathComponent("Symbols")
-        if !FileManager.default.fileExists(atPath: symbolsPath, isDirectory: &isDirectory) {
+        if unsafe !FileManager.default.fileExists(atPath: symbolsPath, isDirectory: &isDirectory) {
           continue
         }
         if !isDirectory.boolValue {

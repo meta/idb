@@ -5,7 +5,7 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-@preconcurrency import FBControlCore
+import FBControlCore
 import Foundation
 import MobileDeviceAPI
 
@@ -115,7 +115,7 @@ public final class DeviceFileContainer: AsyncFileContainer {
 
   private static func isDirectory(_ path: String) -> Bool {
     var isDir: ObjCBool = false
-    return FileManager.default.fileExists(atPath: path, isDirectory: &isDir) && isDir.boolValue
+    return unsafe FileManager.default.fileExists(atPath: path, isDirectory: &isDir) && isDir.boolValue
   }
 
   // MARK: - Wallpaper

@@ -5,7 +5,7 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-@preconcurrency import FBControlCore
+import FBControlCore
 import Foundation
 import MobileDeviceAPI
 
@@ -341,21 +341,21 @@ extension MobileDevice {
     let userInfo: [String: Any] = ["CloseOnInvalidate": 1, "InvalidateOnDetach": 1]
     var serviceConnection: Unmanaged<CFTypeRef>?
     let status =
-      calls.SecureStartService?(
+      unsafe calls.SecureStartService?(
         connectedDevice.amDeviceRef,
         service as CFString,
         userInfo as CFDictionary,
         &serviceConnection
       ) ?? -1
     guard status == 0 else {
-      let message = calls.CopyErrorText?(status)?.takeRetainedValue() as String? ?? "Unknown error"
+      let message = unsafe calls.CopyErrorText?(status)?.takeRetainedValue() as String? ?? "Unknown error"
       throw AMDeviceServiceError.secureStartServiceFailed(service: service, status: status, message: message)
     }
-    guard let amDeviceRef = connectedDevice.amDeviceRef, let serviceConnection else {
+    guard let amDeviceRef = connectedDevice.amDeviceRef, let serviceConnection = unsafe serviceConnection else {
       throw AMDeviceServiceError.deviceNotConnected(service: service)
     }
     // Unretained: the raw reference is handed straight to the connection, which owns it from here.
-    let connection = LockdownServiceConnection(
+    let connection = unsafe LockdownServiceConnection(
       name: service,
       connection: serviceConnection.takeUnretainedValue(),
       device: amDeviceRef,

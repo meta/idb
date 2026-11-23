@@ -5,7 +5,7 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-@preconcurrency import FBControlCore
+import FBControlCore
 import Foundation
 import MobileDeviceAPI
 
@@ -92,8 +92,8 @@ private class DeviceWorkflowStatistics {
 }
 
 private func workflowCallback(_ callbackDictionary: [String: Any]?, _ context: UnsafeMutableRawPointer?) {
-  guard let context, let callbackDictionary else { return }
-  let statistics = Unmanaged<DeviceWorkflowStatistics>.fromOpaque(context).takeUnretainedValue()
+  guard let context = unsafe context, let callbackDictionary else { return }
+  let statistics = unsafe Unmanaged<DeviceWorkflowStatistics>.fromOpaque(context).takeUnretainedValue()
   statistics.pushProgress(callbackDictionary)
 }
 
@@ -156,9 +156,9 @@ public final class DeviceApplicationCommands: ApplicationCommands {
     try await device.withConnectedDevice(purpose: "install") { connectedDevice in
       device.logger.log("Installing Application \(appURL)")
       let statistics = DeviceWorkflowStatistics(workflowType: "Install", logger: connectedDevice.logger)
-      let context = Unmanaged.passUnretained(statistics).toOpaque()
+      let context = unsafe Unmanaged.passUnretained(statistics).toOpaque()
       let status =
-        connectedDevice.calls.SecureInstallApplicationBundle?(
+        unsafe connectedDevice.calls.SecureInstallApplicationBundle?(
           connectedDevice.amDeviceRef,
           appURL as CFURL,
           options as CFDictionary,
@@ -166,7 +166,7 @@ public final class DeviceApplicationCommands: ApplicationCommands {
           context
         ) ?? -1
       if status != 0 {
-        let errorMessage = connectedDevice.calls.CopyErrorText?(status)?.takeRetainedValue() as String? ?? "Unknown error"
+        let errorMessage = unsafe connectedDevice.calls.CopyErrorText?(status)?.takeRetainedValue() as String? ?? "Unknown error"
         throw DeviceApplicationError.installFailed(applicationName: appURL.lastPathComponent, status: status, message: errorMessage, recentEvents: statistics.summaryOfRecentEvents)
       }
       device.logger.log("Installed Application \(appURL)")
@@ -182,9 +182,9 @@ public final class DeviceApplicationCommands: ApplicationCommands {
     try await device.withConnectedDevice(purpose: "uninstall_\(bundleID)") { connectedDevice in
       let statistics = DeviceWorkflowStatistics(workflowType: "Uninstall", logger: connectedDevice.logger)
       device.logger.log("Uninstalling Application \(bundleID)")
-      let context = Unmanaged.passUnretained(statistics).toOpaque()
+      let context = unsafe Unmanaged.passUnretained(statistics).toOpaque()
       let status =
-        connectedDevice.calls.SecureUninstallApplication?(
+        unsafe connectedDevice.calls.SecureUninstallApplication?(
           nil,
           connectedDevice.amDeviceRef,
           bundleID as CFString,
@@ -193,7 +193,7 @@ public final class DeviceApplicationCommands: ApplicationCommands {
           context
         ) ?? -1
       if status != 0 {
-        let internalMessage = connectedDevice.calls.CopyErrorText?(status)?.takeRetainedValue() as String? ?? "Unknown error"
+        let internalMessage = unsafe connectedDevice.calls.CopyErrorText?(status)?.takeRetainedValue() as String? ?? "Unknown error"
         throw DeviceApplicationError.uninstallFailed(bundleID: bundleID, status: status, message: internalMessage, recentEvents: statistics.summaryOfRecentEvents)
       }
       device.logger.log("Uninstalled Application \(bundleID)")
@@ -356,18 +356,18 @@ public final class DeviceApplicationCommands: ApplicationCommands {
       let options: [String: Any] = [
         "ReturnAttributes": returnAttributes
       ]
-      var applications = Unmanaged<CFDictionary>.passUnretained(NSDictionary() as CFDictionary)
+      var applications = unsafe Unmanaged<CFDictionary>.passUnretained(NSDictionary() as CFDictionary)
       let status =
-        connectedDevice.calls.LookupApplications?(
+        unsafe connectedDevice.calls.LookupApplications?(
           connectedDevice.amDeviceRef,
           options as CFDictionary,
           &applications
         ) ?? -1
       if status != 0 {
-        let errorMessage = connectedDevice.calls.CopyErrorText?(status)?.takeRetainedValue() as String? ?? "Unknown error"
+        let errorMessage = unsafe connectedDevice.calls.CopyErrorText?(status)?.takeRetainedValue() as String? ?? "Unknown error"
         throw DeviceApplicationError.applicationLookupFailed(status: status, message: errorMessage)
       }
-      guard let result = applications.takeRetainedValue() as? [String: [String: Any]] else {
+      guard let result = unsafe applications.takeRetainedValue() as? [String: [String: Any]] else {
         throw DeviceApplicationError.applicationLookupMalformed
       }
       return result

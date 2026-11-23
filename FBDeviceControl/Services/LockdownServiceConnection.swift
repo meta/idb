@@ -5,7 +5,7 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-@preconcurrency import FBControlCore
+import FBControlCore
 import Foundation
 import MobileDeviceAPI
 
@@ -70,7 +70,8 @@ extension LockdownServiceConnectionError: LocalizedError {
 }
 
 /// An AMDServiceConnection is a connection to a "lockdown" service over USB.
-public final class LockdownServiceConnection: CustomStringConvertible {
+// @safe: The connection reference is invalidated only here; callers only see the object.
+@safe public final class LockdownServiceConnection: CustomStringConvertible {
 
   // MARK: - Properties
 
@@ -88,7 +89,7 @@ public final class LockdownServiceConnection: CustomStringConvertible {
   var readerDrainTimeout = ReaderDrainTimeout
 
   public var connection: AMDServiceConnection? {
-    connectionRef?.takeUnretainedValue()
+    unsafe connectionRef?.takeUnretainedValue()
   }
 
   // MARK: - Initializers
@@ -103,9 +104,9 @@ public final class LockdownServiceConnection: CustomStringConvertible {
     // Raw transfer is used when there is no secure context, otherwise the service connection
     // wrapping must be used.
     let secureIOContext = calls.ServiceConnectionGetSecureIOContext(connection)
-    logger?.log("Constructing service connection for \(name) \(secureIOContext != nil ? "is" : "is not") Secure")
+    logger?.log(unsafe "Constructing service connection for \(name) \(secureIOContext != nil ? "is" : "is not") Secure")
     self.name = name
-    self.connectionRef = Unmanaged.passUnretained(connection as AnyObject)
+    unsafe self.connectionRef = unsafe Unmanaged.passUnretained(connection as AnyObject)
     self.device = device
     self.calls = calls
     self.logger = logger
@@ -128,14 +129,14 @@ public final class LockdownServiceConnection: CustomStringConvertible {
 
   func receiveMessage() throws -> Any {
     var message: Unmanaged<CFPropertyList>?
-    let result = calls.ServiceConnectionReceiveMessage(connection, &message, nil, nil, nil, nil)
+    let result = unsafe calls.ServiceConnectionReceiveMessage(connection, &message, nil, nil, nil, nil)
     guard result == 0 else {
       throw LockdownServiceConnectionError.receiveMessageFailed(errorText: errorText(result), code: result)
     }
-    guard let message else {
+    guard let message = unsafe message else {
       throw LockdownServiceConnectionError.receivedNoMessage
     }
-    return message.takeRetainedValue()
+    return unsafe message.takeRetainedValue()
   }
 
   func sendAndReceiveMessage(_ message: Any) throws -> Any {
@@ -146,10 +147,10 @@ public final class LockdownServiceConnection: CustomStringConvertible {
   // MARK: - Lifecycle
 
   func invalidate() async throws {
-    guard let connectionRef else {
+    guard let connectionRef = unsafe connectionRef else {
       throw LockdownServiceConnectionError.noConnectionToInvalidate
     }
-    let reference = connectionRef.takeUnretainedValue()
+    let reference = unsafe connectionRef.takeUnretainedValue()
     let connectionDescription = CFCopyDescription(reference) as String? ?? "unknown"
     logger?.log("Invalidating Connection \(connectionDescription)")
     let status = calls.ServiceConnectionInvalidate(reference)
@@ -168,11 +169,11 @@ public final class LockdownServiceConnection: CustomStringConvertible {
     // AMDServiceConnectionInvalidate does not release the connection. If the reader did not
     // drain, leak rather than release: releasing under a still-blocked read is a use-after-free.
     if drained {
-      connectionRef.release()
+      unsafe connectionRef.release()
     } else {
       logger?.log("Reader did not drain within \(readerDrainTimeout)s; leaking the connection rather than freeing it under an active read")
     }
-    self.connectionRef = nil
+    unsafe self.connectionRef = nil
   }
 
   // MARK: - AFC
@@ -182,10 +183,10 @@ public final class LockdownServiceConnection: CustomStringConvertible {
     callback: @escaping AFCNotificationCallback,
     logger: any ControlCoreLogger
   ) -> FileConduit {
-    let afcConnection = afcCalls.Create(nil, calls.ServiceConnectionGetSocket(connection), nil, callback, nil)
-    let afcReference = afcConnection?.takeUnretainedValue()
+    let afcConnection = unsafe afcCalls.Create(nil, calls.ServiceConnectionGetSocket(connection), nil, callback, nil)
+    let afcReference = unsafe afcConnection?.takeUnretainedValue()
     if let secureIOContext = calls.ServiceConnectionGetSecureIOContext(connection), let afcReference {
-      afcCalls.SetSecureContext(afcReference, secureIOContext)
+      unsafe afcCalls.SetSecureContext(afcReference, secureIOContext)
     }
     return FileConduit(connection: afcReference, calls: afcCalls, logger: self.logger)
   }
@@ -197,15 +198,15 @@ public final class LockdownServiceConnection: CustomStringConvertible {
     while bytesRemaining > 0 {
       let start = data.count - bytesRemaining
       let length = min(SendBufferSize, bytesRemaining)
-      let result = data.withUnsafeBytes { buffer -> Int32 in
+      let result = unsafe data.withUnsafeBytes { buffer -> Int32 in
         // Only an empty payload has no base address, and the loop cannot be entered for one.
         guard let base = buffer.baseAddress else {
           return 0
         }
-        return send(base.advanced(by: start), size: length)
+        return unsafe send(base.advanced(by: start), size: length)
       }
       if result == -1 {
-        throw LockdownServiceConnectionError.sendFailed(bytes: length, reason: String(cString: strerror(errno)))
+        throw unsafe LockdownServiceConnectionError.sendFailed(bytes: length, reason: String(cString: strerror(errno)))
       }
       if result == 0 {
         break
@@ -223,12 +224,12 @@ public final class LockdownServiceConnection: CustomStringConvertible {
 
   public func send(withLengthHeader data: Data) throws {
     let lengthWire = HeaderIntType(data.count).bigEndian
-    try send(withUnsafeBytes(of: lengthWire) { Data($0) })
+    try send(withUnsafeBytes(of: lengthWire) { unsafe Data($0) })
     try send(data)
   }
 
   func sendUnsignedInt32(_ value: UInt32) throws {
-    try send(withUnsafeBytes(of: value) { Data($0) })
+    try send(withUnsafeBytes(of: value) { unsafe Data($0) })
   }
 
   // MARK: - Receiving
@@ -249,31 +250,31 @@ public final class LockdownServiceConnection: CustomStringConvertible {
 
   public func receive(_ destination: UnsafeMutableRawPointer, ofSize size: Int) throws {
     let data = try receive(size)
-    data.withUnsafeBytes { source in
+    unsafe data.withUnsafeBytes { source in
       guard let base = source.baseAddress else { return }
-      destination.copyMemory(from: base, byteCount: data.count)
+      unsafe destination.copyMemory(from: base, byteCount: data.count)
     }
   }
 
   func receiveUp(to size: Int) throws -> Data {
     let buffer = UnsafeMutableRawPointer.allocate(byteCount: size, alignment: MemoryLayout<UInt8>.alignment)
-    defer { buffer.deallocate() }
-    let result = receive(buffer, size: size)
+    defer { unsafe buffer.deallocate() }
+    let result = unsafe receive(buffer, size: size)
     if result == 0 {
       return Data()
     }
     if result == -1 {
-      throw LockdownServiceConnectionError.receiveUpToFailed(size: size, reason: String(cString: strerror(errno)))
+      throw unsafe LockdownServiceConnectionError.receiveUpToFailed(size: size, reason: String(cString: strerror(errno)))
     }
-    return Data(bytes: buffer, count: Int(result))
+    return unsafe Data(bytes: buffer, count: Int(result))
   }
 
   func receiveUnsignedInt32(_ valueOut: UnsafeMutablePointer<UInt32>) throws {
-    try receive(valueOut, ofSize: MemoryLayout<UInt32>.size)
+    unsafe try receive(valueOut, ofSize: MemoryLayout<UInt32>.size)
   }
 
   func receiveUnsignedInt64(_ valueOut: UnsafeMutablePointer<UInt64>) throws {
-    try receive(valueOut, ofSize: MemoryLayout<UInt64>.size)
+    unsafe try receive(valueOut, ofSize: MemoryLayout<UInt64>.size)
   }
 
   // MARK: - Streams
@@ -290,30 +291,30 @@ public final class LockdownServiceConnection: CustomStringConvertible {
   // MARK: - Private
 
   fileprivate func send(_ buffer: UnsafeRawPointer, size: Int) -> Int32 {
-    calls.ServiceConnectionSend(connection, buffer, size)
+    unsafe calls.ServiceConnectionSend(connection, buffer, size)
   }
 
   fileprivate func receive(_ buffer: UnsafeMutableRawPointer, size: Int) -> Int32 {
-    calls.ServiceConnectionReceive(connection, buffer, size)
+    unsafe calls.ServiceConnectionReceive(connection, buffer, size)
   }
 
   private func errorText(_ status: Int32) -> String {
-    calls.CopyErrorText(status)?.takeRetainedValue() as String? ?? "Unknown error"
+    unsafe calls.CopyErrorText(status)?.takeRetainedValue() as String? ?? "Unknown error"
   }
 
   private func enumerateReceive(ofLength size: Int, chunkSize: Int, enumerator: (Data) -> Void) throws {
     let buffer = UnsafeMutableRawPointer.allocate(byteCount: chunkSize, alignment: MemoryLayout<UInt8>.alignment)
-    defer { buffer.deallocate() }
+    defer { unsafe buffer.deallocate() }
 
     var bytesRemaining = size
     while bytesRemaining > 0 {
       let maxReadBytes = min(chunkSize, bytesRemaining)
-      let result = receive(buffer, size: maxReadBytes)
+      let result = unsafe receive(buffer, size: maxReadBytes)
       if result == 0 {
         break
       }
       if result == -1 {
-        throw LockdownServiceConnectionError.receiveFailed(
+        throw unsafe LockdownServiceConnectionError.receiveFailed(
           bytes: maxReadBytes, reason: String(cString: strerror(errno)))
       }
       let readBytes = Int(result)
@@ -321,7 +322,7 @@ public final class LockdownServiceConnection: CustomStringConvertible {
         throw LockdownServiceConnectionError.readMoreThanRemained(read: readBytes, remaining: bytesRemaining)
       }
       bytesRemaining -= readBytes
-      enumerator(Data(bytesNoCopy: buffer, count: readBytes, deallocator: .none))
+      unsafe enumerator(Data(bytesNoCopy: buffer, count: readBytes, deallocator: .none))
     }
 
     guard bytesRemaining == 0 else {
@@ -379,13 +380,13 @@ final class LockdownServiceConnectionReader {
     state = .reading
     schedule { [self] in
       let buffer = UnsafeMutableRawPointer.allocate(byteCount: ReadBufferSize, alignment: MemoryLayout<UInt8>.alignment)
-      defer { buffer.deallocate() }
+      defer { unsafe buffer.deallocate() }
       while state == .reading {
-        let readBytes = connection.receive(buffer, size: ReadBufferSize)
+        let readBytes = unsafe connection.receive(buffer, size: ReadBufferSize)
         if readBytes < 1 {
           break
         }
-        consumer.consumeData(Data(bytes: buffer, count: Int(readBytes)))
+        unsafe consumer.consumeData(Data(bytes: buffer, count: Int(readBytes)))
       }
       consumer.consumeEndOfFile()
       state = .finishedReadingNormally

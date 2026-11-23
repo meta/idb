@@ -5,7 +5,7 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-@preconcurrency import FBControlCore
+import FBControlCore
 import Foundation
 import MobileDeviceAPI
 
@@ -192,20 +192,20 @@ final class HouseArrestService: @unchecked Sendable {
     logger.log("Starting house arrest for '\(bundleID)'")
     var afcConnection: Unmanaged<AnyObject>?
     let status =
-      device.calls.CreateHouseArrestService?(
+      unsafe device.calls.CreateHouseArrestService?(
         device.amDeviceRef,
         bundleID as CFString,
         nil,
         &afcConnection
       ) ?? -1
     guard status == 0 else {
-      let message = device.calls.CopyErrorText?(status)?.takeRetainedValue() as String? ?? "unknown"
+      let message = unsafe device.calls.CopyErrorText?(status)?.takeRetainedValue() as String? ?? "unknown"
       throw AMDeviceServiceError.houseArrestStartFailed(bundleID: bundleID, status: status, message: message)
     }
-    guard let afcConnection else {
+    guard let afcConnection = unsafe afcConnection else {
       throw AMDeviceServiceError.houseArrestConnectionMissing(bundleID: bundleID)
     }
-    return FileConduit(connection: afcConnection.takeUnretainedValue(), calls: afcCalls, logger: logger)
+    return unsafe FileConduit(connection: afcConnection.takeUnretainedValue(), calls: afcCalls, logger: logger)
   }
 
   /// The idle window is best-effort cancelled rather than reliably so, hence the second check for

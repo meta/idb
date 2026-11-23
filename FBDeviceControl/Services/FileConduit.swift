@@ -5,7 +5,7 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-@preconcurrency import FBControlCore
+import FBControlCore
 import Foundation
 import MobileDeviceAPI
 
@@ -22,7 +22,7 @@ private func afcConnectionCallback(
   _ afcOperationPtr: UnsafeMutableRawPointer?
 ) {
   let logger = ControlCoreGlobalConfiguration.defaultLogger
-  logger.log("Connection \(String(describing: connectionRefPtr)), operation \(String(describing: afcOperationPtr))")
+  logger.log(unsafe "Connection \(String(describing: connectionRefPtr)), operation \(String(describing: afcOperationPtr))")
 }
 
 public enum FileConduitError: Error {
@@ -90,7 +90,8 @@ extension FileConduitError: LocalizedError {
 }
 
 /// An Object-Wrapper around AFCConnectionRef.
-public final class FileConduit {
+// @safe: The connection reference is closed only here; callers only see the object.
+@safe public final class FileConduit {
 
   // MARK: - Properties
 
@@ -102,13 +103,13 @@ public final class FileConduit {
   private var connectionRef: Unmanaged<AnyObject>?
 
   public var connection: AFCConnection? {
-    connectionRef?.takeUnretainedValue()
+    unsafe connectionRef?.takeUnretainedValue()
   }
 
   // MARK: - Initializers
 
   public init(connection: AFCConnection?, calls: AFCCalls, logger: (any ControlCoreLogger)?) {
-    self.connectionRef = connection.map { Unmanaged.passUnretained($0 as AnyObject) }
+    unsafe self.connectionRef = unsafe connection.map { unsafe Unmanaged.passUnretained($0 as AnyObject) }
     self.calls = calls
     self.logger = logger
   }
@@ -120,7 +121,7 @@ public final class FileConduit {
     calls: AFCCalls,
     logger: any ControlCoreLogger
   ) throws -> FileConduit {
-    let connection = serviceConnection.asAFCConnection(
+    let connection = unsafe serviceConnection.asAFCConnection(
       calls: calls, callback: afcConnectionCallback, logger: logger)
     guard connection.connectionIsValid else {
       // Discarding the close error: the caller's failure is the invalidity, not whatever closing
@@ -135,7 +136,7 @@ public final class FileConduit {
 
   public func copy(fromHost hostPath: String, toContainerPath containerPath: String) throws {
     var isDirectory: ObjCBool = false
-    guard FileManager.default.fileExists(atPath: hostPath, isDirectory: &isDirectory) else {
+    guard unsafe FileManager.default.fileExists(atPath: hostPath, isDirectory: &isDirectory) else {
       throw FileConduitError.hostFileMissing(path: hostPath)
     }
     let lastComponent = (hostPath as NSString).lastPathComponent
@@ -152,7 +153,7 @@ public final class FileConduit {
 
   public func createDirectory(_ path: String) throws {
     logger?.log("Creating Directory \(path)")
-    let result = calls.DirectoryCreate(connection, path)
+    let result = unsafe calls.DirectoryCreate(connection, path)
     guard result == 0 else {
       throw FileConduitError.createDirectoryFailed(message: errorMessage(code: result))
     }
@@ -162,20 +163,20 @@ public final class FileConduit {
   public func contents(ofDirectory path: String) throws -> [String] {
     logger?.log("Listing contents of directory \(path)")
     var directory: Unmanaged<CFTypeRef>?
-    let result = calls.DirectoryOpen(connection, path, &directory)
+    let result = unsafe calls.DirectoryOpen(connection, path, &directory)
     guard result == 0 else {
       throw FileConduitError.openDirectoryFailed(path: path, message: errorMessage(code: result))
     }
-    let directoryRef = directory?.takeUnretainedValue()
+    let directoryRef = unsafe directory?.takeUnretainedValue()
 
     var entries: [String] = []
     while true {
       var listing: UnsafeMutablePointer<CChar>?
-      _ = calls.DirectoryRead(connection, directoryRef, &listing)
-      guard let listing else {
+      _ = unsafe calls.DirectoryRead(connection, directoryRef, &listing)
+      guard let listing = unsafe listing else {
         break
       }
-      let entry = String(cString: listing)
+      let entry = unsafe String(cString: listing)
       if entry == SingleDot || entry == DoubleDot {
         continue
       }
@@ -190,28 +191,28 @@ public final class FileConduit {
   public func contents(ofPath path: String) throws -> Data {
     logger?.log("Contents of path \(path)")
     var file: Unmanaged<CFTypeRef>?
-    let result = calls.FileRefOpen(connection, path, FBAFCReadOnlyMode, &file)
+    let result = unsafe calls.FileRefOpen(connection, path, FBAFCReadOnlyMode, &file)
     guard result == 0 else {
       throw FileConduitError.openFileFailed(path: path, message: errorMessage(code: result))
     }
-    let fileRef = file?.takeUnretainedValue()
+    let fileRef = unsafe file?.takeUnretainedValue()
 
     _ = calls.FileRefSeek(connection, fileRef, 0, 2)
     var offset: UInt64 = 0
-    _ = calls.FileRefTell(connection, fileRef, &offset)
+    _ = unsafe calls.FileRefTell(connection, fileRef, &offset)
     _ = calls.FileRefSeek(connection, fileRef, 0, 0)
 
     let length = Int(offset)
     var buffer = Data(count: length)
     var readResult: Int32 = 0
-    buffer.withUnsafeMutableBytes { destination in
+    unsafe buffer.withUnsafeMutableBytes { destination in
       guard let base = destination.baseAddress else {
         return
       }
       var toRead = offset
       while toRead > 0 {
         var read = toRead
-        readResult = calls.FileRefRead(connection, fileRef, base.advanced(by: length - Int(toRead)), &read)
+        readResult = unsafe calls.FileRefRead(connection, fileRef, base.advanced(by: length - Int(toRead)), &read)
         toRead -= read
         if readResult != 0 {
           return
@@ -232,7 +233,7 @@ public final class FileConduit {
       return
     }
     logger?.log("Removing file path \(path)")
-    let result = calls.RemovePath(connection, path)
+    let result = unsafe calls.RemovePath(connection, path)
     guard result == 0 else {
       throw FileConduitError.removePathFailed(path: path, message: errorMessage(code: result))
     }
@@ -240,7 +241,7 @@ public final class FileConduit {
   }
 
   func renamePath(_ path: String, destination: String) throws {
-    let result = calls.RenamePath(connection, path, destination)
+    let result = unsafe calls.RenamePath(connection, path, destination)
     guard result == 0 else {
       throw FileConduitError.renamePathFailed(
         path: path, destination: destination, message: errorMessage(code: result))
@@ -248,10 +249,10 @@ public final class FileConduit {
   }
 
   public func close() throws {
-    guard let connectionRef else {
+    guard let connectionRef = unsafe connectionRef else {
       throw FileConduitError.noConnectionToClose
     }
-    let reference = connectionRef.takeUnretainedValue()
+    let reference = unsafe connectionRef.takeUnretainedValue()
     let connectionDescription = CFCopyDescription(reference) as String? ?? "unknown"
     logger?.log("Closing \(connectionDescription)")
     let status = calls.ConnectionClose(reference)
@@ -259,7 +260,7 @@ public final class FileConduit {
       throw FileConduitError.closeFailed(status: status)
     }
     logger?.log("Closed AFC Connection \(connectionDescription)")
-    self.connectionRef = nil
+    unsafe self.connectionRef = nil
   }
 
   var connectionIsValid: Bool {
@@ -276,30 +277,30 @@ public final class FileConduit {
     guard let bundle = Bundle(identifier: "com.apple.mobiledevice"), bundle.isLoaded else {
       return calls
     }
-    let handle = bundle.dlopenExecutablePath()
-    calls.ConnectionClose = symbol(handle, "AFCConnectionClose")
-    calls.ConnectionCopyLastErrorInfo = symbol(handle, "AFCConnectionCopyLastErrorInfo")
-    calls.ConnectionIsValid = symbol(handle, "AFCConnectionIsValid")
-    calls.ConnectionOpen = symbol(handle, "AFCConnectionOpen")
-    calls.ConnectionProcessOperation = symbol(handle, "AFCConnectionProcessOperation")
-    calls.Create = symbol(handle, "AFCConnectionCreate")
-    calls.DirectoryClose = symbol(handle, "AFCDirectoryClose")
-    calls.DirectoryCreate = symbol(handle, "AFCDirectoryCreate")
-    calls.DirectoryOpen = symbol(handle, "AFCDirectoryOpen")
-    calls.DirectoryRead = symbol(handle, "AFCDirectoryRead")
-    calls.ErrorString = symbol(handle, "AFCErrorString")
-    calls.FileRefClose = symbol(handle, "AFCFileRefClose")
-    calls.FileRefOpen = symbol(handle, "AFCFileRefOpen")
-    calls.FileRefRead = symbol(handle, "AFCFileRefRead")
-    calls.FileRefSeek = symbol(handle, "AFCFileRefSeek")
-    calls.FileRefTell = symbol(handle, "AFCFileRefTell")
-    calls.FileRefWrite = symbol(handle, "AFCFileRefWrite")
-    calls.OperationCreateRemovePathAndContents = symbol(handle, "AFCOperationCreateRemovePathAndContents")
-    calls.OperationGetResultObject = symbol(handle, "AFCOperationGetResultObject")
-    calls.OperationGetResultStatus = symbol(handle, "AFCOperationGetResultStatus")
-    calls.RemovePath = symbol(handle, "AFCRemovePath")
-    calls.RenamePath = symbol(handle, "AFCRenamePath")
-    calls.SetSecureContext = symbol(handle, "AFCConnectionSetSecureContext")
+    let handle = unsafe bundle.dlopenExecutablePath()
+    calls.ConnectionClose = unsafe symbol(handle, "AFCConnectionClose")
+    unsafe calls.ConnectionCopyLastErrorInfo = unsafe symbol(handle, "AFCConnectionCopyLastErrorInfo")
+    calls.ConnectionIsValid = unsafe symbol(handle, "AFCConnectionIsValid")
+    unsafe calls.ConnectionOpen = unsafe symbol(handle, "AFCConnectionOpen")
+    calls.ConnectionProcessOperation = unsafe symbol(handle, "AFCConnectionProcessOperation")
+    unsafe calls.Create = unsafe symbol(handle, "AFCConnectionCreate")
+    calls.DirectoryClose = unsafe symbol(handle, "AFCDirectoryClose")
+    unsafe calls.DirectoryCreate = unsafe symbol(handle, "AFCDirectoryCreate")
+    unsafe calls.DirectoryOpen = unsafe symbol(handle, "AFCDirectoryOpen")
+    unsafe calls.DirectoryRead = unsafe symbol(handle, "AFCDirectoryRead")
+    unsafe calls.ErrorString = unsafe symbol(handle, "AFCErrorString")
+    calls.FileRefClose = unsafe symbol(handle, "AFCFileRefClose")
+    unsafe calls.FileRefOpen = unsafe symbol(handle, "AFCFileRefOpen")
+    unsafe calls.FileRefRead = unsafe symbol(handle, "AFCFileRefRead")
+    calls.FileRefSeek = unsafe symbol(handle, "AFCFileRefSeek")
+    unsafe calls.FileRefTell = unsafe symbol(handle, "AFCFileRefTell")
+    unsafe calls.FileRefWrite = unsafe symbol(handle, "AFCFileRefWrite")
+    unsafe calls.OperationCreateRemovePathAndContents = unsafe symbol(handle, "AFCOperationCreateRemovePathAndContents")
+    unsafe calls.OperationGetResultObject = unsafe symbol(handle, "AFCOperationGetResultObject")
+    calls.OperationGetResultStatus = unsafe symbol(handle, "AFCOperationGetResultStatus")
+    unsafe calls.RemovePath = unsafe symbol(handle, "AFCRemovePath")
+    unsafe calls.RenamePath = unsafe symbol(handle, "AFCRenamePath")
+    unsafe calls.SetSecureContext = unsafe symbol(handle, "AFCConnectionSetSecureContext")
     return calls
   }()
 
@@ -311,21 +312,21 @@ public final class FileConduit {
       throw FileConduitError.hostFileMissing(path: hostPath)
     }
     var fileReference: Unmanaged<CFTypeRef>?
-    let result = calls.FileRefOpen(connection, containerPath, FBAFCreateReadAndWrite, &fileReference)
+    let result = unsafe calls.FileRefOpen(connection, containerPath, FBAFCreateReadAndWrite, &fileReference)
     guard result == 0 else {
       throw FileConduitError.openFileFailed(path: containerPath, message: errorMessage(code: result))
     }
-    let fileRef = fileReference?.takeUnretainedValue()
+    let fileRef = unsafe fileReference?.takeUnretainedValue()
 
     // Written region by region with an early stop: flattening a non-contiguous Data first would
     // materialize the whole file in memory.
     var writeResult: Int32 = 0
     for region in data.regions where !region.isEmpty {
-      region.withUnsafeBytes { bytes in
+      unsafe region.withUnsafeBytes { bytes in
         guard let base = bytes.baseAddress else {
           return
         }
-        writeResult = calls.FileRefWrite(connection, fileRef, base, UInt64(bytes.count))
+        writeResult = unsafe calls.FileRefWrite(connection, fileRef, base, UInt64(bytes.count))
       }
       if writeResult != 0 {
         break
@@ -363,7 +364,7 @@ public final class FileConduit {
   private func removePathAndContents(_ path: String) throws {
     logger?.log("Removing path \(path) and contents")
     guard
-      let operation = calls.OperationCreateRemovePathAndContents(
+      let operation = unsafe calls.OperationCreateRemovePathAndContents(
         CFGetAllocator(connection), path as CFString, nil)?.takeRetainedValue()
     else {
       throw FileConduitError.removalOperationNotCreated(path: path)
@@ -380,7 +381,7 @@ public final class FileConduit {
     if status == 0 {
       return
     }
-    let resultObject = calls.OperationGetResultObject(operation)?.takeUnretainedValue()
+    let resultObject = unsafe calls.OperationGetResultObject(operation)?.takeUnretainedValue()
     guard let info = resultObject as? [String: Any] else {
       throw FileConduitError.operationFailed(status: status, resultObject: String(describing: resultObject))
     }
@@ -392,13 +393,13 @@ public final class FileConduit {
   }
 
   private func errorMessage(code: Int32) -> String {
-    let name = calls.ErrorString(code).map { String(cString: $0) } ?? ""
-    let info = calls.ConnectionCopyLastErrorInfo(connection)?.takeRetainedValue() as? [String: Any] ?? [:]
+    let name = unsafe calls.ErrorString(code).map { unsafe String(cString: $0) } ?? ""
+    let info = unsafe calls.ConnectionCopyLastErrorInfo(connection)?.takeRetainedValue() as? [String: Any] ?? [:]
     return "\(name) \(CollectionInformation.oneLineDescription(from: info))"
   }
 }
 
 /// Reinterprets a `dlsym` result as the function pointer the call table expects.
 private func symbol<T>(_ handle: UnsafeMutableRawPointer, _ name: String) -> T {
-  unsafeBitCast(symbolFromHandle(handle, name), to: T.self)
+  unsafe unsafeBitCast(symbolFromHandle(handle, name), to: T.self)
 }

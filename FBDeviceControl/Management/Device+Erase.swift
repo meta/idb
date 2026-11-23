@@ -5,7 +5,7 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-@preconcurrency import FBControlCore
+import FBControlCore
 import Foundation
 import MobileDeviceAPI
 
@@ -65,21 +65,21 @@ private final class DeviceEraseOperation: TargetSetDelegate, @unchecked Sendable
   /// the C erase callback (with a timeout).
   private func startErase() async throws -> Int32 {
     queue.async { [self] in
-      let selfContext = Unmanaged.passUnretained(self).toOpaque()
+      let selfContext = unsafe Unmanaged.passUnretained(self).toOpaque()
       _ = calls.AMSInitialize?(0)
       let status =
-        calls.AMSEraseDevice?(
+        unsafe calls.AMSEraseDevice?(
           udid as CFString,
           { _, progress, context in
-            guard let context else {
+            guard let context = unsafe context else {
               return 0
             }
-            let operation = Unmanaged<DeviceEraseOperation>.fromOpaque(context).takeUnretainedValue()
+            let operation = unsafe Unmanaged<DeviceEraseOperation>.fromOpaque(context).takeUnretainedValue()
             operation.logger.log("Erase Callback is \(progress)")
             operation.eraseCallbackResult.happen(progress)
             return 0
           },
-          selfContext
+          unsafe selfContext
         ) ?? -1
       logger.log("AMSEraseDevice had status \(status)")
     }

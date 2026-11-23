@@ -5,7 +5,7 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-@preconcurrency import FBControlCore
+import FBControlCore
 import Foundation
 
 /// Discovery of a set of devices, shared by the AMDevice and restorable device sources.
@@ -66,8 +66,8 @@ class DeviceManager<PublicDevice: AnyObject>: TargetSet, CustomStringConvertible
     _ privateDevice: CFTypeRef, identifier: String, info: [String: Any]?,
     update: ((PublicDevice) -> Void)? = nil
   ) {
-    let privateAddress = Unmanaged.passUnretained(privateDevice as AnyObject).toOpaque()
-    logger.log("Device Connected \(identifier) (\(privateAddress))")
+    let privateAddress = unsafe Unmanaged.passUnretained(privateDevice as AnyObject).toOpaque()
+    logger.log(unsafe "Device Connected \(identifier) (\(privateAddress))")
 
     // Pull from all known instances created by this class rather than the attached ones: consumers
     // may be holding a device that has been re-connected, and re-using the referenced instance
@@ -82,16 +82,16 @@ class DeviceManager<PublicDevice: AnyObject>: TargetSet, CustomStringConvertible
       logger.info().log("Created a new Device instance \(device)")
     }
 
-    let oldPrivateDevice = Self.extractPrivateReference(device)
-    if let oldPrivateDevice {
-      if oldPrivateDevice.toOpaque() != privateAddress {
-        logger.log("New '\(identifier)' (\(privateAddress)) replaces Old Device (\(oldPrivateDevice.toOpaque()))")
+    let oldPrivateDevice = unsafe Self.extractPrivateReference(device)
+    if let oldPrivateDevice = unsafe oldPrivateDevice {
+      if unsafe oldPrivateDevice.toOpaque() != privateAddress {
+        logger.log(unsafe "New '\(identifier)' (\(privateAddress)) replaces Old Device (\(oldPrivateDevice.toOpaque()))")
         Self.updatePublicReference(device, privateDevice: privateDevice, identifier: identifier, info: info)
       } else {
-        logger.log("Existing Device '\(identifier)' (\(privateAddress)) is the same as the old")
+        logger.log(unsafe "Existing Device '\(identifier)' (\(privateAddress)) is the same as the old")
       }
     } else {
-      logger.log("New '\(identifier)' (\(privateAddress)) appeared for the first time")
+      logger.log(unsafe "New '\(identifier)' (\(privateAddress)) appeared for the first time")
       Self.updatePublicReference(device, privateDevice: privateDevice, identifier: identifier, info: info)
     }
 
@@ -104,14 +104,14 @@ class DeviceManager<PublicDevice: AnyObject>: TargetSet, CustomStringConvertible
   }
 
   func deviceDisconnected(_ privateDevice: CFTypeRef, identifier: String) {
-    deviceDisconnected(identifier: identifier, address: Unmanaged.passUnretained(privateDevice as AnyObject).toOpaque())
+    unsafe deviceDisconnected(identifier: identifier, address: Unmanaged.passUnretained(privateDevice as AnyObject).toOpaque())
   }
 
   func deviceDisconnected(identifier: String, address: UnsafeMutableRawPointer) {
     // The private ref may already be dead by the time a disconnect callback fires, so log it by
     // identifier and address only; never dereference it.
-    let privateAddress = address
-    logger.log("Device Disconnected \(identifier) (\(privateAddress))")
+    let privateAddress = unsafe address
+    logger.log(unsafe "Device Disconnected \(identifier) (\(privateAddress))")
     guard let device = storage.device(forKey: identifier) else {
       logger.log("No Device named \(identifier) from attached devices, nothing to remove")
       return

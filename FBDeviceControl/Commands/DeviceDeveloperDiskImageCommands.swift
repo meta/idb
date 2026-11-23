@@ -5,7 +5,7 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-@preconcurrency import FBControlCore
+import FBControlCore
 import Foundation
 import MobileDeviceAPI
 
@@ -20,8 +20,8 @@ private let ImageMounterService = "com.apple.mobile.mobile_image_mounter"
 private let DiskImageMountingError: Int32 = -402653066 // 0xe8000076
 
 private func mountCallback(_ callbackDictionary: [String: Any]?, _ context: UnsafeMutableRawPointer?) {
-  guard let context, let callbackDictionary else { return }
-  let device = Unmanaged<AnyObject>.fromOpaque(context).takeUnretainedValue()
+  guard let context = unsafe context, let callbackDictionary else { return }
+  let device = unsafe Unmanaged<AnyObject>.fromOpaque(context).takeUnretainedValue()
   if let logger = (device as? (any DeviceCommands))?.logger {
     logger.log("Mount Progress: \(CollectionInformation.oneLineDescription(from: callbackDictionary))")
   }
@@ -176,9 +176,9 @@ public final class DeviceDeveloperDiskImageCommands: DeveloperDiskImageCommands 
         ImageSignatureKey: diskImage.signature,
         ImageTypeKey: imageType,
       ]
-      let context = Unmanaged.passUnretained(connectedDevice as AnyObject).toOpaque()
+      let context = unsafe Unmanaged.passUnretained(connectedDevice as AnyObject).toOpaque()
       let status =
-        connectedDevice.calls.MountImage?(
+        unsafe connectedDevice.calls.MountImage?(
           connectedDevice.amDeviceRef,
           diskImage.diskImagePath as CFString,
           options as CFDictionary,
@@ -188,7 +188,7 @@ public final class DeviceDeveloperDiskImageCommands: DeveloperDiskImageCommands 
       if status == DiskImageMountingError {
         throw DeviceDiskImageError.wrongImageMounted(imageDescription: String(describing: diskImage))
       } else if status != 0 {
-        let internalMessage = connectedDevice.calls.CopyErrorText?(status)?.takeRetainedValue() as String? ?? "Unknown error"
+        let internalMessage = unsafe connectedDevice.calls.CopyErrorText?(status)?.takeRetainedValue() as String? ?? "Unknown error"
         throw DeviceDiskImageError.mountFailed(imagePath: diskImage.diskImagePath, status: status, message: internalMessage)
       }
       return diskImage

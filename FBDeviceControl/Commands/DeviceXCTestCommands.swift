@@ -5,7 +5,7 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-@preconcurrency import FBControlCore
+import FBControlCore
 import FBXCTestCore
 import Foundation
 import MobileDeviceAPI
@@ -92,10 +92,10 @@ public final class DeviceXCTestCommands: XCTestCommands {
     guard let device else {
       throw DeviceNilError.deviceNil
     }
-    guard let identifier = device.calls.CopyDeviceIdentifier(device.amDeviceRef) else {
+    guard let identifier = unsafe device.calls.CopyDeviceIdentifier(device.amDeviceRef) else {
       throw DeviceXCTestError.deviceIdentifierUnavailable(deviceDescription: String(describing: device))
     }
-    let udid = identifier.takeRetainedValue() as String
+    let udid = unsafe identifier.takeRetainedValue() as String
 
     return try await XcodeBuildOperation.operation(withUDID: udid, configuration: configuration, xcodeBuildPath: xcodeBuildPath, testRunFilePath: filePath, simDeviceSet: nil, macOSTestShimPath: nil, logger: logger.withName("xcodebuild"))
   }

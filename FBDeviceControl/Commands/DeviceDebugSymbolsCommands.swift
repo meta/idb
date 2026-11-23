@@ -5,7 +5,7 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-@preconcurrency import FBControlCore
+import FBControlCore
 import Foundation
 
 private let FetchSymbolsService = "com.apple.dt.fetchsymbols"
@@ -198,7 +198,7 @@ public final class DeviceDebugSymbolsCommands {
     }
     var response: UInt32 = 0
     do {
-      try connection.receiveUnsignedInt32(&response)
+      unsafe try connection.receiveUnsignedInt32(&response)
     } catch {
       throw DeviceDebugSymbolsError.commandResponseFailed(command: commandName, message: String(describing: error))
     }
@@ -220,7 +220,7 @@ public final class DeviceDebugSymbolsCommands {
     }
     var receiveLengthWire: UInt64 = 0
     do {
-      try connection.receiveUnsignedInt64(&receiveLengthWire)
+      unsafe try connection.receiveUnsignedInt64(&receiveLengthWire)
     } catch {
       throw DeviceDebugSymbolsError.fileLengthReceiveFailed(message: String(describing: error))
     }
@@ -271,9 +271,9 @@ public final class DeviceDebugSymbolsCommands {
     toDestinationDirectory destinationDirectory: String,
     logger: any ControlCoreLogger
   ) throws {
-    let extractor = try sharedCacheExtractor()
+    let extractor = unsafe try sharedCacheExtractor()
     logger.log("Extracting shared cache at \(sharedCacheFile) to directory at \(destinationDirectory)")
-    let status = extractor(sharedCacheFile, destinationDirectory) { completed, total in
+    let status = unsafe extractor(sharedCacheFile, destinationDirectory) { completed, total in
       logger.log("Completed \(completed) Total \(total)")
     }
     guard status == 0 else {
@@ -287,14 +287,14 @@ public final class DeviceDebugSymbolsCommands {
 
   private static func sharedCacheExtractor() throws -> SharedCacheExtractor {
     let path = try pathForSharedCacheExtractor()
-    guard let handle = dlopen(path, RTLD_LAZY) else {
+    guard let handle = unsafe dlopen(path, RTLD_LAZY) else {
       throw DeviceDebugSymbolsError.extractorNotLoaded(path: path)
     }
     let name = "dyld_shared_cache_extract_dylibs_progress"
-    guard let address = symbolFromHandleIfPresent(handle, name) else {
+    guard let address = unsafe symbolFromHandleIfPresent(handle, name) else {
       throw DeviceDebugSymbolsError.extractorSymbolNotFound(name: name, path: path)
     }
-    return unsafeBitCast(address, to: SharedCacheExtractor.self)
+    return unsafe unsafeBitCast(address, to: SharedCacheExtractor.self)
   }
 
   private static func pathForSharedCacheExtractor() throws -> String {

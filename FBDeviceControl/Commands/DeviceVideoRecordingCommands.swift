@@ -6,7 +6,7 @@
  */
 
 import AVFoundation
-@preconcurrency import FBControlCore
+import FBControlCore
 import FBVideoCore
 import Foundation
 

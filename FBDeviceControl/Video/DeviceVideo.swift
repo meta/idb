@@ -42,7 +42,7 @@ public final class DeviceVideo {
       mElement: CMIOObjectPropertyElement(kCMIOObjectPropertyElementMain)
     )
     var allow: UInt32 = 1
-    let status = CMIOObjectSetPropertyData(
+    let status = unsafe CMIOObjectSetPropertyData(
       CMIOObjectID(kCMIOObjectSystemObject),
       &properties,
       0,

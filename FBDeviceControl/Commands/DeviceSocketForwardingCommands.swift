@@ -5,7 +5,7 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-@preconcurrency import FBControlCore
+import FBControlCore
 import Foundation
 import MobileDeviceAPI
 
@@ -71,7 +71,7 @@ public struct DeviceSocketForwardingCommands {
       let writerDescriptor = dup(localSocket)
       guard writerDescriptor >= 0 else {
         close(localSocket)
-        throw DeviceSocketForwardingError.socketDuplicationFailed(message: String(cString: strerror(errno)))
+        throw unsafe DeviceSocketForwardingError.socketDuplicationFailed(message: String(cString: strerror(errno)))
       }
       let remoteWriter: any DataConsumer & DataConsumerLifecycle
       do {
@@ -125,10 +125,10 @@ public struct DeviceSocketForwardingCommands {
     }
     logger?.log("Got connection ID \(connectionID), for device. Connecting to remote port \(remotePort)")
     var localSocket: Int32 = 0
-    guard let usbMuxConnect = device.calls.USBMuxConnectByPort else {
+    guard let usbMuxConnect = unsafe device.calls.USBMuxConnectByPort else {
       throw DeviceSocketForwardingError.callUnavailable(function: "USBMuxConnectByPort")
     }
-    let status = usbMuxConnect(connectionID, Int32(UInt16(remotePort).bigEndian), &localSocket)
+    let status = unsafe usbMuxConnect(connectionID, Int32(UInt16(remotePort).bigEndian), &localSocket)
     if status != 0 {
       throw DeviceSocketForwardingError.remoteConnectionFailed(remotePort: remotePort)
     }

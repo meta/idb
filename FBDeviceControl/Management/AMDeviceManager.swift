@@ -5,14 +5,15 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-@preconcurrency import FBControlCore
+import FBControlCore
 import Foundation
 import MobileDeviceAPI
 
 private let mobileBackupDomain = "com.apple.mobile.backup"
 private let serviceReuseTimeout: TimeInterval = 6.0
 
-private final class AMDeviceNotificationPayload {
+// @safe: Releases the reference in `deinit` exactly when `init` retained it; callers only see the object.
+@safe private final class AMDeviceNotificationPayload {
   let reference: Unmanaged<AnyObject>
   let status: AMDeviceNotificationType
   private let calls: AMDCalls
@@ -22,17 +23,17 @@ private final class AMDeviceNotificationPayload {
   }
 
   init(reference: Unmanaged<AnyObject>, status: AMDeviceNotificationType, calls: AMDCalls) {
-    self.reference = reference
+    unsafe self.reference = unsafe reference
     self.status = status
     self.calls = calls
     if ownsReference {
-      calls.Retain(reference.takeUnretainedValue())
+      unsafe calls.Retain(reference.takeUnretainedValue())
     }
   }
 
   deinit {
     if ownsReference {
-      calls.Release(reference.takeUnretainedValue())
+      unsafe calls.Release(reference.takeUnretainedValue())
     }
   }
 }
@@ -56,7 +57,7 @@ private func amDeviceConnected(_ device: AMDevice, manager: AMDeviceManager) {
   // `CFStringRef` while MobileDevice returns whatever CF type the key holds. The ECID comes back
   // as a number on some devices and a string on others, so accepting only one silently drops the
   // devices reporting the other.
-  let rawChipID = calls.CopyValue(device, nil, DeviceKey.uniqueChipID.rawValue as CFString)?.takeRetainedValue() as AnyObject?
+  let rawChipID = unsafe calls.CopyValue(device, nil, DeviceKey.uniqueChipID.rawValue as CFString)?.takeRetainedValue() as AnyObject?
   guard let uniqueChipID = (rawChipID as? NSNumber)?.stringValue ?? (rawChipID as? String) else {
     AMDeviceUsage.stopConnection(to: device, calls: calls, logger: logger)
     logger.error().log("Ignoring device as cannot obtain ECID for it")
@@ -104,11 +105,11 @@ private func amDeviceListenerCallback(
   _ notification: UnsafeMutablePointer<AMDeviceNotification>?,
   _ context: UnsafeMutableRawPointer?
 ) {
-  guard let notification, let context else {
+  guard let notification = unsafe notification, let context = unsafe context else {
     return
   }
-  let manager = Unmanaged<AMDeviceManager>.fromOpaque(context).takeUnretainedValue()
-  let payload = AMDeviceNotificationPayload(
+  let manager = unsafe Unmanaged<AMDeviceManager>.fromOpaque(context).takeUnretainedValue()
+  let payload = unsafe AMDeviceNotificationPayload(
     reference: notification.pointee.amDevice,
     status: notification.pointee.status,
     calls: manager.calls)
@@ -122,14 +123,14 @@ private func handleAMDeviceNotification(_ payload: AMDeviceNotificationPayload, 
 
   switch payload.status {
   case .connected, .paired:
-    amDeviceConnected(payload.reference.takeUnretainedValue(), manager: manager)
+    unsafe amDeviceConnected(payload.reference.takeUnretainedValue(), manager: manager)
   case .disconnected:
-    let address = payload.reference.toOpaque()
-    guard let identifier = manager.identifier(forDeviceAddress: address) else {
-      logger.log("Cannot obtain identifier for device at \(address)")
+    let address = unsafe payload.reference.toOpaque()
+    guard let identifier = unsafe manager.identifier(forDeviceAddress: address) else {
+      logger.log(unsafe "Cannot obtain identifier for device at \(address)")
       return
     }
-    manager.deviceDisconnected(identifier: identifier, address: address)
+    unsafe manager.deviceDisconnected(identifier: identifier, address: address)
   case .unsubscribed:
     logger.log("Unsubscribed from AMDeviceNotificationSubscribe")
   default:
@@ -138,7 +139,8 @@ private func handleAMDeviceNotification(_ payload: AMDeviceNotificationPayload, 
 }
 
 /// Obtains `MobileDevice` instances.
-final class AMDeviceManager: DeviceManager<MobileDevice> {
+// @safe: The notification subscription is registered and unregistered only here, and never handed out.
+@safe final class AMDeviceManager: DeviceManager<MobileDevice> {
 
   // MARK: - Properties
 
@@ -165,16 +167,16 @@ final class AMDeviceManager: DeviceManager<MobileDevice> {
   // MARK: - DeviceManager Implementation
 
   override func startListening() throws {
-    guard subscription == nil else {
+    guard unsafe subscription == nil else {
       throw AMDeviceManagerError.alreadySubscribed
     }
 
     // Retained for as long as the subscription lasts, so the callback's context stays valid.
     // Tidied up when unsubscribing.
-    let context = Unmanaged.passRetained(self).toOpaque()
+    let context = unsafe Unmanaged.passRetained(self).toOpaque()
     notifications.resume()
     var subscription: AMDNotificationSubscription?
-    let result = calls.NotificationSubscribe(
+    let result = unsafe calls.NotificationSubscribe(
       amDeviceListenerCallback,
       0,
       0,
@@ -182,27 +184,27 @@ final class AMDeviceManager: DeviceManager<MobileDevice> {
       &subscription)
     guard result == 0 else {
       notifications.pause()
-      Unmanaged<AMDeviceManager>.fromOpaque(context).release()
+      unsafe Unmanaged<AMDeviceManager>.fromOpaque(context).release()
       throw AMDeviceManagerError.subscribeFailed(status: result)
     }
 
-    self.subscription = subscription
+    unsafe self.subscription = unsafe subscription
   }
 
   override func stopListening() throws {
-    guard let subscription else {
+    guard let subscription = unsafe subscription else {
       throw AMDeviceManagerError.notSubscribed
     }
 
-    let result = calls.NotificationUnsubscribe(subscription)
+    let result = unsafe calls.NotificationUnsubscribe(subscription)
     guard result == 0 else {
       throw AMDeviceManagerError.unsubscribeFailed(status: result)
     }
 
     notifications.pause()
     // Balances the retain taken in startListening.
-    Unmanaged.passUnretained(self).release()
-    self.subscription = nil
+    unsafe Unmanaged.passUnretained(self).release()
+    unsafe self.subscription = nil
   }
 
   override func constructPublic(
@@ -234,7 +236,7 @@ final class AMDeviceManager: DeviceManager<MobileDevice> {
     guard let reference = publicDevice.amDeviceRef else {
       return nil
     }
-    return Unmanaged.passUnretained(reference as AnyObject)
+    return unsafe Unmanaged.passUnretained(reference as AnyObject)
   }
 
   // MARK: - Private
@@ -242,7 +244,7 @@ final class AMDeviceManager: DeviceManager<MobileDevice> {
   fileprivate func identifier(forDeviceAddress address: UnsafeMutableRawPointer) -> String? {
     // Compared by address: equality on the bridged opaque reference is not reliable.
     for device in storage.referenced.values {
-      if let reference = device.amDeviceRef, Unmanaged.passUnretained(reference as AnyObject).toOpaque() == address {
+      if let reference = device.amDeviceRef, unsafe Unmanaged.passUnretained(reference as AnyObject).toOpaque() == address {
         return device.uniqueIdentifier
       }
     }

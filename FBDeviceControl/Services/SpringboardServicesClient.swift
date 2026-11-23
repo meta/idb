@@ -5,7 +5,7 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-@preconcurrency import FBControlCore
+import FBControlCore
 import Foundation
 
 public struct WallpaperName: RawRepresentable, Equatable, Hashable, Sendable {
@@ -222,7 +222,7 @@ class SpringboardServicesIconContainer: AsyncFileContainer {
     }
     if filename == IconPlistFile {
       let data = try Data(contentsOf: URL(fileURLWithPath: sourcePath))
-      let layout = try PropertyListSerialization.propertyList(from: data, options: [], format: nil)
+      let layout = unsafe try PropertyListSerialization.propertyList(from: data, options: [], format: nil)
       do {
         return try SpringboardIconLayout(rawValue: layout)
       } catch {

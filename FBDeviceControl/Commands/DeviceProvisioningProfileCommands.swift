@@ -5,7 +5,7 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-@preconcurrency import FBControlCore
+import FBControlCore
 import Foundation
 import MobileDeviceAPI
 
@@ -45,13 +45,13 @@ public final class DeviceProvisioningProfileCommands: ProvisioningProfileCommand
 
   public func all() async throws -> [[String: Any]] {
     return try await device.withConnectedDevice(purpose: "list_provisioning_profiles") { connectedDevice in
-      guard let profiles = connectedDevice.calls.CopyProvisioningProfiles?(connectedDevice.amDeviceRef)?.takeRetainedValue() as? [Any] else {
+      guard let profiles = unsafe connectedDevice.calls.CopyProvisioningProfiles?(connectedDevice.amDeviceRef)?.takeRetainedValue() as? [Any] else {
         throw DeviceProvisioningProfileError.copyFailed
       }
       var allProfiles: [[String: Any]] = []
       for profile in profiles {
         let payloadRef = connectedDevice.calls.ProvisioningProfileCopyPayload?(profile as CFTypeRef)
-        var payload = payloadRef?.takeRetainedValue() as? [String: Any]
+        var payload = unsafe payloadRef?.takeRetainedValue() as? [String: Any]
         if let p = payload {
           payload = CollectionOperations.recursiveFilteredJSONSerializableRepresentation(of: p)
         }
@@ -68,7 +68,7 @@ public final class DeviceProvisioningProfileCommands: ProvisioningProfileCommand
       let status = connectedDevice.calls.RemoveProvisioningProfile?(connectedDevice.amDeviceRef, uuid as CFString) ?? -1
       if status != 0 {
         let errRef = connectedDevice.calls.ProvisioningProfileCopyErrorStringForCode?(status)
-        let errorDescription = errRef?.takeRetainedValue() as String? ?? "Unknown error"
+        let errorDescription = unsafe errRef?.takeRetainedValue() as String? ?? "Unknown error"
         throw DeviceProvisioningProfileError.removeFailed(uuid: uuid, message: errorDescription)
       }
       return [:]
@@ -80,15 +80,15 @@ public final class DeviceProvisioningProfileCommands: ProvisioningProfileCommand
       guard let profileUnmanaged = connectedDevice.calls.ProvisioningProfileCreateWithData?(profileData as CFData) else {
         throw DeviceProvisioningProfileError.constructionFailed(dataDescription: String(describing: profileData))
       }
-      let profile = profileUnmanaged.takeRetainedValue()
+      let profile = unsafe profileUnmanaged.takeRetainedValue()
       let status = connectedDevice.calls.InstallProvisioningProfile?(connectedDevice.amDeviceRef, profile) ?? -1
       if status != 0 {
         let errRef = connectedDevice.calls.ProvisioningProfileCopyErrorStringForCode?(status)
-        let errorDescription = errRef?.takeRetainedValue() as String? ?? "Unknown error"
+        let errorDescription = unsafe errRef?.takeRetainedValue() as String? ?? "Unknown error"
         throw DeviceProvisioningProfileError.installFailed(profileDescription: String(describing: profile), message: errorDescription)
       }
       let payloadRef = connectedDevice.calls.ProvisioningProfileCopyPayload?(profile)
-      var payload = payloadRef?.takeRetainedValue() as? [String: Any]
+      var payload = unsafe payloadRef?.takeRetainedValue() as? [String: Any]
       if let p = payload {
         payload = CollectionOperations.recursiveFilteredJSONSerializableRepresentation(of: p)
       }

@@ -5,7 +5,7 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-@preconcurrency import FBControlCore
+import FBControlCore
 import Foundation
 
 private let DefaultDRMHandshakeURL = "https://albert.apple.com/deviceservices/drmHandshake"
@@ -158,7 +158,7 @@ extension Device {
     if httpResponse.statusCode != 200 {
       throw DeviceActivationError.non200Response(response: String(describing: httpResponse))
     }
-    _ = try PropertyListSerialization.propertyList(from: responseData, options: [], format: nil)
+    _ = unsafe try PropertyListSerialization.propertyList(from: responseData, options: [], format: nil)
     return responseData
   }
 
@@ -182,7 +182,7 @@ extension Device {
     if httpResponse.statusCode != 200 {
       throw DeviceActivationError.non200Response(response: String(describing: httpResponse))
     }
-    let responsePlist = try PropertyListSerialization.propertyList(from: responseData, options: [], format: nil)
+    let responsePlist = unsafe try PropertyListSerialization.propertyList(from: responseData, options: [], format: nil)
     guard let responseDict = responsePlist as? [String: Any],
       let activationRecord = responseDict["ActivationRecord"]
     else {

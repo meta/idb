@@ -5,7 +5,7 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-@preconcurrency import FBControlCore
+import FBControlCore
 import Foundation
 
 private let connectionReadSizeLimit: size_t = 1024
@@ -79,9 +79,9 @@ public final class DeviceDebugServer: SocketServerDelegate, DebugServer {
     guard teardown.claimClient() else {
       logger.log("Rejecting connection, we have an existing pair")
       if let data = "$NEUnspecified#00".data(using: .ascii) {
-        data.withUnsafeBytes { bufferPointer in
+        unsafe data.withUnsafeBytes { bufferPointer in
           guard let baseAddress = bufferPointer.baseAddress else { return }
-          _ = Darwin.write(fileDescriptor, baseAddress, data.count)
+          _ = unsafe Darwin.write(fileDescriptor, baseAddress, data.count)
         }
       }
       close(fileDescriptor)
@@ -196,7 +196,7 @@ public final class DeviceDebugServer: SocketServerDelegate, DebugServer {
             break
           }
           do {
-            try connection.send(data as Data)
+            unsafe try connection.send(data as Data)
           } catch {
             logger.log("Sending data to remote debugserver failed: \(error)")
             break
@@ -211,16 +211,16 @@ public final class DeviceDebugServer: SocketServerDelegate, DebugServer {
       connectionToSocketQueue.async {
         while !ended.value {
           do {
-            let data = try connection.receiveUp(to: connectionReadSizeLimit)
+            let data = unsafe try connection.receiveUp(to: connectionReadSizeLimit)
             if data.isEmpty {
               logger.log("debugserver read ended")
               break
             }
-            data.withUnsafeBytes { bufferPointer in
+            unsafe data.withUnsafeBytes { bufferPointer in
               guard let baseAddress = bufferPointer.baseAddress else { return }
               var totalWritten = 0
               while totalWritten < data.count {
-                let written = Darwin.write(socket, baseAddress.advanced(by: totalWritten), data.count - totalWritten)
+                let written = unsafe Darwin.write(socket, baseAddress.advanced(by: totalWritten), data.count - totalWritten)
                 if written <= 0 {
                   logger.log("Socket write failed")
                   return
@@ -233,7 +233,7 @@ public final class DeviceDebugServer: SocketServerDelegate, DebugServer {
             break
           }
         }
-        logger.log("Exiting connection \(connection) read loop")
+        logger.log(unsafe "Exiting connection \(connection) read loop")
         ended.end()
         pumps.leave()
       }

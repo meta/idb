@@ -5,7 +5,7 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-@preconcurrency import FBControlCore
+import FBControlCore
 import Foundation
 import MobileDeviceAPI
 
@@ -17,7 +17,8 @@ struct RestorableDeviceNotificationState {
 }
 
 /// An Object Wrapper around AMRestorableDevice.
-public final class RestorableDevice: TargetInfo, DeviceProtocol {
+// @safe: The device reference is balanced on replacement and in `deinit`; callers only see the object.
+@safe public final class RestorableDevice: TargetInfo, DeviceProtocol {
 
   public let calls: AMDCalls
   public var allValues: [String: Any]
@@ -31,12 +32,12 @@ public final class RestorableDevice: TargetInfo, DeviceProtocol {
 
   var restorableDevice: AMRestorableDevice {
     get {
-      restorableDeviceRef.takeUnretainedValue()
+      unsafe restorableDeviceRef.takeUnretainedValue()
     }
     set {
-      let replacement = Unmanaged.passRetained(newValue as AnyObject)
-      restorableDeviceRef.release()
-      restorableDeviceRef = replacement
+      let replacement = unsafe Unmanaged.passRetained(newValue as AnyObject)
+      unsafe restorableDeviceRef.release()
+      unsafe restorableDeviceRef = unsafe replacement
     }
   }
 
@@ -49,7 +50,7 @@ public final class RestorableDevice: TargetInfo, DeviceProtocol {
     logger: any ControlCoreLogger
   ) {
     self.calls = calls
-    self.restorableDeviceRef = Unmanaged.passRetained(restorableDevice as AnyObject)
+    unsafe self.restorableDeviceRef = unsafe Unmanaged.passRetained(restorableDevice as AnyObject)
     self.allValues = allValues
     self.workQueue = workQueue
     self.asyncQueue = asyncQueue
@@ -57,7 +58,7 @@ public final class RestorableDevice: TargetInfo, DeviceProtocol {
   }
 
   deinit {
-    restorableDeviceRef.release()
+    unsafe restorableDeviceRef.release()
   }
 
   /// An owned reference with the values, state and recovery handle captured for this notification.
@@ -138,7 +139,7 @@ public final class RestorableDevice: TargetInfo, DeviceProtocol {
 
   public var recoveryModeDeviceRef: AMRecoveryModeDevice? {
     if let notificationState { return notificationState.recoveryDevice }
-    return calls.RestorableDeviceGetRecoveryModeDevice(restorableDevice)?.takeUnretainedValue()
+    return unsafe calls.RestorableDeviceGetRecoveryModeDevice(restorableDevice)?.takeUnretainedValue()
   }
 
   public var activationState: String {

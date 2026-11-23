@@ -15,10 +15,10 @@ import MobileDeviceAPI
 /// `symbolFromHandle` traps instead, which would take the process down on a missing symbol rather
 /// than let the loader report which one is absent.
 private func symbol<T>(_ handle: UnsafeMutableRawPointer, _ name: String) throws -> T {
-  guard let address = symbolFromHandleIfPresent(handle, name) else {
+  guard let address = unsafe symbolFromHandleIfPresent(handle, name) else {
     throw DeviceControlFrameworkLoaderError.symbolNotFound(name: name)
   }
-  return unsafeBitCast(address, to: T.self)
+  return unsafe unsafeBitCast(address, to: T.self)
 }
 
 /// Loads the frameworks FBDeviceControl depends on and initializes values.
@@ -58,10 +58,10 @@ public final class DeviceControlFrameworkLoader: FrameworkLoading, @unchecked Se
 
   /// Memberwise, so a symbol added to `AMDCalls` without being resolved here fails to compile.
   private static func resolveAMDeviceCalls() throws -> AMDCalls {
-    guard let handle = Bundle(identifier: "com.apple.mobiledevice")?.dlopenExecutablePath() else {
+    guard let handle = unsafe Bundle(identifier: "com.apple.mobiledevice")?.dlopenExecutablePath() else {
       throw DeviceControlFrameworkLoaderError.mobileDeviceUnavailable
     }
-    return try AMDCalls(
+    return unsafe try AMDCalls(
       Connect: symbol(handle, "AMDeviceConnect"),
       Disconnect: symbol(handle, "AMDeviceDisconnect"),
       IsPaired: symbol(handle, "AMDeviceIsPaired"),

@@ -5,7 +5,7 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-@preconcurrency import FBControlCore
+import FBControlCore
 import Foundation
 import MobileDeviceAPI
 
@@ -76,8 +76,8 @@ public struct DeviceRecoveryCommands {
   }
 
   private static func errorMessage(for status: Int32, calls: AMDCalls) -> String {
-    if let copyErrorTextFunc = calls.CopyErrorText {
-      return copyErrorTextFunc(status)?.takeRetainedValue() as String? ?? "Unknown error"
+    if let copyErrorTextFunc = unsafe calls.CopyErrorText {
+      return unsafe copyErrorTextFunc(status)?.takeRetainedValue() as String? ?? "Unknown error"
     }
     return "Unknown error"
   }

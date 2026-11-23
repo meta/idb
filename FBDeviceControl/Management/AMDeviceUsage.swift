@@ -5,7 +5,7 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-@preconcurrency import FBControlCore
+import FBControlCore
 import Foundation
 import MobileDeviceAPI
 
@@ -95,7 +95,7 @@ public enum AMDeviceUsage {
 
   internal static func obtainDeviceValues(_ device: AMDevice, calls: AMDCalls) -> [String: Any]? {
     // The default domain is readable even when unpaired.
-    guard var info = calls.CopyValue(device, nil, nil)?.takeRetainedValue() as? [String: Any] else {
+    guard var info = unsafe calls.CopyValue(device, nil, nil)?.takeRetainedValue() as? [String: Any] else {
       return nil
     }
 
@@ -103,14 +103,14 @@ public enum AMDeviceUsage {
 
     // Only meaningful when paired.
     let backupInfo =
-      calls.CopyValue(device, mobileBackupDomain as CFString, nil)?.takeRetainedValue() as? [String: Any] ?? [:]
+      unsafe calls.CopyValue(device, mobileBackupDomain as CFString, nil)?.takeRetainedValue() as? [String: Any] ?? [:]
     info[mobileBackupDomain] = backupInfo
 
     return info
   }
 
   private static func errorText(_ status: Int32, calls: AMDCalls) -> String {
-    calls.CopyErrorText(status)?.takeRetainedValue() as String? ?? "Unknown error"
+    unsafe calls.CopyErrorText(status)?.takeRetainedValue() as String? ?? "Unknown error"
   }
 
 }
