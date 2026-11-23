@@ -52,7 +52,7 @@ final class SimulatorView: NSView {
     didSet {
       guard oldValue != isOverlayEnabled else { return }
       if isOverlayEnabled {
-        if let window, window.isKeyWindow {
+        if let window = unsafe window, window.isKeyWindow {
           requestHover(atViewPoint: convert(window.mouseLocationOutsideOfEventStream, from: nil))
         }
       } else {
@@ -184,7 +184,7 @@ final class SimulatorView: NSView {
   }
 
   private func applyContentsScale() {
-    let scale = window?.backingScaleFactor ?? 2
+    let scale = unsafe window?.backingScaleFactor ?? 2
     for l in [layer, screenLayer, coverageNonInteractiveLayer, coverageInteractiveLayer, coverageBlockedLayer, selectionLayer, highlightLayer, hudLayer, hudText] as [CALayer?] {
       l?.contentsScale = scale
     }
@@ -321,7 +321,7 @@ final class SimulatorView: NSView {
   override func viewDidMoveToWindow() {
     super.viewDidMoveToWindow()
     applyContentsScale()
-    window?.acceptsMouseMovedEvents = true
+    unsafe window?.acceptsMouseMovedEvents = true
   }
 
   // MARK: - Coordinate mapping
@@ -417,7 +417,7 @@ final class SimulatorView: NSView {
   override var acceptsFirstResponder: Bool { true }
 
   override func mouseDown(with event: NSEvent) {
-    window?.makeFirstResponder(self) // focus for keyboard input
+    unsafe window?.makeFirstResponder(self) // focus for keyboard input
     let viewPoint = convert(event.locationInWindow, from: nil)
     mouseDownViewPoint = viewPoint
     // Whatever the cursor was already resolved onto. Taken here, before the touch lands, so the log
@@ -547,7 +547,7 @@ final class SimulatorView: NSView {
 
     let rect = viewRect(fromSimulatorRect: simRect).integral
     highlightLayer.isHidden = false
-    highlightLayer.path = CGPath(roundedRect: rect.insetBy(dx: 0.5, dy: 0.5), cornerWidth: 4, cornerHeight: 4, transform: nil)
+    highlightLayer.path = unsafe CGPath(roundedRect: rect.insetBy(dx: 0.5, dy: 0.5), cornerWidth: 4, cornerHeight: 4, transform: nil)
 
     let text = hit.hudTitle
     hudText.string = text
@@ -588,7 +588,7 @@ final class SimulatorView: NSView {
     }
     let viewR = viewRect(fromSimulatorRect: rect).integral
     selectionLayer.isHidden = false
-    selectionLayer.path = CGPath(roundedRect: viewR.insetBy(dx: 1, dy: 1), cornerWidth: 4, cornerHeight: 4, transform: nil)
+    selectionLayer.path = unsafe CGPath(roundedRect: viewR.insetBy(dx: 1, dy: 1), cornerWidth: 4, cornerHeight: 4, transform: nil)
   }
 
   // MARK: - Keyboard
@@ -771,11 +771,11 @@ final class SimulatorView: NSView {
     let ring = CAShapeLayer()
     let radius: CGFloat = 22
     ring.frame = CGRect(x: p.x - radius, y: p.y - radius, width: radius * 2, height: radius * 2)
-    ring.path = CGPath(ellipseIn: CGRect(x: 0, y: 0, width: radius * 2, height: radius * 2), transform: nil)
+    ring.path = unsafe CGPath(ellipseIn: CGRect(x: 0, y: 0, width: radius * 2, height: radius * 2), transform: nil)
     ring.fillColor = color.withAlphaComponent(0.35).cgColor
     ring.strokeColor = color.cgColor
     ring.lineWidth = 2
-    ring.contentsScale = window?.backingScaleFactor ?? 2
+    ring.contentsScale = unsafe window?.backingScaleFactor ?? 2
     layer?.addSublayer(ring)
 
     let scale = CABasicAnimation(keyPath: "transform.scale")
@@ -808,7 +808,7 @@ final class SimulatorView: NSView {
     trail.fillColor = nil
     trail.lineWidth = 5
     trail.lineCap = .round
-    trail.contentsScale = window?.backingScaleFactor ?? 2
+    trail.contentsScale = unsafe window?.backingScaleFactor ?? 2
     layer?.addSublayer(trail)
 
     let draw = CABasicAnimation(keyPath: "strokeEnd")

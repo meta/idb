@@ -57,7 +57,7 @@ final class ActionLog: NSObject {
     textView.isSelectable = true
     textView.textContainerInset = NSSize(width: 8, height: 8)
     textView.font = Self.bodyFont
-    textView.textContainer?.widthTracksTextView = true
+    unsafe textView.textContainer?.widthTracksTextView = true
     scrollView.documentView = textView
 
     let input = NSTextField()
@@ -131,7 +131,7 @@ final class ActionLog: NSObject {
   /// so a scripted human's message reaches the session bus by the path a typed one takes, and the
   /// recording shows it being written rather than appearing whole.
   func typeReply(_ text: String) async {
-    guard let window = contentView.window else { return }
+    guard let window = unsafe contentView.window else { return }
     window.makeFirstResponder(input)
     for character in text {
       input.currentEditor()?.insertText(String(character))
@@ -152,7 +152,7 @@ final class ActionLog: NSObject {
     let attributed = NSAttributedString(
       string: line + "\n",
       attributes: [.font: font, .foregroundColor: color])
-    textView.textStorage?.append(attributed)
+    unsafe textView.textStorage?.append(attributed)
     textView.scrollToEndOfDocument(nil)
   }
 }

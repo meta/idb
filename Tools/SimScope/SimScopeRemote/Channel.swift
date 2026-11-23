@@ -23,12 +23,12 @@ enum ChannelError: Error, LocalizedError {
     case let .socketPathTooLong(path):
       return "The control socket path is too long for a sockaddr_un: \(path)"
     case let .noListener(path, code):
-      return """
-        no SimScope listening on \(path) (\(String(cString: strerror(code)))).
-        Start one with:  simscope --udid <UDID> [--control-socket <path>]
-        """
+      return unsafe """
+      no SimScope listening on \(path) (\(String(cString: strerror(code)))).
+      Start one with:  simscope --udid <UDID> [--control-socket <path>]
+      """
     case let .socketFailed(operation, code):
-      return "Control socket \(operation) failed: \(String(cString: strerror(code))) (errno \(code))"
+      return unsafe "Control socket \(operation) failed: \(String(cString: strerror(code))) (errno \(code))"
     case .closed:
       return "SimScope closed the connection"
     case let .remote(message):
@@ -62,8 +62,8 @@ final class Channel {
       throw ChannelError.socketPathTooLong(path)
     }
     withUnsafeMutableBytes(of: &address.sun_path) { destination in
-      destination.copyBytes(from: bytes)
-      destination[bytes.count] = 0
+      unsafe destination.copyBytes(from: bytes)
+      unsafe destination[bytes.count] = 0
     }
 
     fd = socket(AF_UNIX, SOCK_STREAM, 0)
@@ -71,11 +71,11 @@ final class Channel {
 
     var interval = timeval(
       tv_sec: Int(timeout), tv_usec: Int32((timeout - timeout.rounded(.down)) * 1_000_000))
-    setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, &interval, socklen_t(MemoryLayout<timeval>.size))
+    unsafe setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, &interval, socklen_t(MemoryLayout<timeval>.size))
 
     let size = socklen_t(MemoryLayout<sockaddr_un>.size)
     let joined = withUnsafePointer(to: &address) { pointer in
-      pointer.withMemoryRebound(to: sockaddr.self, capacity: 1) { connect(fd, $0, size) }
+      unsafe pointer.withMemoryRebound(to: sockaddr.self, capacity: 1) { unsafe connect(fd, $0, size) }
     }
     guard joined == 0 else {
       let code = errno
@@ -112,11 +112,11 @@ final class Channel {
   // MARK: - Framing
 
   private func write(_ data: Data) throws {
-    try data.withUnsafeBytes { raw in
+    unsafe try data.withUnsafeBytes { raw in
       guard let base = raw.baseAddress else { return }
       var offset = 0
       while offset < raw.count {
-        let written = Darwin.write(fd, base.advanced(by: offset), raw.count - offset)
+        let written = unsafe Darwin.write(fd, base.advanced(by: offset), raw.count - offset)
         if written < 0, errno == EINTR { continue }
         guard written > 0 else { throw ChannelError.socketFailed(operation: "write", errno: errno) }
         offset += written
@@ -132,7 +132,7 @@ final class Channel {
         pending.removeSubrange(pending.startIndex...newline)
         return line
       }
-      let count = read(fd, &chunk, chunk.count)
+      let count = unsafe read(fd, &chunk, chunk.count)
       if count < 0, errno == EINTR { continue }
       guard count > 0 else {
         // A timed-out receive and a closed peer are both "no more line", but only one of them is

@@ -241,7 +241,7 @@ extension Remote {
         cursor = timeline.next
         // The caller is usually reading this through a pipe, where stdout is block-buffered and a
         // quiet simulator would hold a batch back until the next one filled the block.
-        fflush(stdout)
+        unsafe fflush(stdout)
         if once { return }
       }
     }

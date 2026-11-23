@@ -150,7 +150,7 @@ final class SwiftConsole: NSObject {
     view.isRichText = false
     view.font = font
     view.textContainerInset = NSSize(width: 6, height: 6)
-    view.textContainer?.widthTracksTextView = true
+    unsafe view.textContainer?.widthTracksTextView = true
     // Every one of these turns a straight quote, a double hyphen or a "misspelled" identifier into
     // something that does not compile.
     view.isAutomaticQuoteSubstitutionEnabled = false

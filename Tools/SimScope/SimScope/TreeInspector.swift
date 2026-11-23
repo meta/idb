@@ -153,7 +153,7 @@ final class TreeInspector: NSObject, NSOutlineViewDataSource, NSOutlineViewDeleg
       outlineView.addTableColumn(tableColumn)
       // Disclosure rides the leading column, which is the identifier — the one value that is unique
       // per element, so hierarchy and identity read down the same edge.
-      if column == .identifier { outlineView.outlineTableColumn = tableColumn }
+      if column == .identifier { unsafe outlineView.outlineTableColumn = tableColumn }
     }
     outlineView.columnAutoresizingStyle = .noColumnAutoresizing
 
@@ -324,7 +324,7 @@ final class TreeInspector: NSObject, NSOutlineViewDataSource, NSOutlineViewDeleg
     // timer. An element count says how big the screen is; new/changed/same says whether anything moved,
     // and it is the number that shows a switch of read mode returning the same tree with more in it.
     let took =
-      elapsedMs >= 1000
+      unsafe elapsedMs >= 1000
       ? String(format: "%.1f s", elapsedMs / 1000) : "\(Int(elapsedMs.rounded())) ms"
     let churn = hadTree ? "  ·  \(delta.summary)" : ""
     let why = reason.label.map { "  ·  \($0)" } ?? ""
@@ -445,7 +445,7 @@ final class TreeInspector: NSObject, NSOutlineViewDataSource, NSOutlineViewDeleg
       textField.lineBreakMode = .byTruncatingTail
       textField.translatesAutoresizingMaskIntoConstraints = false
       cell.addSubview(textField)
-      cell.textField = textField
+      unsafe cell.textField = textField
       NSLayoutConstraint.activate([
         textField.leadingAnchor.constraint(equalTo: cell.leadingAnchor, constant: 2),
         textField.trailingAnchor.constraint(equalTo: cell.trailingAnchor, constant: -2),
@@ -461,20 +461,20 @@ final class TreeInspector: NSObject, NSOutlineViewDataSource, NSOutlineViewDeleg
     case .identifier: text = node.identifierColumn
     case .point: text = node.pointColumn
     }
-    cell.textField?.stringValue = text
+    unsafe cell.textField?.stringValue = text
     // Secondary columns are dimmed so the label column reads as the content and the rest as context.
     let unreachable = node.tapPoint == nil
     switch column {
     case .point:
       // Both describe reachability, so both carry its colour — the point because it is what gets
       // acted on, the state because it is what explains the point.
-      cell.textField?.textColor = node.pointTint
+      unsafe cell.textField?.textColor = node.pointTint
     case .content, .identifier:
-      cell.textField?.textColor = unreachable ? .secondaryLabelColor : .labelColor
+      unsafe cell.textField?.textColor = unreachable ? .secondaryLabelColor : .labelColor
     case .type:
-      cell.textField?.textColor = .secondaryLabelColor
+      unsafe cell.textField?.textColor = .secondaryLabelColor
     }
-    cell.textField?.alignment = .left
+    unsafe cell.textField?.alignment = .left
     cell.toolTip = node.interactabilityBadge
     return cell
   }

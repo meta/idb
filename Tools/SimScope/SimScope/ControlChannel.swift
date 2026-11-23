@@ -18,7 +18,7 @@ enum ControlChannelError: Error, LocalizedError {
     case let .socketPathTooLong(path):
       return "The control socket path is too long for a sockaddr_un: \(path)"
     case let .socketFailed(operation, code):
-      return "Control socket \(operation) failed: \(String(cString: strerror(code))) (errno \(code))"
+      return unsafe "Control socket \(operation) failed: \(String(cString: strerror(code))) (errno \(code))"
     }
   }
 }
@@ -54,7 +54,7 @@ final class ControlChannel: @unchecked Sendable {
     try ControlSocket.prepareDirectory(for: path)
     // A socket file left behind by a crashed run would make bind fail with EADDRINUSE; nothing else
     // owns this path, so reclaiming it is always right.
-    unlink(path)
+    unsafe unlink(path)
 
     let fd = socket(AF_UNIX, SOCK_STREAM, 0)
     guard fd >= 0 else { throw ControlChannelError.socketFailed(operation: "socket", errno: errno) }
@@ -68,13 +68,13 @@ final class ControlChannel: @unchecked Sendable {
       throw ControlChannelError.socketPathTooLong(path)
     }
     withUnsafeMutableBytes(of: &address.sun_path) { destination in
-      destination.copyBytes(from: bytes)
-      destination[bytes.count] = 0
+      unsafe destination.copyBytes(from: bytes)
+      unsafe destination[bytes.count] = 0
     }
 
     let size = socklen_t(MemoryLayout<sockaddr_un>.size)
     let bound = withUnsafePointer(to: &address) { pointer in
-      pointer.withMemoryRebound(to: sockaddr.self, capacity: 1) { bind(fd, $0, size) }
+      unsafe pointer.withMemoryRebound(to: sockaddr.self, capacity: 1) { unsafe bind(fd, $0, size) }
     }
     guard bound == 0 else {
       let code = errno
@@ -87,7 +87,7 @@ final class ControlChannel: @unchecked Sendable {
       throw ControlChannelError.socketFailed(operation: "listen", errno: code)
     }
     // Only this user's agent should be able to drive their simulator.
-    chmod(path, 0o600)
+    unsafe chmod(path, 0o600)
 
     lock.withLock { listenFD = fd }
     Thread.detachNewThread { [weak self] in self?.acceptLoop(on: fd) }
@@ -102,7 +102,7 @@ final class ControlChannel: @unchecked Sendable {
       return current
     }
     if fd >= 0 { close(fd) }
-    unlink(path)
+    unsafe unlink(path)
   }
 
   // MARK: - Accept / serve
@@ -118,7 +118,7 @@ final class ControlChannel: @unchecked Sendable {
         return
       }
       var on: Int32 = 1
-      setsockopt(connection, SOL_SOCKET, SO_NOSIGPIPE, &on, socklen_t(MemoryLayout<Int32>.size))
+      unsafe setsockopt(connection, SOL_SOCKET, SO_NOSIGPIPE, &on, socklen_t(MemoryLayout<Int32>.size))
       Thread.detachNewThread { [weak self] in self?.serve(connection) }
     }
   }
@@ -131,7 +131,7 @@ final class ControlChannel: @unchecked Sendable {
     var chunk = [UInt8](repeating: 0, count: 16 * 1024)
 
     while !lock.withLock({ isStopping }) {
-      let count = read(fd, &chunk, chunk.count)
+      let count = unsafe read(fd, &chunk, chunk.count)
       if count < 0, errno == EINTR { continue }
       guard count > 0 else { return } // peer closed, or error
       pending.append(contentsOf: chunk[0..<count])
@@ -184,11 +184,11 @@ final class ControlChannel: @unchecked Sendable {
   }
 
   private func writeAll(_ data: Data, to fd: Int32) -> Bool {
-    data.withUnsafeBytes { raw -> Bool in
+    unsafe data.withUnsafeBytes { raw -> Bool in
       guard let base = raw.baseAddress else { return true }
       var offset = 0
       while offset < raw.count {
-        let written = write(fd, base.advanced(by: offset), raw.count - offset)
+        let written = unsafe write(fd, base.advanced(by: offset), raw.count - offset)
         if written < 0, errno == EINTR { continue }
         guard written > 0 else { return false }
         offset += written

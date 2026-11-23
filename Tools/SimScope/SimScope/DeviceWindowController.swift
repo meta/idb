@@ -493,7 +493,7 @@ final class DeviceWindowController: NSWindowController, NSToolbarDelegate, NSMen
 
   private static func refreshTitle(_ interval: TimeInterval) -> String {
     guard interval > 0 else { return "Off" }
-    return interval < 1 || interval != interval.rounded()
+    return unsafe interval < 1 || interval != interval.rounded()
       ? String(format: "%.1f s", interval) : "\(Int(interval)) s"
   }
 

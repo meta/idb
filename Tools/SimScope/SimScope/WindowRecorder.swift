@@ -5,7 +5,7 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-@preconcurrency import AVFoundation
+import AVFoundation
 import AppKit
 import IOKit.pwr_mgt
 import ScreenCaptureKit
@@ -67,7 +67,7 @@ final class WindowRecorder: NSObject, SCStreamOutput, SCStreamDelegate, @uncheck
     // records blank frames from beginning to end. Declaring user activity wakes it; keeping it awake for
     // the length of the take is the caller's business. Nothing here needs the screen unlocked.
     var assertion = IOPMAssertionID(0)
-    IOPMAssertionDeclareUserActivity("SimScope is recording its window" as CFString, kIOPMUserActiveLocal, &assertion)
+    unsafe IOPMAssertionDeclareUserActivity("SimScope is recording its window" as CFString, kIOPMUserActiveLocal, &assertion)
 
     let content = try await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: false)
     guard let window = content.windows.first(where: { $0.windowID == windowID }) else {
