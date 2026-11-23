@@ -75,7 +75,7 @@ public struct SimulatorIdleSyncCommands {
   public func quiescence(
     _ query: AccessibilityElementQuery,
     parameters: QuiescenceParameters
-  ) async throws -> AsyncThrowingStream<QuiescenceEvent, Error> {
+  ) async throws -> AsyncThrowingStream<QuiescenceEvent, any Error> {
     guard [.iPhone, .iPad].contains(simulator.productFamily) else {
       throw IdleSyncError.unsupportedPlatform(udid: simulator.udid)
     }
@@ -102,7 +102,7 @@ public struct SimulatorIdleSyncCommands {
     quietWindowMs: UInt64,
     connectionTimeout: TimeInterval = SimulatorIdleSyncCommands.connectionTimeout,
     isRunning: @escaping @Sendable (pid_t) -> Bool = { SimulatorIdleSyncCommands.processIsRunning($0) }
-  ) async throws -> AsyncThrowingStream<QuiescenceEvent, Error> {
+  ) async throws -> AsyncThrowingStream<QuiescenceEvent, any Error> {
     // The host serves while `updates` is consumed, so the stream's end releases it.
     let (current, updates) = try await host.open(parameters)
     return AsyncThrowingStream { continuation in

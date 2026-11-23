@@ -109,7 +109,7 @@ final class SimulatorAccessibilityCommands {
   /// which reaches the same service. A fallback is not kept, so the next read tries the bridge again.
   static func preferredTransport(
     connector: SimulatorXPCConnector,
-    logger: ControlCoreLogger?,
+    logger: (any ControlCoreLogger)?,
     fallback: () -> any AXTranslationTransport
   ) -> any AXTranslationTransport {
     let bridge = CoreSimulatorBridgeAXTranslationTransport(connector: connector)
@@ -229,7 +229,7 @@ final class SimulatorAccessibilityCommands {
     guard let dispatcher = resolvedDispatcher else {
       throw AccessibilityError.dispatcherUnavailable
     }
-    let root: AXTranslationReference
+    let root: any AXTranslationReference
     do {
       root = try await dispatcher.rootHandle(withRequest: request)
     } catch let AccessibilityError.noTranslationObject(query) where diagnosesSpringBoard {
@@ -266,7 +266,7 @@ final class SimulatorAccessibilityCommands {
   /// be the cause. A root whose process is alive, as an application's is while it launches, or one that exited
   /// while SpringBoard has been up for longer, is read as it is: it is not a SpringBoard condition.
   private func checkSpringBoardAnswersFor(
-    root handle: AXTranslationReference, simulator: Simulator, request: AXTranslationRequest, dispatcher: AXTranslationDispatcher
+    root handle: any AXTranslationReference, simulator: Simulator, request: AXTranslationRequest, dispatcher: AXTranslationDispatcher
   ) async throws {
     // A quick check: a non-zero accessibility frame indicates a healthy element.
     let root = try await dispatcher.performUnserialized(cancelling: request.cancellation) {

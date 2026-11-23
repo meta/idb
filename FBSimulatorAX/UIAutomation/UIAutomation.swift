@@ -249,7 +249,7 @@ public protocol UIAutomation: Sendable {
   func quiescence(
     _ query: AccessibilityElementQuery,
     parameters: QuiescenceParameters
-  ) async throws -> AsyncThrowingStream<QuiescenceEvent, Error>
+  ) async throws -> AsyncThrowingStream<QuiescenceEvent, any Error>
 }
 
 public extension UIAutomation {

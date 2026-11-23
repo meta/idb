@@ -49,7 +49,7 @@ struct AXRawTranslationReader {
   /// descendants — an application can answer with a cycle — is not read again below itself. An element
   /// listed more than once elsewhere, as a scroll view lists its scroll bar, is read at each place, as the
   /// platform element reads it.
-  func read(_ root: AXTranslationReference, plan: AXReadPlan) throws -> AXElementSnapshot {
+  func read(_ root: any AXTranslationReference, plan: AXReadPlan) throws -> AXElementSnapshot {
     var ancestors = Set<Identity>()
     return try read(root, plan: plan, ancestors: &ancestors)
   }
@@ -59,7 +59,7 @@ struct AXRawTranslationReader {
     let objectID: UInt64
   }
 
-  private func read(_ translation: AXTranslationReference, plan: AXReadPlan, ancestors: inout Set<Identity>) throws -> AXElementSnapshot {
+  private func read(_ translation: any AXTranslationReference, plan: AXReadPlan, ancestors: inout Set<Identity>) throws -> AXElementSnapshot {
     let identity = Identity(pid: translation.pid, objectID: translation.objectID)
     ancestors.insert(identity)
     defer { ancestors.remove(identity) }
@@ -102,7 +102,7 @@ struct AXRawTranslationReader {
 
   /// The translator's answer for `attributes` of one element; nil when it answered without values, which reads
   /// as an element with none.
-  private func answer(for translation: AXTranslationReference, asking attributes: [BridgeAXTranslatorAttribute]) throws -> BridgeAXTranslatorAnswer? {
+  private func answer(for translation: any AXTranslationReference, asking attributes: [BridgeAXTranslatorAttribute]) throws -> BridgeAXTranslatorAnswer? {
     let response = try send(
       .multipleAttribute, translation: translation,
       parameters: [BridgeAXTranslatorRequestType.attributesParameterKey: attributes.map { NSNumber(value: $0.rawValue) }])
@@ -121,7 +121,7 @@ struct AXRawTranslationReader {
 
   /// The translation of `root`, in the one request the translator would send for it; nil when the service
   /// answered that nothing is there.
-  func resolve(_ root: Root) throws -> AXTranslationReference? {
+  func resolve(_ root: Root) throws -> (any AXTranslationReference)? {
     let response: AXPTranslatorResponse =
       switch root {
       case let .frontmostApplication(displayID):
@@ -138,13 +138,13 @@ struct AXRawTranslationReader {
             BridgeAXTranslatorRequestType.displayIDParameterKey: NSNumber(value: displayID),
           ])
       }
-    return response.resultData as? AXTranslationReference
+    return response.resultData as? any AXTranslationReference
   }
 
   /// The service's answer to one request. A request it does not answer stops the read: carrying on would wait
   /// out every later request too, and report a tree with values missing as though it were complete.
   private func send(
-    _ type: BridgeAXTranslatorRequestType, translation: AXTranslationReference?, parameters: [String: Any]
+    _ type: BridgeAXTranslatorRequestType, translation: (any AXTranslationReference)?, parameters: [String: Any]
   ) throws -> AXPTranslatorResponse {
     let timing = AccessibilityTranslatorRequestTiming(requestType: UInt64(type.rawValue), duration: 0)
     guard let request = AXPTranslatorRequest.request(withTranslation: translation) as? AXPTranslatorRequest else {
@@ -219,7 +219,7 @@ struct AXRawTranslationReader {
       return
     }
     // A request without a target, as for the frontmost application, is put down to the process its answer names.
-    let target = pid > 0 ? pid : (response?.resultData as? AXTranslationReference)?.pid ?? 0
+    let target = pid > 0 ? pid : (response?.resultData as? any AXTranslationReference)?.pid ?? 0
     let end = AXStallEndReading.read(target)
     let observation = AXStallProbe.observe(
       kind: kind, pid: target, requestStart: findings.requestStart, duration: findings.waited, outcome: outcome,
@@ -267,7 +267,7 @@ struct AXRawTranslationReader {
   /// One element's planned values, converted from the translator's answer as AppKit converts them.
   struct Decoded {
     var frame: NSRect = .zero
-    var children: [AXTranslationReference] = []
+    var children: [any AXTranslationReference] = []
     var role: String?
     var label: String?
     var value: Any?
@@ -292,7 +292,7 @@ struct AXRawTranslationReader {
       }
 
       frame = (answer?[.frame] as? NSValue)?.rectValue ?? .zero
-      children = ((answer?[.children] as? [Any]) ?? []).compactMap { $0 as? AXTranslationReference }
+      children = ((answer?[.children] as? [Any]) ?? []).compactMap { $0 as? any AXTranslationReference }
       let isRemote = (answer?[.isRemoteElement] as? NSNumber)?.boolValue ?? false
       let translatedRole = Self.role(answer?[.role], isRemote: isRemote)
       let translatedSubrole = (answer?[.subrole] as? NSNumber)

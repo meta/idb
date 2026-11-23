@@ -94,7 +94,7 @@ public struct AccessibilityProfilingData: Sendable, Equatable, Encodable {
   }
 
   /// `fetchedKeys` is a diagnostic, not part of the reported profile, so it is not encoded.
-  public func encode(to encoder: Encoder) throws {
+  public func encode(to encoder: any Encoder) throws {
     var container = encoder.container(keyedBy: CodingKeys.self)
     try container.encode(elementCount, forKey: .elementCount)
     try container.encode(totalDuration * 1000, forKey: .totalDurationMs)
@@ -155,7 +155,7 @@ public struct AccessibilityModalInfo: Sendable, Equatable, Encodable {
     case label
   }
 
-  public func encode(to encoder: Encoder) throws {
+  public func encode(to encoder: any Encoder) throws {
     var container = encoder.container(keyedBy: CodingKeys.self)
     try container.encode(kind, forKey: .kind)
     try container.encode(elementType, forKey: .elementType)
@@ -372,7 +372,7 @@ public enum AccessibilityReadOutcome: String, Sendable {
   case cancelled
 
   /// How a read that failed with `error` ended, when the failure is one of the read's own timing.
-  public init?(failure error: Error) {
+  public init?(failure error: any Error) {
     switch error {
     case AccessibilityError.serviceNotAnswering(.request, _, _):
       self = .abortedUnanswered

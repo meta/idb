@@ -104,7 +104,7 @@ final class AXTranslationRequest {
   }
 
   /// Resolves the root translation object for this request's kind, in one request over the transport.
-  func resolveRoot() throws -> AXTranslationReference? {
+  func resolveRoot() throws -> (any AXTranslationReference)? {
     switch kind {
     case .frontmostApplication:
       return try rawReader.resolve(.frontmostApplication(displayID: displayID))
@@ -117,16 +117,16 @@ final class AXTranslationRequest {
 
   /// The translator's platform element for `reference`, which actions go through. Built locally from the
   /// translator's element cache, without a request.
-  func platformElement(for reference: AXTranslationReference) -> AXWritableElement? {
+  func platformElement(for reference: any AXTranslationReference) -> (any AXWritableElement)? {
     // Sent by message: the translation is typed by protocol here, so test doubles can stand in for it.
     translator?.perform(NSSelectorFromString("macPlatformElementFromTranslation:"), with: reference)?
-      .takeUnretainedValue() as? AXWritableElement
+      .takeUnretainedValue() as? any AXWritableElement
   }
 
   /// The platform element an action on `translation` goes through, carrying this request's token. The
   /// translator caches elements by translation and a cached element keeps the token it was built with, so the
   /// token is set every time.
-  func element(for translation: AXTranslationReference) -> AXWritableElement? {
+  func element(for translation: any AXTranslationReference) -> (any AXWritableElement)? {
     translation.bridgeDelegateToken = token
     let element = platformElement(for: translation)
     element?.axSetBridgeDelegateToken(token)
@@ -137,7 +137,7 @@ final class AXTranslationRequest {
   /// point path is a single element. `isMarkerMatch` forces single-element serialization: a marker match
   /// descends from the frontmost tree, so its request's `kind` is still `.frontmostApplication`.
   func run(
-    _ translation: AXTranslationReference,
+    _ translation: any AXTranslationReference,
     options: AccessibilityRequestOptions,
     isMarkerMatch: Bool = false
   ) throws -> AccessibilityElementsResponse {
@@ -171,7 +171,7 @@ final class AXTranslationRequest {
   }
 
   /// Reads `translation` against `plan`, one request per element over this request's transport.
-  func snapshot(of translation: AXTranslationReference, plan: AXReadPlan) throws -> AXElementSnapshot {
+  func snapshot(of translation: any AXTranslationReference, plan: AXReadPlan) throws -> AXElementSnapshot {
     try rawReader.read(translation, plan: plan)
   }
 
@@ -275,7 +275,7 @@ final class AXTranslationRequest {
       visited += 1
 
       // A caller's region can reach past the routed display, where no point translates.
-      let translated: AXTranslationReference?
+      let translated: (any AXTranslationReference)?
       do {
         translated = try translation(at: point)
       } catch SimulatorDisplayInteractionError.invalidPoint {
@@ -357,7 +357,7 @@ final class AXTranslationRequest {
     display?.accessibilityID ?? 0
   }
 
-  private func translation(at point: CGPoint) throws -> AXTranslationReference? {
+  private func translation(at point: CGPoint) throws -> (any AXTranslationReference)? {
     let unrotated = try display?.geometry.unrotatedPoint(from: point) ?? point
     return try rawReader.resolve(.point(unrotated, displayID: displayID))
   }

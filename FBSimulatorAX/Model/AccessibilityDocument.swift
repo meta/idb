@@ -60,7 +60,7 @@ public struct AccessibilityFrame: Sendable, Equatable, Encodable {
     case height
   }
 
-  public func encode(to encoder: Encoder) throws {
+  public func encode(to encoder: any Encoder) throws {
     var container = encoder.container(keyedBy: CodingKeys.self)
     try container.encode(x, forKey: .x)
     try container.encode(y, forKey: .y)
@@ -190,7 +190,7 @@ public struct AccessibilityTargetDescriptor: Sendable, Equatable, Encodable {
     case matchKey = "match_key"
   }
 
-  public func encode(to encoder: Encoder) throws {
+  public func encode(to encoder: any Encoder) throws {
     var container = encoder.container(keyedBy: CodingKeys.self)
     try container.encode(kind, forKey: .kind)
     try container.encode(pid, forKey: .pid)
@@ -244,7 +244,7 @@ public struct AccessibilityCoverage: Sendable, Equatable, Encodable {
     case additional
   }
 
-  public func encode(to encoder: Encoder) throws {
+  public func encode(to encoder: any Encoder) throws {
     var container = encoder.container(keyedBy: CodingKeys.self)
     try container.encode(frame, forKey: .frame)
     try container.encode(walked, forKey: .walked)
@@ -345,7 +345,7 @@ public struct AccessibilityElementRef: Sendable, Equatable, Encodable {
     case pid
   }
 
-  public func encode(to encoder: Encoder) throws {
+  public func encode(to encoder: any Encoder) throws {
     var container = encoder.container(keyedBy: CodingKeys.self)
     try container.encode(type, forKey: .type)
     try container.encode(identifier, forKey: .identifier)
@@ -390,7 +390,7 @@ public extension AccessibilityInteractable {
 }
 
 extension AccessibilityInteractable: Encodable {
-  public func encode(to encoder: Encoder) throws {
+  public func encode(to encoder: any Encoder) throws {
     var container = encoder.container(keyedBy: CodingKeys.self)
     switch self {
     case let .actionable(at):
@@ -425,7 +425,7 @@ extension AccessibilityInteractable.Reason: Encodable {
     }
   }
 
-  public func encode(to encoder: Encoder) throws {
+  public func encode(to encoder: any Encoder) throws {
     var container = encoder.container(keyedBy: CodingKeys.self)
     try container.encode(kind, forKey: .kind)
     switch self {
@@ -498,7 +498,7 @@ public struct AccessibilityInteractionSummary: Sendable, Equatable, Encodable {
     case unexplainedRatio = "unexplained_ratio"
   }
 
-  public func encode(to encoder: Encoder) throws {
+  public func encode(to encoder: any Encoder) throws {
     var container = encoder.container(keyedBy: CodingKeys.self)
     try container.encode(actionable, forKey: .actionable)
     try container.encode(blocked, forKey: .blocked)
@@ -601,7 +601,7 @@ public struct AccessibilityNarrowing: Sendable, Equatable, Encodable {
     case matched
   }
 
-  public func encode(to encoder: Encoder) throws {
+  public func encode(to encoder: any Encoder) throws {
     var container = encoder.container(keyedBy: CodingKeys.self)
     try container.encode(match, forKey: .match)
     try container.encode(matchKey, forKey: .matchKey)
@@ -790,7 +790,7 @@ public enum AccessibilityAttributeValue: Sendable, Equatable, Encodable {
     AccessibilityAttributeValue(object) ?? .null
   }
 
-  public func encode(to encoder: Encoder) throws {
+  public func encode(to encoder: any Encoder) throws {
     var container = encoder.singleValueContainer()
     switch self {
     case let .string(value):
@@ -893,7 +893,7 @@ public struct AccessibilityDocument: Sendable, Encodable {
     case client
   }
 
-  public func encode(to encoder: Encoder) throws {
+  public func encode(to encoder: any Encoder) throws {
     var container = encoder.container(keyedBy: CodingKeys.self)
     try container.encode(elements, forKey: .elements)
     try container.encode(modal, forKey: .modal)

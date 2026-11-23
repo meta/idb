@@ -55,7 +55,7 @@ public struct AXBridgeProfile: Sendable, Equatable, Encodable {
     case responseBytes = "response_bytes"
   }
 
-  public func encode(to encoder: Encoder) throws {
+  public func encode(to encoder: any Encoder) throws {
     var container = encoder.container(keyedBy: CodingKeys.self)
     try container.encode(elementCount, forKey: .elementCount)
     try container.encode(totalDuration * 1000, forKey: .totalDurationMs)
@@ -83,7 +83,7 @@ public enum AccessibilityProfile: Sendable, Equatable, Encodable {
     return profile
   }
 
-  public func encode(to encoder: Encoder) throws {
+  public func encode(to encoder: any Encoder) throws {
     var container = encoder.singleValueContainer()
     switch self {
     case let .translator(profile):
@@ -131,7 +131,7 @@ public struct AccessibilityClientReport: Sendable, Equatable, Encodable {
     case caveat
   }
 
-  public func encode(to encoder: Encoder) throws {
+  public func encode(to encoder: any Encoder) throws {
     var container = encoder.container(keyedBy: CodingKeys.self)
     try container.encode(clientType.name, forKey: .type)
     try container.encode(tree, forKey: .tree)

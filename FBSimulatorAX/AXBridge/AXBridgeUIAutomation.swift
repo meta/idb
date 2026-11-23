@@ -357,7 +357,7 @@ final class AXBridgeUIAutomation: AXBridgeTreeReader, @unchecked Sendable {
   func quiescence(
     _ query: AccessibilityElementQuery,
     parameters: QuiescenceParameters
-  ) async throws -> AsyncThrowingStream<QuiescenceEvent, Error> {
+  ) async throws -> AsyncThrowingStream<QuiescenceEvent, any Error> {
     let pid: pid_t?
     switch query {
     case let .application(requested):
@@ -376,7 +376,7 @@ final class AXBridgeUIAutomation: AXBridgeTreeReader, @unchecked Sendable {
     return forwarding(try await quiescenceFrames(pid: pid, displayID: nil, parameters: parameters), pid: pid)
   }
 
-  private func quiescenceFrames(pid: pid_t?, displayID: UInt32?, parameters: QuiescenceParameters) async throws -> AsyncThrowingStream<BridgeAXAnswer, Error> {
+  private func quiescenceFrames(pid: pid_t?, displayID: UInt32?, parameters: QuiescenceParameters) async throws -> AsyncThrowingStream<BridgeAXAnswer, any Error> {
     guard let transport = transport as? any AXBridgeStreamingTransport else {
       throw UIAutomationError.operationUnsupported(backend: backend, operation: "Quiescence")
     }
@@ -384,7 +384,7 @@ final class AXBridgeUIAutomation: AXBridgeTreeReader, @unchecked Sendable {
       .quiescence(pid: pid, busyThresholdMs: parameters.busyThresholdMs, quietWindowMs: parameters.quietWindowMs, displayID: displayID))
   }
 
-  private func forwarding(_ frames: AsyncThrowingStream<BridgeAXAnswer, Error>, pid: pid_t?) -> AsyncThrowingStream<QuiescenceEvent, Error> {
+  private func forwarding(_ frames: AsyncThrowingStream<BridgeAXAnswer, any Error>, pid: pid_t?) -> AsyncThrowingStream<QuiescenceEvent, any Error> {
     AsyncThrowingStream { continuation in
       let task = Task {
         do {
@@ -409,7 +409,7 @@ final class AXBridgeUIAutomation: AXBridgeTreeReader, @unchecked Sendable {
     displays: any DisplayCommands,
     selection: DisplaySelection,
     parameters: QuiescenceParameters
-  ) async throws -> AsyncThrowingStream<QuiescenceEvent, Error> {
+  ) async throws -> AsyncThrowingStream<QuiescenceEvent, any Error> {
     let selected: SimulatorDisplay
     let resolution = try await displays.resolveDisplay()
     let latest = displays.configurationTracker.latest
@@ -483,10 +483,10 @@ final class AXBridgeUIAutomation: AXBridgeTreeReader, @unchecked Sendable {
   /// Relays `frames` until they end, or until another display becomes active and resolves. A display read
   /// that fails, as one does mid-transition, leaves the stream where it is until a later read succeeds.
   private func following(
-    _ frames: AsyncThrowingStream<BridgeAXAnswer, Error>,
+    _ frames: AsyncThrowingStream<BridgeAXAnswer, any Error>,
     from uniqueID: String,
     displays: any DisplayCommands
-  ) -> AsyncThrowingStream<FollowStep, Error> {
+  ) -> AsyncThrowingStream<FollowStep, any Error> {
     AsyncThrowingStream { continuation in
       let relay = Task {
         do {

@@ -134,7 +134,7 @@ final class AXElementSnapshot {
   let frame: NSRect
   let pid: pid_t
   /// The element actions go through, when the backend can act on what it read.
-  let handle: AXTranslationReference?
+  let handle: (any AXTranslationReference)?
   let role: String?
   let label: String?
   let value: AccessibilityAttributeValue?
@@ -161,7 +161,7 @@ final class AXElementSnapshot {
   init(
     frame: NSRect,
     pid: pid_t,
-    handle: AXTranslationReference? = nil,
+    handle: (any AXTranslationReference)? = nil,
     role: String? = nil,
     label: String? = nil,
     value: AccessibilityAttributeValue? = nil,

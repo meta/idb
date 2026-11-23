@@ -73,13 +73,13 @@ final class AXTranslationDispatcher: NSObject, AXPTranslationTokenDelegateHelper
   }
 
   /// Resolves `request`'s root in one request over its transport, without touching the translator.
-  func rootHandle(withRequest request: AXTranslationRequest) async throws -> AXTranslationReference {
+  func rootHandle(withRequest request: AXTranslationRequest) async throws -> any AXTranslationReference {
     request.translator = self.translator
     // Registered before resolving: actions on the root and its descendants reach the translator, whose
     // callbacks find the request by its token.
     self.pushRequest(request)
     do {
-      return try await performUnserialized(cancelling: request.cancellation) { () throws -> AXTranslationReference in
+      return try await performUnserialized(cancelling: request.cancellation) { () throws -> any AXTranslationReference in
         let translationStart = CFAbsoluteTimeGetCurrent()
         guard let translation = try request.resolveRoot() else {
           throw AccessibilityError.noTranslationObject(request.query)

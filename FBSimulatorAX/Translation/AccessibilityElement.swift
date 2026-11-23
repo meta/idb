@@ -18,7 +18,7 @@ import Foundation
 /// token; after close, serialization fails.
 final class AccessibilityElement {
 
-  private let handle: AXTranslationReference
+  private let handle: any AXTranslationReference
   private let request: AXTranslationRequest
   private let dispatcher: AXTranslationDispatcher
   private weak var simulator: Simulator?
@@ -30,7 +30,7 @@ final class AccessibilityElement {
   let rootBounds: CGRect?
 
   init(
-    handle: AXTranslationReference,
+    handle: any AXTranslationReference,
     request: AXTranslationRequest,
     dispatcher: AXTranslationDispatcher,
     simulator: Simulator,
@@ -102,7 +102,7 @@ final class AccessibilityElement {
   }
 
   /// Runs `action` on this element's platform element, built from its handle on the translator's work queue.
-  private func act<T>(_ action: @escaping (AXWritableElement) throws -> T) async throws -> T {
+  private func act<T>(_ action: @escaping (any AXWritableElement) throws -> T) async throws -> T {
     let handle = self.handle
     let request = self.request
     return try await dispatcher.performSerialized {

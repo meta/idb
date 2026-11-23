@@ -223,7 +223,7 @@ final class AccessibilityUIAutomation: UIAutomation, @unchecked Sendable {
   func quiescence(
     _ query: AccessibilityElementQuery,
     parameters: QuiescenceParameters
-  ) async throws -> AsyncThrowingStream<QuiescenceEvent, Error> {
+  ) async throws -> AsyncThrowingStream<QuiescenceEvent, any Error> {
     throw UIAutomationError.operationUnsupported(backend: backend, operation: "Quiescence")
   }
 }

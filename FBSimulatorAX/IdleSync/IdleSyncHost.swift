@@ -45,7 +45,7 @@ final class IdleSyncHost: Sendable {
     var serving: IdleSyncParameters?
     /// The pipe that wakes the server thread, open while the thread runs.
     var wake: (read: Int32, write: Int32)?
-    var binding: [CheckedContinuation<Void, Error>] = []
+    var binding: [CheckedContinuation<Void, any Error>] = []
     var streams = 0
     var releaseAt: ContinuousClock.Instant?
     var latest: [pid_t: Report] = [:]
