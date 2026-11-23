@@ -17,9 +17,9 @@ internal import NIOCore
 final class JSONRPCConnectionHandler: ChannelInboundHandler {
   typealias InboundIn = ByteBuffer
 
-  private let submit: @Sendable (JSONRPCRequest, Channel) -> Void
+  private let submit: @Sendable (JSONRPCRequest, any Channel) -> Void
 
-  init(submit: @escaping @Sendable (JSONRPCRequest, Channel) -> Void) {
+  init(submit: @escaping @Sendable (JSONRPCRequest, any Channel) -> Void) {
     self.submit = submit
   }
 
@@ -42,7 +42,7 @@ final class JSONRPCConnectionHandler: ChannelInboundHandler {
     }
   }
 
-  func errorCaught(context: ChannelHandlerContext, error: Error) {
+  func errorCaught(context: ChannelHandlerContext, error: any Error) {
     companionServerLog("CompanionServer: connection error: \(error)")
     context.close(promise: nil)
   }

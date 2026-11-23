@@ -44,7 +44,7 @@ public enum CompanionClient {
       let responsePromise = group.next().makePromise(of: Data.self)
       let bootstrap = ClientBootstrap(group: group)
         .channelInitializer { channel in
-          var handlers: [ChannelHandler] = []
+          var handlers: [any ChannelHandler] = []
           if let sslContext {
             do {
               // No serverHostname: peer verification is disabled, so SNI /
@@ -60,7 +60,7 @@ public enum CompanionClient {
           }
         }
 
-      let channel: Channel
+      let channel: any Channel
       switch address {
       case let .domainSocket(path):
         channel = try await bootstrap.connect(unixDomainSocketPath: path).get()
@@ -112,7 +112,7 @@ public enum CompanionClient {
 /// TLS-handshake, and write failures surface as the underlying NIO errors.
 public enum CompanionClientError: Error, CustomStringConvertible {
   case encodeFailed
-  case tlsContextFailed(underlying: Error)
+  case tlsContextFailed(underlying: any Error)
 
   public var description: String {
     switch self {
@@ -151,12 +151,12 @@ final class ResponseAccumulator: ChannelInboundHandler {
     context.fireChannelInactive()
   }
 
-  func errorCaught(context: ChannelHandlerContext, error: Error) {
+  func errorCaught(context: ChannelHandlerContext, error: any Error) {
     finish(.failure(error))
     context.close(promise: nil)
   }
 
-  private func finish(_ result: Result<Data, Error>) {
+  private func finish(_ result: Result<Data, any Error>) {
     guard !finished else { return }
     finished = true
     promise.completeWith(result)

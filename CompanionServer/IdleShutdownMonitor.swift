@@ -21,7 +21,7 @@ final class IdleShutdownMonitor: @unchecked Sendable {
   private let onTimeout: @Sendable () -> Void
   private let queue = DispatchQueue(label: "com.facebook.idb.companionserver.idle")
   private let lock = NSLock()
-  private var timer: DispatchSourceTimer?
+  private var timer: (any DispatchSourceTimer)?
   private var inFlight = 0
   private var finished = false
 

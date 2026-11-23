@@ -63,8 +63,8 @@ public final class CompanionServer: @unchecked Sendable {
   private let listen: CompanionListenTarget
   private let group: MultiThreadedEventLoopGroup
   private let stateLock = NSLock()
-  private var _channel: Channel?
-  private var channel: Channel? {
+  private var _channel: (any Channel)?
+  private var channel: (any Channel)? {
     get {
       stateLock.lock()
       defer { stateLock.unlock() }
@@ -163,7 +163,7 @@ public final class CompanionServer: @unchecked Sendable {
     // so the countdown is paused while the request is processed and restarts at
     // the full timeout once it completes.
     let onRequest = self.onRequest
-    let submit: @Sendable (JSONRPCRequest, Channel) -> Void = { request, channel in
+    let submit: @Sendable (JSONRPCRequest, any Channel) -> Void = { request, channel in
       // Pause the idle countdown synchronously, as the request is read on the
       // event loop, so it cannot fire in the gap before the async task starts.
       monitor?.beginActivity()
@@ -186,7 +186,7 @@ public final class CompanionServer: @unchecked Sendable {
     let bootstrap = ServerBootstrap(group: group)
       .serverChannelOption(ChannelOptions.backlog, value: 256)
       .childChannelInitializer { channel in
-        var handlers: [ChannelHandler] = []
+        var handlers: [any ChannelHandler] = []
         // TLS, when configured, must come first so it decrypts before framing.
         if let sslContext {
           handlers.append(NIOSSLServerHandler(context: sslContext))
@@ -207,7 +207,7 @@ public final class CompanionServer: @unchecked Sendable {
       self.channel = channel
       boundAddress = .domainSocket(path: socketPath)
     case let .tcp(host, port, _):
-      let channel: Channel
+      let channel: any Channel
       do {
         channel = try await bootstrap.bind(host: host, port: port).get()
       } catch {
@@ -347,9 +347,9 @@ public enum CompanionServerError: Error, CustomStringConvertible {
   /// An operation requiring a running server was called before `start()`.
   case notStarted
   /// The TLS certificate PEM at the given path could not be loaded.
-  case tlsCertificateLoadFailed(path: String, underlying: Error)
+  case tlsCertificateLoadFailed(path: String, underlying: any Error)
   /// Binding the TCP listening socket failed.
-  case tcpBindFailed(host: String, port: Int, underlying: Error)
+  case tcpBindFailed(host: String, port: Int, underlying: any Error)
 
   public var description: String {
     switch self {
