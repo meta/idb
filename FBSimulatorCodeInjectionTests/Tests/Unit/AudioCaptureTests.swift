@@ -14,7 +14,7 @@ import Testing
 
 private let rate = 48_000.0
 
-extension AudioCaptureProcess: @retroactive Equatable {
+extension AudioCaptureProcess: Equatable {
   public static func == (lhs: Self, rhs: Self) -> Bool {
     (lhs.processIdentifier, lhs.name, lhs.frames, lhs.droppedFrames, lhs.unmixedFrames, lhs.realignments)
       == (rhs.processIdentifier, rhs.name, rhs.frames, rhs.droppedFrames, rhs.unmixedFrames, rhs.realignments)
