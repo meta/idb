@@ -56,7 +56,7 @@ public final class GRPCSwiftServer: @unchecked Sendable {
   public init(
     target: CompanionTarget,
     commandExecutor: IDBCommandExecutor,
-    reporter: EventReporter,
+    reporter: any EventReporter,
     logger: IDBLogger,
     ports: IDBPortsConfiguration,
     idleMonitor: IdleMonitor?,

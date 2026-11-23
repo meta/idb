@@ -13,7 +13,7 @@ enum TargetStateChangeNotifierError: Error {
   case targetsFileCreationFailed(path: String, message: String)
   case initialStateWriteFailed
   case updateSerializationFailed
-  case updateWriteFailed(underlying: Error)
+  case updateWriteFailed(underlying: any Error)
 }
 
 extension TargetStateChangeNotifierError: LocalizedError {
@@ -36,13 +36,13 @@ extension TargetStateChangeNotifierError: LocalizedError {
 public final class TargetStateChangeNotifier: TargetSetDelegate {
 
   private let filePath: String?
-  private let targetSets: [TargetSet]
-  private let logger: ControlCoreLogger
+  private let targetSets: [any TargetSet]
+  private let logger: any ControlCoreLogger
   private var current: [String: TargetDescription]
   private let donePromise = AsyncEvent<Void>()
 
   /// Writes each update to `filePath`, which is created holding an empty list.
-  public convenience init(filePath: String, targetSets: [TargetSet], logger: ControlCoreLogger) throws {
+  public convenience init(filePath: String, targetSets: [any TargetSet], logger: any ControlCoreLogger) throws {
     if targetSets.isEmpty {
       throw TargetStateChangeNotifierError.noTargetSets
     }
@@ -61,7 +61,7 @@ public final class TargetStateChangeNotifier: TargetSetDelegate {
   }
 
   /// Writes each update to stdout.
-  public convenience init(targetSets: [TargetSet], logger: ControlCoreLogger) throws {
+  public convenience init(targetSets: [any TargetSet], logger: any ControlCoreLogger) throws {
     if targetSets.isEmpty {
       throw TargetStateChangeNotifierError.noTargetSets
     }
@@ -69,7 +69,7 @@ public final class TargetStateChangeNotifier: TargetSetDelegate {
     self.init(destination: nil, targetSets: targetSets, logger: logger)
   }
 
-  private init(destination filePath: String?, targetSets: [TargetSet], logger: ControlCoreLogger) {
+  private init(destination filePath: String?, targetSets: [any TargetSet], logger: any ControlCoreLogger) {
     self.filePath = filePath
     self.targetSets = targetSets
     self.logger = logger
@@ -143,17 +143,17 @@ public final class TargetStateChangeNotifier: TargetSetDelegate {
 
   // MARK: - TargetSetDelegate
 
-  public func targetAdded(_ targetInfo: TargetInfo, in targetSet: TargetSet) {
+  public func targetAdded(_ targetInfo: any TargetInfo, in targetSet: any TargetSet) {
     current[targetInfo.uniqueIdentifier] = TargetDescription(target: targetInfo)
     writeTargets()
   }
 
-  public func targetRemoved(_ targetInfo: TargetInfo, in targetSet: TargetSet) {
+  public func targetRemoved(_ targetInfo: any TargetInfo, in targetSet: any TargetSet) {
     current.removeValue(forKey: targetInfo.uniqueIdentifier)
     writeTargets()
   }
 
-  public func targetUpdated(_ targetInfo: TargetInfo, in targetSet: TargetSet) {
+  public func targetUpdated(_ targetInfo: any TargetInfo, in targetSet: any TargetSet) {
     current[targetInfo.uniqueIdentifier] = TargetDescription(target: targetInfo)
     writeTargets()
   }
@@ -181,7 +181,7 @@ public final class TargetDescription: TargetInfo {
   private static let keyType = "type"
   private static let keyUDID = "udid"
 
-  public init(target: TargetInfo) {
+  public init(target: any TargetInfo) {
     self.extendedInformation = target.extendedInformation
     self.model = target.deviceType.model
     self.name = target.name

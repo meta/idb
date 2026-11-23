@@ -21,7 +21,7 @@ import IDBTelemetry
 struct CompanionTelemetry {
 
   let logger: IDBLogger
-  let reporter: EventReporter
+  let reporter: any EventReporter
 
   private static let argumentValueLimit = 100
 

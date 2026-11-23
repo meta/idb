@@ -64,13 +64,13 @@ struct LogMethodHandler: @unchecked Sendable {
 
     let operation = try await log.start(consumer: consumer)
 
-    let observeWritingDone = Task<Void, Error> {
+    let observeWritingDone = Task<Void, any Error> {
       try await writingDone.wait()
     }
     // `operation` is a thread-safe handle but not Sendable; rebind as
     // nonisolated(unsafe) so the observer Task can capture it.
     nonisolated(unsafe) let operationToObserve = operation
-    let observeOperationCompletion = Task<Void, Error> {
+    let observeOperationCompletion = Task<Void, any Error> {
       try await operationToObserve.waitUntilCompleted()
     }
     try await Task.select(observeWritingDone, observeOperationCompletion).value

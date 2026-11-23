@@ -60,7 +60,7 @@ struct CompanionAccessibility: @unchecked Sendable {
     query: AccessibilityElementQuery,
     parameters: QuiescenceParameters,
     backend: UIAutomationBackend
-  ) async throws -> AsyncThrowingStream<QuiescenceEvent, Error> {
+  ) async throws -> AsyncThrowingStream<QuiescenceEvent, any Error> {
     guard let simulator = target as? Simulator else {
       throw IDBCommandError.simulatorOnlyOperation(operation: "stream accessibility quiescence", targetDescription: String(describing: target))
     }
@@ -70,7 +70,7 @@ struct CompanionAccessibility: @unchecked Sendable {
   func shimulatorQuiescence(
     query: AccessibilityElementQuery,
     parameters: QuiescenceParameters
-  ) async throws -> AsyncThrowingStream<QuiescenceEvent, Error> {
+  ) async throws -> AsyncThrowingStream<QuiescenceEvent, any Error> {
     guard let simulator = target as? Simulator else {
       throw IDBCommandError.simulatorOnlyOperation(operation: "stream shimulator quiescence", targetDescription: String(describing: target))
     }

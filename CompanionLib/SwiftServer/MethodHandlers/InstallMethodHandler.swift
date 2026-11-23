@@ -17,7 +17,7 @@ import os
 struct InstallMethodHandler {
 
   let commandExecutor: IDBCommandExecutor
-  let targetLogger: ControlCoreLogger
+  let targetLogger: any ControlCoreLogger
 
   func handle(requestStream: RequestStreamReader<Idb_InstallRequest>, responseStream: RPCWriter<Idb_InstallResponse>, context: ServerContext) async throws {
 

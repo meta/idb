@@ -24,7 +24,7 @@ enum IDBStorageError: Error {
   case testNotFoundByID(bundleID: String)
   case baseDirectoryUnreadable
   case notExactlyOneTest(count: Int)
-  case storageLocationCreationFailed(path: URL, underlying: Error)
+  case storageLocationCreationFailed(path: URL, underlying: any Error)
 }
 
 extension IDBStorageError: LocalizedError {
@@ -68,9 +68,9 @@ public class IDBStorage {
   public let target: any Target
   public let basePath: URL
   public let queue: DispatchQueue
-  public let logger: ControlCoreLogger
+  public let logger: any ControlCoreLogger
 
-  public init(target: any Target, basePath: URL, queue: DispatchQueue, logger: ControlCoreLogger) {
+  public init(target: any Target, basePath: URL, queue: DispatchQueue, logger: any ControlCoreLogger) {
     self.target = target
     self.basePath = basePath
     self.queue = queue
@@ -129,7 +129,7 @@ public final class FileStorage: IDBStorage {
 public class BundleStorage: IDBStorage {
   public let relocateLibraries: Bool
 
-  public init(target: any Target, basePath: URL, queue: DispatchQueue, logger: ControlCoreLogger, relocateLibraries: Bool) {
+  public init(target: any Target, basePath: URL, queue: DispatchQueue, logger: any ControlCoreLogger, relocateLibraries: Bool) {
     self.relocateLibraries = relocateLibraries
     super.init(target: target, basePath: basePath, queue: queue, logger: logger)
   }
@@ -233,8 +233,8 @@ private let XctestRunExtension = "xctestrun"
 
 public final class XCTestBundleStorage: BundleStorage {
 
-  func listTestDescriptors() throws -> [XCTestDescriptor] {
-    var testDescriptors: [XCTestDescriptor] = []
+  func listTestDescriptors() throws -> [any XCTestDescriptor] {
+    var testDescriptors: [any XCTestDescriptor] = []
 
     let testURLs = try listTestBundles()
     let xcTestRunURLs = try listXCTestRunFiles()
@@ -261,7 +261,7 @@ public final class XCTestBundleStorage: BundleStorage {
     return testDescriptors
   }
 
-  func testDescriptor(withID bundleId: String) throws -> XCTestDescriptor {
+  func testDescriptor(withID bundleId: String) throws -> any XCTestDescriptor {
     let testDescriptors = try listTestDescriptors()
     for testDescriptor in testDescriptors {
       if testDescriptor.testBundleID == bundleId {
@@ -271,7 +271,7 @@ public final class XCTestBundleStorage: BundleStorage {
     throw IDBStorageError.testNotFoundByID(bundleID: bundleId)
   }
 
-  func getXCTestRunDescriptors(from xctestrunURL: URL) throws -> [XCTestDescriptor] {
+  func getXCTestRunDescriptors(from xctestrunURL: URL) throws -> [any XCTestDescriptor] {
     let contentDict = try XCTestRunFileReader.readContents(of: xctestrunURL, expandPlaceholderWithPath: target.auxillaryDirectory)
     let xctestrunMetadata = contentDict["__xctestrun_metadata__"] as? [String: NSNumber]
     if let xctestrunMetadata {
@@ -307,8 +307,8 @@ public final class XCTestBundleStorage: BundleStorage {
     return tests
   }
 
-  private func getDescriptors(from xctestrunContents: [String: Any], with xctestrunURL: URL) -> [XCTestDescriptor] {
-    var descriptors: [XCTestDescriptor] = []
+  private func getDescriptors(from xctestrunContents: [String: Any], with xctestrunURL: URL) -> [any XCTestDescriptor] {
+    var descriptors: [any XCTestDescriptor] = []
     for field in xctestrunContents.keys {
       logger.info().log("Checking the \(field) field to extract test descriptors")
       if field == "__xctestrun_metadata__" || field == "CodeCoverageBuildableInfos" {
@@ -321,8 +321,8 @@ public final class XCTestBundleStorage: BundleStorage {
     return descriptors
   }
 
-  private func legacyGetDescriptors(from xctestrunContents: [String: Any], with xctestrunURL: URL) -> [XCTestDescriptor] {
-    var descriptors: [XCTestDescriptor] = []
+  private func legacyGetDescriptors(from xctestrunContents: [String: Any], with xctestrunURL: URL) -> [any XCTestDescriptor] {
+    var descriptors: [any XCTestDescriptor] = []
     for testTarget in xctestrunContents.keys {
       if let descriptor = getDescriptor(for: testTarget, from: xctestrunContents, with: xctestrunURL) {
         descriptors.append(descriptor)
@@ -331,7 +331,7 @@ public final class XCTestBundleStorage: BundleStorage {
     return descriptors
   }
 
-  private func getDescriptor(for testTarget: String, from xctestrunContents: [String: Any], with xctestrunURL: URL) -> XCTestDescriptor? {
+  private func getDescriptor(for testTarget: String, from xctestrunContents: [String: Any], with xctestrunURL: URL) -> (any XCTestDescriptor)? {
     guard let testTargetProperties = xctestrunContents[testTarget] as? [String: Any] else {
       return nil
     }
@@ -408,9 +408,9 @@ public final class IDBStorageManager {
   public let dylib: FileStorage
   public let dsym: FileStorage
   public let framework: BundleStorage
-  public let logger: ControlCoreLogger
+  public let logger: any ControlCoreLogger
 
-  private init(xctest: XCTestBundleStorage, application: BundleStorage, dylib: FileStorage, dsym: FileStorage, framework: BundleStorage, logger: ControlCoreLogger) {
+  private init(xctest: XCTestBundleStorage, application: BundleStorage, dylib: FileStorage, dsym: FileStorage, framework: BundleStorage, logger: any ControlCoreLogger) {
     self.xctest = xctest
     self.application = application
     self.dylib = dylib
@@ -420,7 +420,7 @@ public final class IDBStorageManager {
   }
 
   /// Prepares the storage directories for `target`, creating them if needed.
-  public convenience init(target: any Target, logger: ControlCoreLogger) throws {
+  public convenience init(target: any Target, logger: any ControlCoreLogger) throws {
     let queue = DispatchQueue(label: "com.facebook.idb.bundle_storage")
 
     let xctestBasePath = try IDBStorageManager.prepareStoragePath(withName: IdbTestBundlesFolder, target: target)

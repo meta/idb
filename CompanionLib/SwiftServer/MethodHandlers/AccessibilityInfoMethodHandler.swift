@@ -162,7 +162,7 @@ enum AccessibilityReadTelemetry {
   }
 
   /// A read that failed records how it ended, when the failure says.
-  static func record(failure error: Error, into call: CallTelemetry?) {
+  static func record(failure error: any Error, into call: CallTelemetry?) {
     guard let call, let outcome = AccessibilityReadOutcome(failure: error) else { return }
     call.setNormal(outcome.rawValue, forKey: "ax_read_outcome")
     if case let AccessibilityError.serviceNotAnswering(_, _, behindAbandoned) = error {

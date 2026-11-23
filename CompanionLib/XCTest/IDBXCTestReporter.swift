@@ -73,13 +73,13 @@ final class IDBXCTestReporter: XCTestReporter, DataConsumer, @unchecked Sendable
 
   @Atomic private var responseStream: RPCWriter<Idb_XctestRunResponse>?
 
-  private let logger: ControlCoreLogger
+  private let logger: any ControlCoreLogger
 
   private let processUnderTestExited = AsyncEvent<Void>()
 
   @Atomic private var currentInfo = CurrentTestInfo()
 
-  init(responseStream: RPCWriter<Idb_XctestRunResponse>, logger: ControlCoreLogger) {
+  init(responseStream: RPCWriter<Idb_XctestRunResponse>, logger: any ControlCoreLogger) {
     self._responseStream = .init(wrappedValue: responseStream)
     self.logger = logger
   }
@@ -196,7 +196,7 @@ final class IDBXCTestReporter: XCTestReporter, DataConsumer, @unchecked Sendable
     // Warning! This method is bridged to swift incorrectly and loses bool return type. Adapt and use with extra care
   }
 
-  func didCrashDuringTest(_ error: Error) {
+  func didCrashDuringTest(_ error: any Error) {
     let response = responseFor(crashMessage: error.localizedDescription)
     write(response: response)
   }

@@ -46,7 +46,7 @@ struct DebugserverMethodHandler {
     }
   }
 
-  private func debugserverStatusToProto(debugServer: DebugServer) -> Idb_DebugServerResponse {
+  private func debugserverStatusToProto(debugServer: any DebugServer) -> Idb_DebugServerResponse {
     return .with {
       $0.status = .with {
         $0.lldbBootstrapCommands = debugServer.lldbBootstrapCommands

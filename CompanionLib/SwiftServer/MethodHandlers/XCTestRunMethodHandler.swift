@@ -30,8 +30,8 @@ struct XCTestRunMethodHandler {
 
   let target: any Target
   let commandExecutor: IDBCommandExecutor
-  let reporter: EventReporter
-  let targetLogger: ControlCoreLogger
+  let reporter: any EventReporter
+  let targetLogger: any ControlCoreLogger
   let logger: IDBLogger
 
   func handle(request: Idb_XctestRunRequest, responseStream: RPCWriter<Idb_XctestRunResponse>, context: ServerContext) async throws {

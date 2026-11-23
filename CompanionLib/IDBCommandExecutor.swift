@@ -83,7 +83,7 @@ public final class IDBCommandExecutor {
   private let debugserverPort: in_port_t
 
   public let storageManager: IDBStorageManager
-  public var debugServer: DebugServer?
+  public var debugServer: (any DebugServer)?
   public let temporaryDirectory: TemporaryDirectory
 
   // MARK: - Initializers
@@ -325,21 +325,21 @@ public final class IDBCommandExecutor {
     return [path]
   }
 
-  public func debugserverStart(_ bundleID: String) async throws -> DebugServer {
+  public func debugserverStart(_ bundleID: String) async throws -> any DebugServer {
     let bundle = try debugserverPrepare(bundleID)
     let server = try await target.debugServer.launch(forHostApplication: bundle, port: debugserverPort)
     debugServer = server
     return server
   }
 
-  public func debugserverStatus() throws -> DebugServer {
+  public func debugserverStatus() throws -> any DebugServer {
     guard let debugServer else {
       throw IDBCommandError.noDebugServer
     }
     return debugServer
   }
 
-  public func debugserverStop() async throws -> DebugServer {
+  public func debugserverStop() async throws -> any DebugServer {
     let server = try debugserverStatus()
     try await server.cancel()
     debugServer = nil

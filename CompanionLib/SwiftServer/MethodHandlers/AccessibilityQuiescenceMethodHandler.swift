@@ -20,12 +20,12 @@ protocol AccessibilityQuiescenceStreaming {
     query: AccessibilityElementQuery,
     parameters: QuiescenceParameters,
     backend: UIAutomationBackend
-  ) async throws -> AsyncThrowingStream<QuiescenceEvent, Error>
+  ) async throws -> AsyncThrowingStream<QuiescenceEvent, any Error>
 
   func shimulatorQuiescence(
     query: AccessibilityElementQuery,
     parameters: QuiescenceParameters
-  ) async throws -> AsyncThrowingStream<QuiescenceEvent, Error>
+  ) async throws -> AsyncThrowingStream<QuiescenceEvent, any Error>
 
   func processId(forBundleID bundleID: String) async throws -> pid_t
 }
@@ -60,7 +60,7 @@ struct AccessibilityQuiescenceMethodHandler {
     }
     do {
       let backend: Idb_AccessibilityQuiescenceRequest.Backend
-      let events: AsyncThrowingStream<QuiescenceEvent, Error>
+      let events: AsyncThrowingStream<QuiescenceEvent, any Error>
       switch request.backend {
       case .shimulator:
         backend = .shimulator
@@ -110,9 +110,9 @@ struct AccessibilityQuiescenceMethodHandler {
   /// gRPC signals a client going away through `cancellation` rather than by cancelling the handler's task,
   /// so without this a stream that writes only on a change runs until its next write fails.
   private static func events(
-    _ events: AsyncThrowingStream<QuiescenceEvent, Error>,
+    _ events: AsyncThrowingStream<QuiescenceEvent, any Error>,
     until cancellation: ServerContext.RPCCancellationHandle
-  ) -> AsyncThrowingStream<QuiescenceEvent, Error> {
+  ) -> AsyncThrowingStream<QuiescenceEvent, any Error> {
     AsyncThrowingStream { continuation in
       let relay = Task {
         do {

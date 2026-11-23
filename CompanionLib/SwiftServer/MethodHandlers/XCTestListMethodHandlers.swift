@@ -24,7 +24,7 @@ struct XCTestListBundlesMethodHandler {
       $0.bundles = descriptors.map(toBundle(descriptor:))
     }
   }
-  private func toBundle(descriptor: XCTestDescriptor) -> Idb_XctestListBundlesResponse.Bundles {
+  private func toBundle(descriptor: any XCTestDescriptor) -> Idb_XctestListBundlesResponse.Bundles {
     return .with {
       $0.name = descriptor.name
       $0.bundleID = descriptor.testBundleID

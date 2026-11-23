@@ -27,14 +27,14 @@ public final class IDBTestOperation: CustomStringConvertible {
     }
   }
 
-  public let logger: ControlCoreLogger
+  public let logger: any ControlCoreLogger
   public let queue: DispatchQueue
-  public let reporter: XCTestReporter
+  public let reporter: any XCTestReporter
   public let reporterConfiguration: XCTestReporterConfiguration
   private let configuration: Configuration
-  private let completion: Task<Void, Error>
+  private let completion: Task<Void, any Error>
 
-  public init(configuration: Configuration, reporterConfiguration: XCTestReporterConfiguration, reporter: XCTestReporter, logger: ControlCoreLogger, completion: Task<Void, Error>, queue: DispatchQueue) {
+  public init(configuration: Configuration, reporterConfiguration: XCTestReporterConfiguration, reporter: any XCTestReporter, logger: any ControlCoreLogger, completion: Task<Void, any Error>, queue: DispatchQueue) {
     self.configuration = configuration
     self.reporterConfiguration = reporterConfiguration
     self.reporter = reporter

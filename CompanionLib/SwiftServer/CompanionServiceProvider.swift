@@ -19,7 +19,7 @@ final class CompanionServiceProvider: Idb_CompanionService.SimpleServiceProtocol
 
   private let target: CompanionTarget
   private let commandExecutor: IDBCommandExecutor
-  private let reporter: EventReporter
+  private let reporter: any EventReporter
   private let logger: IDBLogger
   private let telemetry: CompanionTelemetry
   /// Tracks in-flight calls so the companion can shut down when idle.
@@ -33,7 +33,7 @@ final class CompanionServiceProvider: Idb_CompanionService.SimpleServiceProtocol
   init(
     target: CompanionTarget,
     commandExecutor: IDBCommandExecutor,
-    reporter: EventReporter,
+    reporter: any EventReporter,
     logger: IDBLogger,
     idleMonitor: IdleMonitor? = nil,
     allowedForwardPorts: Set<UInt16> = []
@@ -108,7 +108,7 @@ final class CompanionServiceProvider: Idb_CompanionService.SimpleServiceProtocol
     }
   }
 
-  private var targetLogger: ControlCoreLogger {
+  private var targetLogger: any ControlCoreLogger {
     target.logger
   }
 

@@ -13,5 +13,5 @@ public enum IDBConfiguration {
 
   // Set once at process startup before any request handling, so unsynchronized
   // access is safe.
-  public nonisolated(unsafe) static var eventReporter: EventReporter = EmptyEventReporter.shared
+  public nonisolated(unsafe) static var eventReporter: any EventReporter = EmptyEventReporter.shared
 }

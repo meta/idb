@@ -45,17 +45,17 @@ extension IDBLoggerError: LocalizedError {
 // patternlint-disable-next-line unchecked-sendable
 private final class GlobalLoggers: @unchecked Sendable {
   private let lock = NSLock()
-  private var loggers: [ControlCoreLogger] = []
+  private var loggers: [any ControlCoreLogger] = []
 
-  var all: [ControlCoreLogger] {
+  var all: [any ControlCoreLogger] {
     lock.withLock { loggers }
   }
 
-  func add(_ logger: ControlCoreLogger) {
+  func add(_ logger: any ControlCoreLogger) {
     lock.withLock { loggers.append(logger) }
   }
 
-  func remove(_ logger: ControlCoreLogger) {
+  func remove(_ logger: any ControlCoreLogger) {
     lock.withLock { loggers.removeAll { $0 === logger } }
   }
 }
@@ -63,10 +63,10 @@ private final class GlobalLoggers: @unchecked Sendable {
 private let globalLoggers = GlobalLoggers()
 
 private final class IDBLoggerOperation: LogOperation, Sendable {
-  let consumer: DataConsumer
-  let logger: ControlCoreLogger
+  let consumer: any DataConsumer
+  let logger: any ControlCoreLogger
 
-  init(consumer: DataConsumer, logger: ControlCoreLogger) {
+  init(consumer: any DataConsumer, logger: any ControlCoreLogger) {
     self.consumer = consumer
     self.logger = logger
   }
@@ -84,12 +84,12 @@ private final class IDBLoggerOperation: LogOperation, Sendable {
 
 public final class IDBLogger: ControlCoreLogger {
 
-  private let ownLoggers: [ControlCoreLogger]
+  private let ownLoggers: [any ControlCoreLogger]
   // Applied to the global loggers as each line is logged, because they come and go after this
   // logger is derived.
-  private let deriveGlobal: @Sendable (ControlCoreLogger) -> ControlCoreLogger
+  private let deriveGlobal: @Sendable (any ControlCoreLogger) -> any ControlCoreLogger
 
-  init(loggers: [ControlCoreLogger], deriveGlobal: @escaping @Sendable (ControlCoreLogger) -> ControlCoreLogger = { $0 }) {
+  init(loggers: [any ControlCoreLogger], deriveGlobal: @escaping @Sendable (any ControlCoreLogger) -> any ControlCoreLogger = { $0 }) {
     self.ownLoggers = loggers
     self.deriveGlobal = deriveGlobal
   }
@@ -101,7 +101,7 @@ public final class IDBLogger: ControlCoreLogger {
   ///   cannot be opened. A caller handling that has `systemLogger(withUserDefaults:)` to
   ///   report it through.
   public static func logger(withUserDefaults userDefaults: UserDefaults) throws -> IDBLogger {
-    var loggers: [ControlCoreLogger] = [systemLoggerSink(withUserDefaults: userDefaults)]
+    var loggers: [any ControlCoreLogger] = [systemLoggerSink(withUserDefaults: userDefaults)]
     if let logFilePath = userDefaults.string(forKey: "-log-file-path") {
       let fileDescriptor = try openLogFile(atPath: logFilePath)
       loggers.append(ConsumerLogger(fileDescriptor: fileDescriptor, closeOnEndOfFile: true))
@@ -115,7 +115,7 @@ public final class IDBLogger: ControlCoreLogger {
     IDBLogger(loggers: [systemLoggerSink(withUserDefaults: userDefaults)]).dateFormatted()
   }
 
-  private static func systemLoggerSink(withUserDefaults userDefaults: UserDefaults) -> ControlCoreLogger {
+  private static func systemLoggerSink(withUserDefaults userDefaults: UserDefaults) -> any ControlCoreLogger {
     let debugLogging = userDefaults.string(forKey: "-log-level")?.lowercased() != "info"
     return ControlCoreGlobalConfiguration.systemLogger(writingToStderr: true, debugLogging: debugLogging)
   }
@@ -139,33 +139,33 @@ public final class IDBLogger: ControlCoreLogger {
     return fileDescriptor
   }
 
-  var loggers: [ControlCoreLogger] {
+  var loggers: [any ControlCoreLogger] {
     ownLoggers + globalLoggers.all.map(deriveGlobal)
   }
 
   @discardableResult
-  public func log(_ message: String) -> ControlCoreLogger {
+  public func log(_ message: String) -> any ControlCoreLogger {
     CompositeLogger(loggers: loggers).log(message)
     return self
   }
 
-  public func info() -> ControlCoreLogger {
+  public func info() -> any ControlCoreLogger {
     applying { $0.info() }
   }
 
-  public func debug() -> ControlCoreLogger {
+  public func debug() -> any ControlCoreLogger {
     applying { $0.debug() }
   }
 
-  public func error() -> ControlCoreLogger {
+  public func error() -> any ControlCoreLogger {
     applying { $0.error() }
   }
 
-  public func withName(_ name: String) -> ControlCoreLogger {
+  public func withName(_ name: String) -> any ControlCoreLogger {
     named(name)
   }
 
-  public func withDateFormatEnabled(_ enabled: Bool) -> ControlCoreLogger {
+  public func withDateFormatEnabled(_ enabled: Bool) -> any ControlCoreLogger {
     applying { $0.withDateFormatEnabled(enabled) }
   }
 
@@ -185,11 +185,11 @@ public final class IDBLogger: ControlCoreLogger {
     applying { $0.withDateFormatEnabled(true) }
   }
 
-  private func applying(_ transform: @escaping @Sendable (ControlCoreLogger) -> ControlCoreLogger) -> IDBLogger {
+  private func applying(_ transform: @escaping @Sendable (any ControlCoreLogger) -> any ControlCoreLogger) -> IDBLogger {
     IDBLogger(loggers: ownLoggers.map(transform), deriveGlobal: { [deriveGlobal] in transform(deriveGlobal($0)) })
   }
 
-  func tailToConsumer(_ consumer: DataConsumer) async throws -> any LogOperation {
+  func tailToConsumer(_ consumer: any DataConsumer) async throws -> any LogOperation {
     let logger = ConsumerLogger(consumer: consumer)
     globalLoggers.add(logger)
     return IDBLoggerOperation(consumer: consumer, logger: logger)

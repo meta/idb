@@ -63,7 +63,7 @@ public enum TargetProvider {
     makingTargetSets makers: [TargetSetMaker],
     warmUp: Bool,
     appearanceTimeout: TimeInterval = targetAppearanceTimeout,
-    logger: ControlCoreLogger
+    logger: any ControlCoreLogger
   ) async throws -> CompanionTarget {
     let targetSets = try await makeTargetSets(withUDID: udid, makers: makers, appearanceTimeout: appearanceTimeout, logger: logger)
     return try target(withUDID: udid, targetSets: targetSets, warmUp: warmUp, logger: logger)
@@ -75,7 +75,7 @@ public enum TargetProvider {
     makingTargetSets makers: [TargetSetMaker],
     warmUp: Bool,
     appearanceTimeout: TimeInterval = targetAppearanceTimeout,
-    logger: ControlCoreLogger,
+    logger: any ControlCoreLogger,
     _ body: (CompanionTarget) async throws -> Result
   ) async throws -> Result {
     let targetSets = try await makeTargetSets(withUDID: udid, makers: makers, appearanceTimeout: appearanceTimeout, logger: logger)
@@ -84,8 +84,8 @@ public enum TargetProvider {
     return try await body(target)
   }
 
-  private static func makeTargetSets(withUDID udid: String, makers: [TargetSetMaker], appearanceTimeout: TimeInterval, logger: ControlCoreLogger) async throws -> [TargetSet] {
-    var targetSets: [TargetSet] = []
+  private static func makeTargetSets(withUDID udid: String, makers: [TargetSetMaker], appearanceTimeout: TimeInterval, logger: any ControlCoreLogger) async throws -> [any TargetSet] {
+    var targetSets: [any TargetSet] = []
     switch udid.lowercased() {
     case "only", "booted":
       for make in makers {
@@ -108,7 +108,7 @@ public enum TargetProvider {
 
   /// Waits until one of `targetSets` holds `udid`. The sets are mutated on the main queue, so they
   /// are read there.
-  private static func awaitTarget(withUDID udid: String, in targetSets: [TargetSet], timeout: TimeInterval, logger: ControlCoreLogger) async throws {
+  private static func awaitTarget(withUDID udid: String, in targetSets: [any TargetSet], timeout: TimeInterval, logger: any ControlCoreLogger) async throws {
     let start = DispatchTime.now()
     let holdsTarget = { targetSets.contains { $0.target(withUDID: udid) != nil } }
     do {
@@ -120,7 +120,7 @@ public enum TargetProvider {
     logger.log("\(udid) appeared \(String(format: "%.3f", waited))s after its target sets were created")
   }
 
-  public static func target(withUDID udid: String, targetSets: [TargetSet], warmUp: Bool, logger: ControlCoreLogger) throws -> CompanionTarget {
+  public static func target(withUDID udid: String, targetSets: [any TargetSet], warmUp: Bool, logger: any ControlCoreLogger) throws -> CompanionTarget {
     switch udid.lowercased() {
     case "only":
       return try fetchSoleTarget(forTargetSets: targetSets, logger: logger)
@@ -131,7 +131,7 @@ public enum TargetProvider {
     }
   }
 
-  private static func fetchTarget(withUDID udid: String, targetSets: [TargetSet], logger: ControlCoreLogger) throws -> CompanionTarget {
+  private static func fetchTarget(withUDID udid: String, targetSets: [any TargetSet], logger: any ControlCoreLogger) throws -> CompanionTarget {
     if udid.lowercased() == "mac" {
       return MacDevice(logger: logger)
     }
@@ -148,7 +148,7 @@ public enum TargetProvider {
     throw TargetProviderError.targetNotFound(udid: udid, targetSetsDescription: String(describing: targetSets))
   }
 
-  private static func fetchSoleTarget(forTargetSets targetSets: [TargetSet], logger: ControlCoreLogger) throws -> CompanionTarget {
+  private static func fetchSoleTarget(forTargetSets targetSets: [any TargetSet], logger: any ControlCoreLogger) throws -> CompanionTarget {
     var targets: [CompanionTarget] = []
     for targetSet in targetSets {
       for info in targetSet.allTargetInfos {
@@ -166,7 +166,7 @@ public enum TargetProvider {
     return target
   }
 
-  private static func fetchSoleBootedTarget(forTargetSets targetSets: [TargetSet], logger: ControlCoreLogger) throws -> CompanionTarget {
+  private static func fetchSoleBootedTarget(forTargetSets targetSets: [any TargetSet], logger: any ControlCoreLogger) throws -> CompanionTarget {
     var bootedTargets: [CompanionTarget] = []
     for targetSet in targetSets {
       for info in targetSet.allTargetInfos {

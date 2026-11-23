@@ -155,7 +155,7 @@ final class InstallTelemetry: Sendable {
   /// A failure once the RPC or the call's task is cancelled was brought on by the client going away,
   /// whatever error it surfaced as. gRPC marks the RPC cancelled without cancelling the task, so
   /// callers pass what the RPC's cancellation handle says.
-  func failed(_ error: Error, rpcCancelled: Bool = false) {
+  func failed(_ error: any Error, rpcCancelled: Bool = false) {
     let cancelled = rpcCancelled || Task.isCancelled
     let kind = Self.kind(of: error)
     state.withLock { state in
@@ -227,7 +227,7 @@ final class InstallTelemetry: Sendable {
 
   /// An `InstallError` is named by its case, so failures group by cause. Anything else is named by its
   /// type, which at least separates a target refusing the install from a transport failure.
-  static func kind(of error: Error) -> String {
+  static func kind(of error: any Error) -> String {
     guard let error = error as? InstallError else {
       return String(describing: type(of: error))
     }
@@ -248,7 +248,7 @@ final class InstallTelemetry: Sendable {
   }
 
   /// A failure to find the artifact in what was staged, which happens with no stage in flight.
-  private static func isIdentification(_ error: Error) -> Bool {
+  private static func isIdentification(_ error: any Error) -> Bool {
     switch error as? InstallError {
     case .noInstallableBundle, .unidentifiable:
       return true
@@ -286,7 +286,7 @@ struct DownloadFailureDetail: Equatable {
   let streamErrorCode: Int?
   let report: DownloadReport
 
-  init(underlying: Error, report: DownloadReport) {
+  init(underlying: any Error, report: DownloadReport) {
     let error = underlying as NSError
     let cause = error.userInfo[NSUnderlyingErrorKey] as? NSError
     errorCode = Self.name(error)

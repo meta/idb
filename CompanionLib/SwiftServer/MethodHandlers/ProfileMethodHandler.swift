@@ -18,7 +18,7 @@ import SwiftProtobuf
 
 struct ProfileMethodHandler {
 
-  let logger: ControlCoreLogger
+  let logger: any ControlCoreLogger
   let target: any Target
 
   func handle(requestStream: RequestStreamReader<Idb_ProfileRequest>, responseStream: RPCWriter<Idb_ProfileResponse>, context: ServerContext) async throws {
@@ -83,7 +83,7 @@ struct ProfileMethodHandler {
   }
 
   /// Streams the artifact at `path` as a single gzipped tar, in chunks.
-  static func sendArtifact(atPath path: String, responseStream: RPCWriter<Idb_ProfileResponse>, logger: ControlCoreLogger) async throws {
+  static func sendArtifact(atPath path: String, responseStream: RPCWriter<Idb_ProfileResponse>, logger: any ControlCoreLogger) async throws {
     let archive = try ArchiveOperations.gzippedTarSubprocess(forPath: path, logger: logger)
     try await FileDrainWriter.performDrain(archive, logger: logger) { data in
       try await responseStream.send(.with { $0.artifact = .with { $0.data = data } })

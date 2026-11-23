@@ -14,7 +14,7 @@ import SwiftProtobuf
 
 struct ConnectMethodHandler {
 
-  let reporter: EventReporter
+  let reporter: any EventReporter
   let logger: IDBLogger
   let target: any Target
 

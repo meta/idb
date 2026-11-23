@@ -17,7 +17,7 @@ public enum CompanionServerSession {
     userDefaults: UserDefaults,
     makingTargetSets makers: [TargetSetMaker],
     logger: IDBLogger,
-    reporter: EventReporter,
+    reporter: any EventReporter,
     onStarted: ([String: Any]) -> Void
   ) async throws {
     let terminateOffline = userDefaults.bool(forKey: "-terminate-offline")
@@ -94,7 +94,7 @@ public enum CompanionServerSession {
       // `Task.select` cancels the race tasks on caller cancellation, but a winner leaves
       // the others running.
       let serverClosed = Task { try await swiftServer.waitUntilClosed() }
-      var raceTasks: [Task<Void, Error>] = [serverClosed]
+      var raceTasks: [Task<Void, any Error>] = [serverClosed]
       if let idleMonitor {
         raceTasks.append(Task { try await idleMonitor.waitUntilExpired() })
       }
@@ -116,7 +116,7 @@ public enum CompanionServerSession {
     }
   }
 
-  private static func awaitTargetOffline(_ target: any Target, logger: ControlCoreLogger) async throws {
+  private static func awaitTargetOffline(_ target: any Target, logger: any ControlCoreLogger) async throws {
     try await target.lifecycle.resolveLeavesState(.booted)
     target.logger.log("Target is no longer booted, companion going offline")
   }

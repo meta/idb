@@ -90,7 +90,7 @@ enum MultisourceFileReader {
     return filePaths
   }
 
-  private static func pumpToSource<Request: PayloadExtractable>(initialData: Data, requestStream: RequestStreamReader<Request>) -> (Task<Void, Error>, ChunkSource) {
+  private static func pumpToSource<Request: PayloadExtractable>(initialData: Data, requestStream: RequestStreamReader<Request>) -> (Task<Void, any Error>, ChunkSource) {
     let source = ChunkSource()
     let pumpTask = Task {
       try await writePayloads(initialData: initialData, from: requestStream, to: source)

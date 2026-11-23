@@ -161,7 +161,7 @@ struct LaunchMethodHandler: @unchecked Sendable {
   }
 
   /// Launches with the storage and target path placeholders in the environment replaced by their values.
-  private func launch(_ configuration: ApplicationLaunchConfiguration, telemetry call: CallTelemetry?) async throws -> LaunchedApplication {
+  private func launch(_ configuration: ApplicationLaunchConfiguration, telemetry call: CallTelemetry?) async throws -> any LaunchedApplication {
     let environment = await LaunchStage.environmentReplacement.measure(into: call) {
       var replacements: [String: String] = [:]
       replacements.merge(commandExecutor.storageManager.replacementMapping) { _, new in new }

@@ -16,7 +16,7 @@ import SwiftProtobuf
 struct VideoStreamMethodHandler {
 
   let target: CompanionTarget
-  let targetLogger: ControlCoreLogger
+  let targetLogger: any ControlCoreLogger
   let commandExecutor: IDBCommandExecutor
 
   func handle(requestStream: RequestStreamReader<Idb_VideoStreamRequest>, responseStream: RPCWriter<Idb_VideoStreamResponse>, context: ServerContext) async throws {
@@ -25,7 +25,7 @@ struct VideoStreamMethodHandler {
 
     let videoStream = try await startVideoStream(request: start, responseStream: responseStream)
 
-    let observeClientCancelStreaming = Task<Void, Error> {
+    let observeClientCancelStreaming = Task<Void, any Error> {
       for try await request in requestStream {
         switch request.control {
         case .start:
@@ -38,7 +38,7 @@ struct VideoStreamMethodHandler {
       }
     }
 
-    let observeVideoStreamStop = Task<Void, Error> {
+    let observeVideoStreamStop = Task<Void, any Error> {
       try await videoStream.awaitCompletion()
     }
 
@@ -48,8 +48,8 @@ struct VideoStreamMethodHandler {
     targetLogger.log("The video stream is terminated")
   }
 
-  private func startVideoStream(request start: Idb_VideoStreamRequest.Start, responseStream: RPCWriter<Idb_VideoStreamResponse>) async throws -> VideoStreamOperation {
-    let consumer: DataConsumer
+  private func startVideoStream(request start: Idb_VideoStreamRequest.Start, responseStream: RPCWriter<Idb_VideoStreamResponse>) async throws -> any VideoStreamOperation {
+    let consumer: any DataConsumer
 
     if start.filePath.isEmpty {
       let responseWriter = FIFOStreamWriter(stream: responseStream)

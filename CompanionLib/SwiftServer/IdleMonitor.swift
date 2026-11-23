@@ -36,7 +36,7 @@ public final class IdleMonitor: @unchecked Sendable {
   private let lock = NSLock()
 
   private var activeRequests = 0
-  private var timer: DispatchSourceTimer?
+  private var timer: (any DispatchSourceTimer)?
   /// Bumped whenever the timer is armed or invalidated so a timer that fires after
   /// it has been superseded can tell it is stale and do nothing.
   private var generation = 0

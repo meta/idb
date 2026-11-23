@@ -17,7 +17,7 @@ public protocol XCTestDescriptor: AnyObject {
   var architectures: Set<String> { get }
   var testBundle: BundleDescriptor { get }
   func setup(with request: XCTestRunRequest, target: any Target) async throws
-  func testConfig(withRunRequest request: XCTestRunRequest, testApps: TestApplicationsPair, logDirectoryPath: String?, logger: ControlCoreLogger) async throws -> IDBAppHostedTestConfiguration
+  func testConfig(withRunRequest request: XCTestRunRequest, testApps: TestApplicationsPair, logDirectoryPath: String?, logger: any ControlCoreLogger) async throws -> IDBAppHostedTestConfiguration
   func testAppPair(for request: XCTestRunRequest, target: any Target) async throws -> TestApplicationsPair
 }
 
@@ -108,7 +108,7 @@ final class XCTestBootstrapDescriptor: XCTestDescriptor, CustomStringConvertible
     return TestApplicationsPair(applicationUnderTest: nil, testHostApp: application)
   }
 
-  public func testConfig(withRunRequest request: XCTestRunRequest, testApps: TestApplicationsPair, logDirectoryPath: String?, logger: ControlCoreLogger) async throws -> IDBAppHostedTestConfiguration {
+  public func testConfig(withRunRequest request: XCTestRunRequest, testApps: TestApplicationsPair, logDirectoryPath: String?, logger: any ControlCoreLogger) async throws -> IDBAppHostedTestConfiguration {
     guard let testHostApp = testApps.testHostApp else {
       throw XCTestDescriptorError.noTestHostApplication(requestDescription: String(describing: request))
     }
@@ -194,7 +194,7 @@ final class XCodebuildTestRunDescriptor: XCTestDescriptor, CustomStringConvertib
     TestApplicationsPair(applicationUnderTest: nil, testHostApp: nil)
   }
 
-  public func testConfig(withRunRequest request: XCTestRunRequest, testApps: TestApplicationsPair, logDirectoryPath: String?, logger: ControlCoreLogger) async throws -> IDBAppHostedTestConfiguration {
+  public func testConfig(withRunRequest request: XCTestRunRequest, testApps: TestApplicationsPair, logDirectoryPath: String?, logger: any ControlCoreLogger) async throws -> IDBAppHostedTestConfiguration {
     let resultBundleName = "resultbundle_\(UUID().uuidString)"
     let resultBundlePath = (targetAuxillaryDirectory as NSString).appendingPathComponent(resultBundleName)
 
@@ -234,7 +234,7 @@ final class XCodebuildTestRunDescriptor: XCTestDescriptor, CustomStringConvertib
 
 // MARK: - Private Helper
 
-private func buildAppLaunchConfig(bundleID: String, environment: [String: String], arguments: [String], logger: ControlCoreLogger, processLogDirectory: String?, waitForDebugger: Bool) async throws -> ApplicationLaunchConfiguration {
+private func buildAppLaunchConfig(bundleID: String, environment: [String: String], arguments: [String], logger: any ControlCoreLogger, processLogDirectory: String?, waitForDebugger: Bool) async throws -> ApplicationLaunchConfiguration {
   let stdOutConsumer = LoggingDataConsumer(logger: logger)
   let stdErrConsumer = LoggingDataConsumer(logger: logger)
 
@@ -249,7 +249,7 @@ private func buildAppLaunchConfig(bundleID: String, environment: [String: String
   return applicationLaunchConfiguration(bundleID: bundleID, environment: environment, arguments: arguments, waitForDebugger: waitForDebugger, stdOut: try await stdOut, stdErr: try await stdErr)
 }
 
-private func applicationLaunchConfiguration(bundleID: String, environment: [String: String], arguments: [String], waitForDebugger: Bool, stdOut: DataConsumer, stdErr: DataConsumer) -> ApplicationLaunchConfiguration {
+private func applicationLaunchConfiguration(bundleID: String, environment: [String: String], arguments: [String], waitForDebugger: Bool, stdOut: any DataConsumer, stdErr: any DataConsumer) -> ApplicationLaunchConfiguration {
   return ApplicationLaunchConfiguration(
     bundleID: bundleID,
     bundleName: nil,

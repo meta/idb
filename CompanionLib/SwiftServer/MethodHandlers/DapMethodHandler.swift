@@ -16,7 +16,7 @@ import SwiftProtobuf
 struct DapMethodHandler: Sendable {
 
   let commandExecutor: IDBCommandExecutor
-  let targetLogger: ControlCoreLogger
+  let targetLogger: any ControlCoreLogger
 
   func handle(requestStream: RequestStreamReader<Idb_DapRequest>, responseStream: RPCWriter<Idb_DapResponse>, context: ServerContext) async throws {
     guard case let .start(start) = try await requestStream.requiredNext().control
@@ -67,7 +67,7 @@ struct DapMethodHandler: Sendable {
     }
   }
 
-  private func createDataConsumer(to responseStream: RPCWriter<Idb_DapResponse>) -> DataConsumer {
+  private func createDataConsumer(to responseStream: RPCWriter<Idb_DapResponse>) -> any DataConsumer {
     let responseWriter = FIFOStreamWriter(stream: responseStream)
 
     return SynchronousDataConsumer { data in

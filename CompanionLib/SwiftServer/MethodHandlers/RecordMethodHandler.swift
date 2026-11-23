@@ -18,7 +18,7 @@ import SwiftProtobuf
 struct RecordMethodHandler {
 
   let target: CompanionTarget
-  let targetLogger: ControlCoreLogger
+  let targetLogger: any ControlCoreLogger
 
   /// Stops `recording`, returning the file to deliver and the failure to report once it has been.
   ///

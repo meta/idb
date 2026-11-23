@@ -36,8 +36,8 @@ extension XCTraceRecordOperation: XCTraceRecording {
 
 struct XctraceRecordMethodHandler {
 
-  let logger: ControlCoreLogger
-  let targetLogger: ControlCoreLogger
+  let logger: any ControlCoreLogger
+  let targetLogger: any ControlCoreLogger
   let target: any Target
 
   func handle(requestStream: RequestStreamReader<Idb_XctraceRecordRequest>, responseStream: RPCWriter<Idb_XctraceRecordResponse>, context: ServerContext) async throws {
@@ -120,7 +120,7 @@ struct XctraceRecordMethodHandler {
   }
 
   /// Streams the trace at `path` to the client as a single gzipped tar, in chunks.
-  static func sendTrace(atPath path: String, responseStream: RPCWriter<Idb_XctraceRecordResponse>, logger: ControlCoreLogger) async throws {
+  static func sendTrace(atPath path: String, responseStream: RPCWriter<Idb_XctraceRecordResponse>, logger: any ControlCoreLogger) async throws {
     let archive = try ArchiveOperations.gzippedTarSubprocess(forPath: path, logger: logger)
     try await FileDrainWriter.performDrain(archive, logger: logger) { data in
       let response = Idb_XctraceRecordResponse.with {
