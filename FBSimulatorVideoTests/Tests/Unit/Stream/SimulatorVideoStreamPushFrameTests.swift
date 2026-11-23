@@ -168,9 +168,9 @@ final class SimulatorVideoStreamPushFrameTests: XCTestCase {
     let ioSurface = started.ioSurface
     started.pusher.onWrite = {
       // The render server writing into the surface while the frame is being read.
-      try? ioSurface.lock(options: [], seed: nil)
+      ioSurface.lock(options: [], seed: nil)
       ioSurface.baseAddress.assumingMemoryBound(to: UInt8.self)[0] ^= 0xFF
-      try? ioSurface.unlock(options: [], seed: nil)
+      ioSurface.unlock(options: [], seed: nil)
     }
 
     await started.stream.pushFrame(forceKeyFrame: false)
@@ -194,9 +194,9 @@ final class SimulatorVideoStreamPushFrameTests: XCTestCase {
     let started = try await startStream()
     defer { Task { [stream = started.stream] in try? await stream.stopStreaming() } }
     // The render server drawing into the surface before it reports the frame
-    try started.ioSurface.lock(options: [], seed: nil)
+    started.ioSurface.lock(options: [], seed: nil)
     started.ioSurface.baseAddress.assumingMemoryBound(to: UInt8.self)[0] ^= 0xFF
-    try started.ioSurface.unlock(options: [], seed: nil)
+    started.ioSurface.unlock(options: [], seed: nil)
 
     let held = await started.stream.pushTriggered(FrameTrigger(forceKeyFrame: true, overran: false, overlayOnly: true))
     XCTAssertNil(held)
