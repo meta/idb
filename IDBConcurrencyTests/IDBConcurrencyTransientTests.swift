@@ -8,6 +8,7 @@
 import Foundation
 @testable import IDBConcurrency
 import Testing
+import os
 
 @Suite
 struct IDBConcurrencyTransientTests {
@@ -24,11 +25,16 @@ struct IDBConcurrencyTransientTests {
   @Test
   func mutexConcurrentAccess() {
     let mutex = Mutex()
-    var counter = 0
+    // Each increment reads and writes in separate critical sections of its own lock, so only `mutex`
+    // keeps increments from being lost.
+    let counter = OSAllocatedUnfairLock(initialState: 0)
     DispatchQueue.concurrentPerform(iterations: 1000) { _ in
-      mutex.sync { counter += 1 }
+      mutex.sync {
+        let value = counter.withLock { $0 }
+        counter.withLock { $0 = value + 1 }
+      }
     }
-    #expect(counter == 1000)
+    #expect(counter.withLock { $0 } == 1000)
   }
 
   // MARK: - CodeLocation Tests

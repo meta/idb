@@ -7,25 +7,41 @@
 
 import Foundation
 import IDBConcurrency
+import os
 
 enum MockStreamError: Error {
   case completionIsNil
 }
 
-class MockStreamWriter: AsyncStreamWriter {
+final class MockStreamWriter: AsyncStreamWriter, Sendable {
+
+  private struct State {
+    var storage: [Int] = []
+    var completion: (@Sendable () -> Void)?
+  }
 
   let terminator: Int
 
-  @Atomic var storage: [Int] = []
+  private let state = OSAllocatedUnfairLock(initialState: State())
 
-  var completion: (() -> Void)?
+  var storage: [Int] {
+    state.withLock { $0.storage }
+  }
+
+  var completion: (@Sendable () -> Void)? {
+    get { state.withLock { $0.completion } }
+    set { state.withLock { $0.completion = newValue } }
+  }
 
   init(terminator: Int) {
     self.terminator = terminator
   }
 
   func send(_ value: Int) async throws {
-    _storage.sync { $0.append(value) }
+    let completion = state.withLock { state in
+      state.storage.append(value)
+      return state.completion
+    }
 
     if value == terminator {
       guard let completion else {
