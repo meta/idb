@@ -548,8 +548,9 @@ static NSDictionary *FBAXFakeSnapshotNode(FBAXFakeElement *element,
   }
   // Children come back as element handles, exactly as the live runtime returns them — the tree walk is
   // what turns them into nested dictionaries, and covering that is the point.
-  if (self.attributeRead) {
-    return [FBAXReadOutcome read:self.attributeRead];
+  FBAXGeometryDictionaryProbeValue *attributeRead = self.attributeRead;
+  if (attributeRead) {
+    return [FBAXReadOutcome read:attributeRead];
   }
   NSMutableDictionary<NSString *, id> *read = [fake.attributes mutableCopy];
   read[kAXChildren] = fake.children;
@@ -677,8 +678,9 @@ static NSDictionary *FBAXFakeSnapshotNode(FBAXFakeElement *element,
 {
   [self recordOperation:@"settingMonitor"];
   self.deviceSettingMonitoredSettings = [(self.deviceSettingMonitoredSettings ?: @[]) arrayByAddingObjectsFromArray:settings];
-  if (self.deviceSettingMonitorOutcome) {
-    return self.deviceSettingMonitorOutcome;
+  FBAXDeviceSettingMonitorOutcome *monitorOutcome = self.deviceSettingMonitorOutcome;
+  if (monitorOutcome) {
+    return monitorOutcome;
   }
   for (NSNumber *setting in settings) {
     FBAXDeviceSettingMonitorOutcome *outcome = self.deviceSettingMonitorOutcomes[setting];
@@ -700,8 +702,9 @@ static NSDictionary *FBAXFakeSnapshotNode(FBAXFakeElement *element,
 - (FBAXDeviceSettingOutcome *)enabledStateForDeviceSetting:(FBAXDeviceSetting)setting
 {
   [self recordOperation:@"settingRead"];
-  if (self.deviceSettingReadOutcome) {
-    return self.deviceSettingReadOutcome;
+  FBAXDeviceSettingOutcome *readOutcome = self.deviceSettingReadOutcome;
+  if (readOutcome) {
+    return readOutcome;
   }
   NSNumber *enabled = self.deviceSettings[@(setting)];
   if (self.deviceSettingReadHandler) {
@@ -719,8 +722,9 @@ static NSDictionary *FBAXFakeSnapshotNode(FBAXFakeElement *element,
     return [FBAXDeviceSettingOutcome unavailable:@"setting unavailable"];
   }
   [self.deviceSettingWrites addObject:@{@"setting" : @(setting), @"enabled" : @(enabled)}];
-  if (self.deviceSettingWriteOutcome) {
-    return self.deviceSettingWriteOutcome;
+  FBAXDeviceSettingOutcome *writeOutcome = self.deviceSettingWriteOutcome;
+  if (writeOutcome) {
+    return writeOutcome;
   }
   self.deviceSettings[@(setting)] = @(enabled);
   return [FBAXDeviceSettingOutcome resolved:enabled];

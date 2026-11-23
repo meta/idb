@@ -8,8 +8,8 @@
 import Darwin
 import FBSimulatorBridgeProtocol
 import Foundation
-@_implementationOnly import SimulatorFrameworkBridgeRuntime
-@_implementationOnly import SimulatorFrameworkBridgeSupport
+import SimulatorFrameworkBridgeRuntime
+import SimulatorFrameworkBridgeSupport
 import UIKit
 import XCTest
 
@@ -27,7 +27,7 @@ extension BridgeServerSocketTests {
     let client = connectClient()
     var payload = request
     payload["verb"] = "quiet"
-    sendData(data: try frame(accessibility: payload), to: client)
+    Self.sendData(data: try Self.frame(accessibility: payload), to: client)
     return client
   }
 
@@ -36,13 +36,13 @@ extension BridgeServerSocketTests {
     useRuntime(runtime)
     startServerExclusive(exclusive: true)
     let client = connectClient()
-    sendData(data: try frame(command: .accessibility(request)), to: client)
+    Self.sendData(data: try Self.frame(command: .accessibility(request)), to: client)
     return client
   }
 
   /// The accessibility envelope a streamed frame carries.
   private func readEvent(fd: Int32) -> BridgeAXAnswer? {
-    let answers = (readResponse(fd: fd)?["result"] as? NSDictionary)?["answers"] as? [NSDictionary]
+    let answers = (Self.readResponse(fd: fd)?["result"] as? NSDictionary)?["answers"] as? [NSDictionary]
     guard let answer = (answers?.first?["accessibility"] as? NSDictionary)?["answer"], let data = try? JSONSerialization.data(withJSONObject: answer) else {
       return nil
     }
@@ -236,7 +236,7 @@ extension BridgeServerSocketTests {
     let client = try openQuietStream(runtimeWithApplications([]), ["pid": pid])
     defer { closeQuietStream(client) }
     XCTAssertEqual(readEvent(fd: client), .quiescence(.targetExited(pid: pid)))
-    assertEOF(fd: client)
+    Self.assertEOF(fd: client)
   }
 
   func testARunningApplicationWithoutAnElementYetIsArmedOnceItHasOne() throws {
@@ -260,7 +260,7 @@ extension BridgeServerSocketTests {
     let client = try openQuietStream(runtime, ["pid": getpid()])
     defer { closeQuietStream(client) }
     XCTAssertEqual(failure(readEvent(fd: client))?.kind, .readerUnavailable)
-    assertEOF(fd: client)
+    Self.assertEOF(fd: client)
     XCTAssertEqual(runtime.automationModeWrites, [true])
   }
 
@@ -270,15 +270,15 @@ extension BridgeServerSocketTests {
     let client = try openQuietStream(runtime, ["pid": getpid()])
     defer { closeQuietStream(client) }
     XCTAssertEqual(readEvent(fd: client), .failure(BridgeAXFailure(message: "AXObserverCreate failed (-25200)", kind: .readerUnavailable)))
-    assertEOF(fd: client)
+    Self.assertEOF(fd: client)
   }
 
   func testANegativeTunableIsRefusedWithoutStreaming() throws {
     let client = try openStream(runtimeWithApplications([]), .quiescence(pid: nil, busyThresholdMs: nil, quietWindowMs: -1))
     defer { closeQuietStream(client) }
     XCTAssertEqual(failure(readEvent(fd: client))?.kind, .badRequest)
-    sendData(data: try frame(command: .ping), to: client)
-    XCTAssertEqual(exitCode(of: readResponse(fd: client)), 0, "a refused stream leaves the connection serving")
+    Self.sendData(data: try Self.frame(command: .ping), to: client)
+    XCTAssertEqual(Self.exitCode(of: Self.readResponse(fd: client)), 0, "a refused stream leaves the connection serving")
   }
 
   func testTheOneShotCommandStreamsUntilTheStreamEnds() throws {
@@ -303,8 +303,8 @@ extension BridgeServerSocketTests {
     useRuntime(runtime)
     startServerExclusive(exclusive: true)
     let client = connectClient()
-    sendData(
-      data: try frame(command: .accessibility(.deviceSettingChanges(setting))),
+    Self.sendData(
+      data: try Self.frame(command: .accessibility(.deviceSettingChanges(setting))),
       to: client)
     return client
   }
@@ -348,15 +348,15 @@ extension BridgeServerSocketTests {
     XCTAssertEqual(
       readEvent(fd: client),
       .failure(BridgeAXFailure(message: "setting unavailable", kind: .capabilityUnavailable)))
-    assertEOF(fd: client)
+    Self.assertEOF(fd: client)
   }
 
   func testOnlyReduceMotionPublishesChanges() throws {
     let client = try openSettingsStream(FBAXFakeRuntime(), setting: "reduce-transparency")
     defer { closeQuietStream(client) }
     XCTAssertEqual(failure(readEvent(fd: client))?.kind, .capabilityUnavailable)
-    sendData(data: try frame(command: .ping), to: client)
-    XCTAssertEqual(exitCode(of: readResponse(fd: client)), 0, "a refused stream leaves the connection serving")
+    Self.sendData(data: try Self.frame(command: .ping), to: client)
+    XCTAssertEqual(Self.exitCode(of: Self.readResponse(fd: client)), 0, "a refused stream leaves the connection serving")
   }
 
   func testUnavailableNativeSettingObservationIsTyped() throws {
@@ -365,7 +365,7 @@ extension BridgeServerSocketTests {
     let client = try openSettingsStream(runtime)
     defer { closeQuietStream(client) }
     XCTAssertEqual(readEvent(fd: client), .failure(BridgeAXFailure(message: "notification unavailable", kind: .capabilityUnavailable)))
-    assertEOF(fd: client)
+    Self.assertEOF(fd: client)
     XCTAssertFalse(runtime.operations.contains { ($0 as? String) == "settingRead" })
   }
 
@@ -480,7 +480,7 @@ extension BridgeServerSocketTests {
       let client = try openSettingsStream(runtime, setting: "state-settings")
       defer { closeQuietStream(client) }
       XCTAssertEqual(failure(readEvent(fd: client))?.kind, kind)
-      assertEOF(fd: client)
+      Self.assertEOF(fd: client)
       XCTAssertEqual(runtime.deviceSettingMonitoredSettings, [motion])
       XCTAssertEqual(runtime.deviceSettingMonitors.count, 0)
       XCTAssertFalse(runtime.operations.contains { ($0 as? String) == "settingRead" })

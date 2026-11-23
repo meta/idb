@@ -6,7 +6,7 @@
  */
 
 import Foundation
-@_implementationOnly import SimulatorFrameworkBridgeRuntime
+import SimulatorFrameworkBridgeRuntime
 import Testing
 
 /// Direct tests for `FBAXClientProvider`: which runtime a client is built on,

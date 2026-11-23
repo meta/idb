@@ -6,7 +6,7 @@
  */
 
 import Foundation
-@_implementationOnly import SimulatorFrameworkBridgeSupport
+import SimulatorFrameworkBridgeSupport
 
 // The fakes are Objective-C so they can stand in for private classes. The services under test are
 // Swift, so each fake takes its service as a block and these supply it.

@@ -6,7 +6,7 @@
  */
 
 import Foundation
-@_implementationOnly import SimulatorFrameworkBridgeSupport
+import SimulatorFrameworkBridgeSupport
 import XCTest
 
 final class ServiceDispatchTests: XCTestCase {

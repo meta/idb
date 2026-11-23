@@ -7,7 +7,7 @@
 
 import Darwin
 import Foundation
-@_implementationOnly import SimulatorFrameworkBridgeSupport
+import SimulatorFrameworkBridgeSupport
 import XCTest
 
 final class NotificationSettingsServiceTests: XCTestCase {

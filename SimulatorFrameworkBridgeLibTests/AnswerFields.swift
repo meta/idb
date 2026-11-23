@@ -7,7 +7,7 @@
 
 import FBSimulatorBridgeProtocol
 import Foundation
-@_implementationOnly import SimulatorFrameworkBridgeSupport
+import SimulatorFrameworkBridgeSupport
 
 /// An answer's fields, for a test that looks at them one by one: what it holds as its own generated coder writes it,
 /// beside `ok`. A hit-test's element and a write's application are its `tree` and `pid`; nothing at the point is `empty`.

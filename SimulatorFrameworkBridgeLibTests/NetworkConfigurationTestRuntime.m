@@ -129,7 +129,8 @@ static Boolean notifyValue(SCDynStoreRef store, CFStringRef key)
       [data appendBytes:buffer length:count];
     }
     fclose(capture);
-    _output = [[NSString alloc] initWithData:data encoding:NSUTF8StringEncoding];
+    NSString *output = [[NSString alloc] initWithData:data encoding:NSUTF8StringEncoding];
+    _output = output;
     [self uninstall];
   }
 }

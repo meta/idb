@@ -6,7 +6,7 @@
  */
 
 import Foundation
-@_implementationOnly import SimulatorFrameworkBridgeRuntime
+import SimulatorFrameworkBridgeRuntime
 import Testing
 
 @Suite

@@ -134,7 +134,8 @@ static void *privacySymbol(const char *name)
                                                        services:@[@"kTCCServiceCamera"]
                                                        approved:approved.boolValue
                                                        resolver:^void *(const char *name) {
-                                                         return [missing isEqualToString:@(name)] ? NULL : privacySymbol(name);
+                                                         NSString *symbol = @(name);
+                                                         return [missing isEqualToString:symbol] ? NULL : privacySymbol(name);
                                                        }];
     XCTAssertEqual(result.status, FBPrivacyStatusUnavailable);
     XCTAssertTrue([result.failureReason containsString:missing]);

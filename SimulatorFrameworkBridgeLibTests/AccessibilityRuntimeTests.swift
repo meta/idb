@@ -8,8 +8,8 @@
 import Darwin
 import FBSimulatorBridgeProtocol
 import Foundation
-@_implementationOnly import SimulatorFrameworkBridgeRuntime
-@_implementationOnly import SimulatorFrameworkBridgeSupport
+import SimulatorFrameworkBridgeRuntime
+import SimulatorFrameworkBridgeSupport
 import XCTest
 
 private let kAXElementType = "XC_kAXXCAttributeElementType"
@@ -2266,7 +2266,7 @@ final class AccessibilityRuntimeTests: XCTestCase {
   func testARequestNamingNoAttributesIsReadWithTheDefaultList() {
     runtime.applicationElements[NSNumber(value: kAppPid)] = FBAXFakeElement.readable("UIApplication")
 
-    AccessibilityService.handleRequest(["verb": "describe", "traversal": "view-hierarchy", "clientType": 0, "pid": NSNumber(value: kAppPid)])
+    _ = AccessibilityService.handleRequest(["verb": "describe", "traversal": "view-hierarchy", "clientType": 0, "pid": NSNumber(value: kAppPid)])
     assertEqualObjects(
       runtime.lastReadAttributes,
       ([
@@ -2292,7 +2292,7 @@ final class AccessibilityRuntimeTests: XCTestCase {
     let defaultCount = 9
 
     for malformed in ["XC_kAXXCAttributeLabel", [], [NSNumber(value: 123)], ["a": NSNumber(value: 1)]] as [Any] {
-      AccessibilityService.handleRequest(["verb": "describe", "traversal": "view-hierarchy", "clientType": 0, "pid": NSNumber(value: kAppPid), "attributes": malformed])
+      _ = AccessibilityService.handleRequest(["verb": "describe", "traversal": "view-hierarchy", "clientType": 0, "pid": NSNumber(value: kAppPid), "attributes": malformed])
       XCTAssertEqual((runtime.lastReadAttributes?.count ?? 0), defaultCount, "a \(String(describing: type(of: malformed))) list falls back")
     }
 

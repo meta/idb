@@ -8,9 +8,10 @@
 import Darwin
 import FBSimulatorBridgeProtocol
 import Foundation
-@_implementationOnly import SimulatorFrameworkBridgeSupport
-@_implementationOnly import SimulatorIPC
+import SimulatorFrameworkBridgeSupport
+import SimulatorIPC
 import XCTest
+import os
 
 final class BridgeServerSocketTests: XCTestCase {
   var socketPath = ""
@@ -23,7 +24,7 @@ final class BridgeServerSocketTests: XCTestCase {
     super.tearDown()
   }
 
-  func serve(_ path: String, exclusive: Bool, idleTimeoutSeconds: Int32 = 10) -> Int32 {
+  static func serve(_ path: String, exclusive: Bool, idleTimeoutSeconds: Int32 = 10) -> Int32 {
     BridgeServer.serve(socketPath: path, idleTimeoutSeconds: idleTimeoutSeconds, exitOnDisconnect: exclusive, prepareRuntime: {}) {
       BridgeRPC.handle($0)
     }
@@ -35,7 +36,7 @@ final class BridgeServerSocketTests: XCTestCase {
     self.finished = finished
     let path = socketPath
     DispatchQueue.global().async {
-      XCTAssertEqual(self.serve(path, exclusive: exclusive, idleTimeoutSeconds: idleTimeoutSeconds), 0)
+      XCTAssertEqual(Self.serve(path, exclusive: exclusive, idleTimeoutSeconds: idleTimeoutSeconds), 0)
       finished.fulfill()
     }
   }
@@ -52,6 +53,10 @@ final class BridgeServerSocketTests: XCTestCase {
   }
 
   func connectClient() -> Int32 {
+    Self.connectClient(to: socketPath)
+  }
+
+  static func connectClient(to socketPath: String) -> Int32 {
     var address = sockaddr_un()
     address.sun_family = sa_family_t(AF_UNIX)
     let capacity = MemoryLayout.size(ofValue: address.sun_path)
@@ -87,21 +92,21 @@ final class BridgeServerSocketTests: XCTestCase {
     return -1
   }
 
-  func header(forLength length: UInt32) -> Data {
+  static func header(forLength length: UInt32) -> Data {
     Data([
       UInt8(truncatingIfNeeded: length >> 24), UInt8(truncatingIfNeeded: length >> 16),
       UInt8(truncatingIfNeeded: length >> 8), UInt8(truncatingIfNeeded: length),
     ])
   }
 
-  func frame(payload: String) -> Data {
+  static func frame(payload: String) -> Data {
     let data = Data(payload.utf8)
-    var frame = header(forLength: UInt32(data.count))
+    var frame = Self.header(forLength: UInt32(data.count))
     frame.append(data)
     return frame
   }
 
-  func frame(command: BridgeCommand) throws -> Data {
+  static func frame(command: BridgeCommand) throws -> Data {
     let bytes = try BridgeRequest(command: command).encoded()
     var frame = try IPCFrame.header(forSize: bytes.count)
     frame.append(bytes)
@@ -109,15 +114,15 @@ final class BridgeServerSocketTests: XCTestCase {
   }
 
   /// The accessibility request these flat parameters spell, sent as a host sends it.
-  func frame(accessibility parameters: [String: Any]) throws -> Data {
-    try frame(command: .accessibility(AccessibilityParameters.request(parameters)))
+  static func frame(accessibility parameters: [String: Any]) throws -> Data {
+    try Self.frame(command: .accessibility(AccessibilityParameters.request(parameters)))
   }
 
-  func exitCode(of response: NSDictionary?) -> Int? {
+  static func exitCode(of response: NSDictionary?) -> Int? {
     (response?["result"] as? NSDictionary)?["exitCode"] as? Int
   }
 
-  func sendData(data: Data, to fd: Int32) {
+  static func sendData(data: Data, to fd: Int32) {
     data.withUnsafeBytes { buffer in
       guard let bytes = buffer.baseAddress else { return }
       var offset = 0
@@ -130,7 +135,7 @@ final class BridgeServerSocketTests: XCTestCase {
     }
   }
 
-  func readBytes(length: Int, from fd: Int32) -> Data? {
+  static func readBytes(length: Int, from fd: Int32) -> Data? {
     var data = Data(count: length)
     let complete = data.withUnsafeMutableBytes { buffer in
       guard let bytes = buffer.baseAddress else { return length == 0 }
@@ -148,18 +153,18 @@ final class BridgeServerSocketTests: XCTestCase {
     return complete ? data : nil
   }
 
-  func readResponse(fd: Int32) -> NSDictionary? {
-    guard let header = readBytes(length: 4, from: fd) else { return nil }
+  static func readResponse(fd: Int32) -> NSDictionary? {
+    guard let header = Self.readBytes(length: 4, from: fd) else { return nil }
     let length = (UInt32(header[0]) << 24) | (UInt32(header[1]) << 16) | (UInt32(header[2]) << 8) | UInt32(header[3])
     if length == 0 || length > 16 * 1024 * 1024 {
       XCTFail("invalid response length \(length)")
       return nil
     }
-    guard let data = readBytes(length: Int(length), from: fd) else { return nil }
+    guard let data = Self.readBytes(length: Int(length), from: fd) else { return nil }
     return (try? JSONSerialization.jsonObject(with: data)) as? NSDictionary
   }
 
-  func assertEOF(fd: Int32, file: StaticString = #filePath, line: UInt = #line) {
+  static func assertEOF(fd: Int32, file: StaticString = #filePath, line: UInt = #line) {
     var byte: UInt8 = 0
     let received = recv(fd, &byte, 1, 0)
     let error = errno
@@ -171,11 +176,11 @@ final class BridgeServerSocketTests: XCTestCase {
   func testAnotherStarterCannotUnlinkTheLiveListener() throws {
     startServerExclusive(exclusive: false)
     close(connectClient())
-    XCTAssertEqual(serve(socketPath, exclusive: false, idleTimeoutSeconds: 1), 0)
+    XCTAssertEqual(Self.serve(socketPath, exclusive: false, idleTimeoutSeconds: 1), 0)
     let client = connectClient()
     defer { close(client) }
-    sendData(data: try frame(command: .shutdown), to: client)
-    XCTAssertEqual(exitCode(of: readResponse(fd: client)), 0)
+    Self.sendData(data: try Self.frame(command: .shutdown), to: client)
+    XCTAssertEqual(Self.exitCode(of: Self.readResponse(fd: client)), 0)
     finishServer()
   }
 
@@ -201,19 +206,19 @@ final class BridgeServerSocketTests: XCTestCase {
     }
     let client = connectClient()
     defer { close(client) }
-    sendData(data: frame(payload: "malformed"), to: client)
-    XCTAssertEqual((readResponse(fd: client)?["result"] as? NSDictionary)?["exitCode"] as? Int, 1)
+    Self.sendData(data: Self.frame(payload: "malformed"), to: client)
+    XCTAssertEqual((Self.readResponse(fd: client)?["result"] as? NSDictionary)?["exitCode"] as? Int, 1)
     let commands: [BridgeCommand] = [.dns(.list), .proxy(.clear), .health(.list(bundleID: "app")), .notifications(.delivered(bundleID: "app")), .clearContacts, .clearPhotos, .accessibility(.displays), .shutdown]
     for command in commands {
       let request = BridgeRequest(command: command)
       let bytes = try request.encoded()
-      sendData(data: try IPCFrame.header(forSize: bytes.count), to: client)
-      sendData(data: bytes, to: client)
-      let object = try XCTUnwrap(readResponse(fd: client))
+      Self.sendData(data: try IPCFrame.header(forSize: bytes.count), to: client)
+      Self.sendData(data: bytes, to: client)
+      let object = try XCTUnwrap(Self.readResponse(fd: client))
       let response = try BridgeResponse.decode(JSONSerialization.data(withJSONObject: object), for: request)
       XCTAssertEqual(response.result, BridgeResult(exitCode: command == .shutdown ? 0 : 23, answers: [.health(.clear(bundleID: "first", ok: true, error: nil)), .health(.clear(bundleID: "second", ok: true, error: nil))]))
     }
-    assertEOF(fd: client)
+    Self.assertEOF(fd: client)
     finishServer()
   }
 
@@ -231,7 +236,7 @@ final class BridgeServerSocketTests: XCTestCase {
     }
     let client = connectClient()
     defer { close(client) }
-    sendData(data: frame(payload: "request"), to: client)
+    Self.sendData(data: Self.frame(payload: "request"), to: client)
     wait(for: [finished], timeout: 5)
     self.finished = nil
     XCTAssertFalse(FileManager.default.fileExists(atPath: socketPath))
@@ -241,14 +246,14 @@ final class BridgeServerSocketTests: XCTestCase {
   func testFragmentedFramesAndShutdownResponseOnOneConnection() throws {
     startServerExclusive(exclusive: true)
     let client = connectClient()
-    for (frame, expectedExitCode) in [(frame(payload: "not json"), 1), (try frame(command: .shutdown), 0)] {
+    for (frame, expectedExitCode) in [(Self.frame(payload: "not json"), 1), (try Self.frame(command: .shutdown), 0)] {
       for index in 0..<frame.count {
-        sendData(data: frame.subdata(in: index..<(index + 1)), to: client)
+        Self.sendData(data: frame.subdata(in: index..<(index + 1)), to: client)
         usleep(1000)
       }
-      XCTAssertEqual(exitCode(of: readResponse(fd: client)), expectedExitCode)
+      XCTAssertEqual(Self.exitCode(of: Self.readResponse(fd: client)), expectedExitCode)
     }
-    assertEOF(fd: client)
+    Self.assertEOF(fd: client)
     close(client)
     finishServer()
   }
@@ -257,21 +262,21 @@ final class BridgeServerSocketTests: XCTestCase {
     for length: UInt32 in [0, 16 * 1024 * 1024 + 1] {
       startServerExclusive(exclusive: true)
       let client = connectClient()
-      sendData(data: header(forLength: length), to: client)
-      assertEOF(fd: client)
+      Self.sendData(data: Self.header(forLength: length), to: client)
+      Self.assertEOF(fd: client)
       close(client)
       finishServer()
     }
   }
 
   func testTruncatedHeaderAndPayloadCloseTheConnection() throws {
-    let frame = try frame(command: .shutdown)
+    let frame = try Self.frame(command: .shutdown)
     for length in [1, 6] {
       startServerExclusive(exclusive: true)
       let client = connectClient()
-      sendData(data: frame.subdata(in: 0..<length), to: client)
+      Self.sendData(data: frame.subdata(in: 0..<length), to: client)
       shutdown(client, SHUT_WR)
-      assertEOF(fd: client)
+      Self.assertEOF(fd: client)
       close(client)
       finishServer()
     }
@@ -282,9 +287,9 @@ final class BridgeServerSocketTests: XCTestCase {
     var client = connectClient()
     close(client)
     client = connectClient()
-    sendData(data: try frame(command: .shutdown), to: client)
-    XCTAssertEqual(exitCode(of: readResponse(fd: client)), 0)
-    assertEOF(fd: client)
+    Self.sendData(data: try Self.frame(command: .shutdown), to: client)
+    XCTAssertEqual(Self.exitCode(of: Self.readResponse(fd: client)), 0)
+    Self.assertEOF(fd: client)
     close(client)
     finishServer()
   }
@@ -298,8 +303,8 @@ final class BridgeServerSocketTests: XCTestCase {
   func testIdleClientTimesOutAndCloses() {
     startServerExclusive(exclusive: true, idleTimeoutSeconds: 3)
     let client = connectClient()
-    sendData(data: header(forLength: 10), to: client)
-    assertEOF(fd: client)
+    Self.sendData(data: Self.header(forLength: 10), to: client)
+    Self.assertEOF(fd: client)
     close(client)
     finishServer()
   }
@@ -338,32 +343,34 @@ final class BridgeServerSocketTests: XCTestCase {
     startServerWithInitialTimeout()
     let client = connectClient()
     defer { close(client) }
-    sendData(data: frame(payload: "probe"), to: client)
-    XCTAssertEqual(readResponse(fd: client), ["ok": true])
+    Self.sendData(data: Self.frame(payload: "probe"), to: client)
+    XCTAssertEqual(Self.readResponse(fd: client), ["ok": true])
     var connection = pollfd(fd: client, events: Int16(POLLIN), revents: 0)
     XCTAssertEqual(poll(&connection, 1, 2000), 0)
-    sendData(data: frame(payload: "probe"), to: client)
-    XCTAssertEqual(readResponse(fd: client), ["ok": true])
+    Self.sendData(data: Self.frame(payload: "probe"), to: client)
+    XCTAssertEqual(Self.readResponse(fd: client), ["ok": true])
     shutdown(client, SHUT_WR)
-    assertEOF(fd: client)
+    Self.assertEOF(fd: client)
     finishServer()
   }
 
   func testOverlongSocketPathIsRejected() {
     let path = "/tmp/".padding(toLength: 200, withPad: "x", startingAt: 0)
-    XCTAssertEqual(serve(path, exclusive: true), 1)
+    XCTAssertEqual(Self.serve(path, exclusive: true), 1)
   }
 
   func testRuntimeCallbacksStayOnTheCallingThread() {
     socketPath = "/tmp/sfb-" + UUID().uuidString
-    finished = expectation(description: "client receives shutdown response")
+    let finished = expectation(description: "client receives shutdown response")
+    self.finished = finished
+    let path = socketPath
     DispatchQueue.global().async {
-      let client = self.connectClient()
-      self.sendData(data: self.frame(payload: "probe"), to: client)
-      XCTAssertEqual(self.readResponse(fd: client), ["ok": true])
-      self.assertEOF(fd: client)
+      let client = Self.connectClient(to: path)
+      Self.sendData(data: Self.frame(payload: "probe"), to: client)
+      XCTAssertEqual(Self.readResponse(fd: client), ["ok": true])
+      Self.assertEOF(fd: client)
       close(client)
-      self.finished?.fulfill()
+      finished.fulfill()
     }
     let callingThread = Thread.current
     var preparations = 0
@@ -384,7 +391,7 @@ final class BridgeServerSocketTests: XCTestCase {
     finishServer()
   }
 
-  func serveStream(_ stream: BridgeResponseStream) {
+  private func serveStream(_ stream: ScriptedStream) {
     socketPath = "/tmp/sfb-" + UUID().uuidString
     let finished = expectation(description: "stream server exits")
     self.finished = finished
@@ -403,11 +410,11 @@ final class BridgeServerSocketTests: XCTestCase {
     serveStream(stream)
     let client = connectClient()
     defer { close(client) }
-    sendData(data: frame(payload: "{}"), to: client)
+    Self.sendData(data: Self.frame(payload: "{}"), to: client)
     for index in 0..<3 {
-      XCTAssertEqual(readResponse(fd: client), ["index": index])
+      XCTAssertEqual(Self.readResponse(fd: client), ["index": index])
     }
-    assertEOF(fd: client)
+    Self.assertEOF(fd: client)
     finishServer()
     XCTAssertFalse(stream.wasCancelled)
   }
@@ -416,8 +423,8 @@ final class BridgeServerSocketTests: XCTestCase {
     let stream = ScriptedStream(frames: 1, untilCancelled: true)
     serveStream(stream)
     let client = connectClient()
-    sendData(data: frame(payload: "{}"), to: client)
-    XCTAssertEqual(readResponse(fd: client), ["index": 0])
+    Self.sendData(data: Self.frame(payload: "{}"), to: client)
+    XCTAssertEqual(Self.readResponse(fd: client), ["index": 0])
     close(client)
     finishServer()
     XCTAssertTrue(stream.wasCancelled)
@@ -428,20 +435,24 @@ final class BridgeServerSocketTests: XCTestCase {
     serveStream(stream)
     let client = connectClient()
     defer { close(client) }
-    sendData(data: frame(payload: "{}"), to: client)
-    XCTAssertEqual(readResponse(fd: client), ["index": 0])
-    sendData(data: frame(payload: "{}"), to: client)
-    assertEOF(fd: client)
+    Self.sendData(data: Self.frame(payload: "{}"), to: client)
+    XCTAssertEqual(Self.readResponse(fd: client), ["index": 0])
+    Self.sendData(data: Self.frame(payload: "{}"), to: client)
+    Self.assertEOF(fd: client)
     finishServer()
     XCTAssertTrue(stream.wasCancelled)
   }
 }
 
-private final class ScriptedStream: BridgeResponseStream {
+private final class ScriptedStream: BridgeResponseStream, Sendable {
   private let frames: Int
   private let untilCancelled: Bool
   private let cancelled = DispatchSemaphore(value: 0)
-  private(set) var wasCancelled = false
+  private let cancellation = OSAllocatedUnfairLock(initialState: false)
+
+  var wasCancelled: Bool {
+    cancellation.withLock { $0 }
+  }
 
   init(frames: Int, untilCancelled: Bool) {
     self.frames = frames
@@ -458,7 +469,7 @@ private final class ScriptedStream: BridgeResponseStream {
   }
 
   func cancel() {
-    wasCancelled = true
+    cancellation.withLock { $0 = true }
     cancelled.signal()
   }
 }

@@ -8,9 +8,9 @@
 import Darwin
 import FBSimulatorBridgeProtocol
 import Foundation
-@_implementationOnly import SimulatorFrameworkBridgeRuntime
-@_implementationOnly import SimulatorFrameworkBridgeSupport
-@_implementationOnly import SimulatorIPC
+import SimulatorFrameworkBridgeRuntime
+import SimulatorFrameworkBridgeSupport
+import SimulatorIPC
 import UIKit
 import XCTest
 
@@ -433,7 +433,7 @@ extension BridgeServerSocketTests {
     startServerExclusive(exclusive: true)
     let client = connectClient()
     let sent = BridgeRequest(command: request.command)
-    sendData(data: try sent.encoded().framed(), to: client)
+    Self.sendData(data: try sent.encoded().framed(), to: client)
     return (client, sent)
   }
 
@@ -444,9 +444,9 @@ extension BridgeServerSocketTests {
 
   /// The next frame's bytes, exactly as the guest wrote them.
   private func readFrameBytes(fd: Int32) throws -> Data {
-    let header = try XCTUnwrap(readBytes(length: 4, from: fd))
+    let header = try XCTUnwrap(Self.readBytes(length: 4, from: fd))
     let length = (UInt32(header[0]) << 24) | (UInt32(header[1]) << 16) | (UInt32(header[2]) << 8) | UInt32(header[3])
-    return try XCTUnwrap(readBytes(length: Int(length), from: fd))
+    return try XCTUnwrap(Self.readBytes(length: Int(length), from: fd))
   }
 
   private func nextEvent<Success>(_: Success.Type, on stream: (client: Int32, request: BridgeRequest)) throws -> BridgeAXOutcome<Success> {

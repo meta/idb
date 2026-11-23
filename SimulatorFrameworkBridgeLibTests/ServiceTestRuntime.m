@@ -134,12 +134,14 @@ NSString *FBStdoutWhileRunning(void (^NS_NOESCAPE block)(void))
     [pipe.fileHandleForWriting closeFile];
   }
   dispatch_group_wait(draining, DISPATCH_TIME_FOREVER);
-  return [[NSString alloc] initWithData:written encoding:NSUTF8StringEncoding];
+  NSString *output = [[NSString alloc] initWithData:written encoding:NSUTF8StringEncoding];
+  return output;
 }
 
 NSDictionary<NSString *, id> *FBParsedJSONLine(NSString *output)
 {
-  return [NSJSONSerialization JSONObjectWithData:[output dataUsingEncoding:NSUTF8StringEncoding] options:0 error:NULL];
+  NSData *data = [output dataUsingEncoding:NSUTF8StringEncoding];
+  return [NSJSONSerialization JSONObjectWithData:data options:0 error:NULL];
 }
 
 NSDictionary<NSString *, NSNumber *> *FBAXRuntimeQueueProbe(BOOL raise)
@@ -199,6 +201,7 @@ NSDictionary<NSString *, id> *FBAXRuntimeInitializationProbe(FBAXRuntimeInitiali
         }
         return nil;
       case FBAXRuntimeInitializationModeFailureWithoutMessage:
+      default:
         return nil;
       case FBAXRuntimeInitializationModeExceptionWithReason:
       case FBAXRuntimeInitializationModeExceptionWithoutReason:

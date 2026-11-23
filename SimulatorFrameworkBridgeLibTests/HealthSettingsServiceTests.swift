@@ -6,7 +6,7 @@
  */
 
 import Foundation
-@_implementationOnly import SimulatorFrameworkBridgeSupport
+import SimulatorFrameworkBridgeSupport
 import XCTest
 
 private let legacyAuthorizationSelector = "setAuthorizationStatuses:authorizationModes:forBundleIdentifier:options:completion:"

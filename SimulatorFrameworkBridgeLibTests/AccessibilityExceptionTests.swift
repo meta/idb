@@ -7,8 +7,8 @@
 
 import FBSimulatorBridgeProtocol
 import Foundation
-@_implementationOnly import SimulatorFrameworkBridgeRuntime
-@_implementationOnly import SimulatorFrameworkBridgeSupport
+import SimulatorFrameworkBridgeRuntime
+import SimulatorFrameworkBridgeSupport
 import XCTest
 
 final class AccessibilityExceptionTests: XCTestCase {

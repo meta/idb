@@ -7,7 +7,7 @@
 
 import FBSimulatorBridgeProtocol
 import Foundation
-@_implementationOnly import SimulatorFrameworkBridgeSupport
+import SimulatorFrameworkBridgeSupport
 import Testing
 
 /// Requests spelled as flat parameters, as the one-shot command line gives them.

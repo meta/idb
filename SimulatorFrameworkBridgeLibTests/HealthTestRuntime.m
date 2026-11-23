@@ -295,7 +295,8 @@ static void completeBoolean(NSString *stage, BOOL ok, NSString *message, void (^
   if (raisedException) {
     return @{@"exception" : raisedException};
   }
-  return @{@"status" : @(status), @"output" : [[NSString alloc] initWithData:data encoding:NSUTF8StringEncoding]};
+  NSString *output = [[NSString alloc] initWithData:data encoding:NSUTF8StringEncoding];
+  return @{@"status" : @(status), @"output" : output};
 }
 
 @end

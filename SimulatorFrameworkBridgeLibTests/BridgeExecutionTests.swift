@@ -7,8 +7,8 @@
 
 import FBSimulatorBridgeProtocol
 import Foundation
-@_implementationOnly import SimulatorFrameworkBridgeSupport
-@_implementationOnly import SimulatorIPC
+import SimulatorFrameworkBridgeSupport
+import SimulatorIPC
 import XCTest
 
 final class BridgeExecutionTests: XCTestCase {
