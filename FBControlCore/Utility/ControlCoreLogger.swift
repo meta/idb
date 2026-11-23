@@ -70,7 +70,7 @@ final class OSLogLogger: ControlCoreLogger, Sendable {
 
   @discardableResult
   func log(_ message: String) -> any ControlCoreLogger {
-    os_log("%{public}s", log: client, type: logType, message)
+    unsafe os_log("%{public}s", log: client, type: logType, message)
     return self
   }
 

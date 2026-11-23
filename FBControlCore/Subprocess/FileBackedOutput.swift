@@ -46,30 +46,30 @@ public final class FileBackedOutput: Sendable {
   /// as they arrive, followed by end-of-file once `finish()` completes.
   public static func fifo(draining consumer: any DataConsumer) throws -> FileBackedOutput {
     let path = (NSTemporaryDirectory() as NSString).appendingPathComponent(UUID().uuidString)
-    guard mkfifo(path, S_IRUSR | S_IWUSR) == 0 else {
-      throw SubprocessError.outputUnavailable(path: path, message: String(cString: strerror(errno)))
+    guard unsafe mkfifo(path, S_IRUSR | S_IWUSR) == 0 else {
+      throw unsafe SubprocessError.outputUnavailable(path: path, message: String(cString: strerror(errno)))
     }
     // Opening the read end blocks until there is a writer unless it is
     // non-blocking; once it is open, the write end can open without blocking.
-    let readEnd = open(path, O_RDONLY | O_NONBLOCK)
+    let readEnd = unsafe open(path, O_RDONLY | O_NONBLOCK)
     guard readEnd >= 0 else {
-      let message = String(cString: strerror(errno))
-      unlink(path)
+      let message = unsafe String(cString: strerror(errno))
+      unsafe unlink(path)
       throw SubprocessError.outputUnavailable(path: path, message: message)
     }
-    let keepAlive = open(path, O_WRONLY)
+    let keepAlive = unsafe open(path, O_WRONLY)
     guard keepAlive >= 0 else {
-      let message = String(cString: strerror(errno))
+      let message = unsafe String(cString: strerror(errno))
       close(readEnd)
-      unlink(path)
+      unsafe unlink(path)
       throw SubprocessError.outputUnavailable(path: path, message: message)
     }
     let flags = fcntl(readEnd, F_GETFL)
     guard flags >= 0, fcntl(readEnd, F_SETFL, flags & ~O_NONBLOCK) == 0 else {
-      let message = String(cString: strerror(errno))
+      let message = unsafe String(cString: strerror(errno))
       close(keepAlive)
       close(readEnd)
-      unlink(path)
+      unsafe unlink(path)
       throw SubprocessError.outputUnavailable(path: path, message: message)
     }
     return FileBackedOutput(path: path, drain: FifoDrain(readEnd: readEnd, keepAlive: keepAlive, consumer: consumer))
@@ -84,7 +84,7 @@ public final class FileBackedOutput: Sendable {
       return
     }
     await drain.finish(within: HostSubprocess.drainTimeout)
-    unlink(path)
+    unsafe unlink(path)
   }
 
   deinit {
@@ -92,7 +92,7 @@ public final class FileBackedOutput: Sendable {
       return
     }
     drain.abandon()
-    unlink(path)
+    unsafe unlink(path)
   }
 }
 
@@ -118,7 +118,7 @@ private final class FifoDrain: @unchecked Sendable {
     let thread = Thread { [self] in
       var buffer = [UInt8](repeating: 0, count: 64 * 1024)
       while true {
-        let count = read(readEnd, &buffer, buffer.count)
+        let count = unsafe read(readEnd, &buffer, buffer.count)
         if count < 0 && errno == EINTR {
           continue
         }

@@ -76,10 +76,10 @@ private final class PipeReader: Sendable {
       var buffer = Data(count: count)
       var readCount: Int
       repeat {
-        readCount = buffer.withUnsafeMutableBytes { Darwin.read(descriptor, $0.baseAddress, count) }
+        readCount = unsafe buffer.withUnsafeMutableBytes { unsafe Darwin.read(descriptor, $0.baseAddress, count) }
       } while readCount < 0 && errno == EINTR
       guard readCount >= 0 else {
-        throw SubprocessError.outputUnavailable(path: "pipe", message: String(cString: strerror(errno)))
+        throw unsafe SubprocessError.outputUnavailable(path: "pipe", message: String(cString: strerror(errno)))
       }
       guard readCount > 0 else {
         return nil

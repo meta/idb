@@ -99,7 +99,7 @@ public final class InputSource: @unchecked Sendable {
     try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, any Error>) in
       writer.write(data) { error in
         guard error == 0 else {
-          continuation.resume(throwing: SubprocessError.inputUnavailable(message: String(cString: strerror(error))))
+          unsafe continuation.resume(throwing: SubprocessError.inputUnavailable(message: String(cString: strerror(error))))
           return
         }
         continuation.resume()
@@ -132,8 +132,8 @@ public final class InputSource: @unchecked Sendable {
   /// end for the child. The write end is closed by the writer on end-of-file.
   func attach() throws -> Int32 {
     var descriptors: [Int32] = [0, 0]
-    guard pipe(&descriptors) == 0 else {
-      throw SubprocessError.inputUnavailable(message: String(cString: strerror(errno)))
+    guard unsafe pipe(&descriptors) == 0 else {
+      throw unsafe SubprocessError.inputUnavailable(message: String(cString: strerror(errno)))
     }
     let readEnd = descriptors[0]
     let writeEnd = descriptors[1]
@@ -250,9 +250,9 @@ extension Subprocess {
       case .closed:
         return nil
       case .nullDevice:
-        let descriptor = open("/dev/null", O_RDONLY)
+        let descriptor = unsafe open("/dev/null", O_RDONLY)
         guard descriptor >= 0 else {
-          throw SubprocessError.inputUnavailable(message: String(cString: strerror(errno)))
+          throw unsafe SubprocessError.inputUnavailable(message: String(cString: strerror(errno)))
         }
         return descriptor
       case .data(let data):

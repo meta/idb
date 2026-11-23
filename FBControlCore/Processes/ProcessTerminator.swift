@@ -65,7 +65,7 @@ public final class ProcessTerminator: Sendable {
 
     logger.debug().log("Killing \(processIdentifier)")
     if kill(processIdentifier, configuration.signo) != 0 {
-      throw ProcessTerminatorError.killFailed(processIdentifier: processIdentifier, message: String(cString: strerror(errno)))
+      throw unsafe ProcessTerminatorError.killFailed(processIdentifier: processIdentifier, message: String(cString: strerror(errno)))
     }
 
     let checkDeath = hasOption(.checkDeathAfterSignal)

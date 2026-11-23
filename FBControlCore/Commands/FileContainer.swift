@@ -157,7 +157,7 @@ public struct HostFile: ContainedFile, CustomStringConvertible {
 
   public func fileExists() -> (exists: Bool, isDirectory: Bool) {
     var isDirectory: ObjCBool = false
-    let exists = FileManager.default.fileExists(atPath: path, isDirectory: &isDirectory)
+    let exists = unsafe FileManager.default.fileExists(atPath: path, isDirectory: &isDirectory)
     return (exists, isDirectory.boolValue)
   }
 
@@ -340,7 +340,7 @@ public enum FileContainer {
         }
         // If it already exists at the destination path it must be removed before copying again.
         var destinationIsDirectory: ObjCBool = false
-        if FileManager.default.fileExists(atPath: dstPath, isDirectory: &destinationIsDirectory) {
+        if unsafe FileManager.default.fileExists(atPath: dstPath, isDirectory: &destinationIsDirectory) {
           do {
             try FileManager.default.removeItem(atPath: dstPath)
           } catch {

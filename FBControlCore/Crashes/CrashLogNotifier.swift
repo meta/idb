@@ -21,7 +21,7 @@ public final class CrashLogNotifier {
   }
 
   public static var sharedInstance: CrashLogNotifier {
-    _sharedInstance
+    unsafe _sharedInstance
   }
 
   nonisolated(unsafe) private static let _sharedInstance: CrashLogNotifier = {

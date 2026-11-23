@@ -27,16 +27,17 @@ enum ProcessFetcherError: Error, LocalizedError {
 ///
 /// Not final: tests substitute the process table by overriding the queries.
 ///
+// @safe: The buffers are allocated in `init`, freed in `deinit` and never handed out.
 // SAFETY: the buffers are only ever touched inside `lock`, and everything else is immutable.
 // patternlint-disable-next-line unchecked-sendable
-public class ProcessFetcher: @unchecked Sendable {
+@safe public class ProcessFetcher: @unchecked Sendable {
 
   /// `KERN_ARGMAX`, the largest argument block the kernel will report.
   private static let maxArgumentBufferSize: Int = {
     var argmax = 0
     var size = MemoryLayout<Int>.stride
     var name: [Int32] = [CTL_KERN, KERN_ARGMAX]
-    if sysctl(&name, 2, &argmax, &size, nil, 0) == 0, argmax > 0 {
+    if unsafe sysctl(&name, 2, &argmax, &size, nil, 0) == 0, argmax > 0 {
       return argmax
     }
     return Int(ARG_MAX)
@@ -53,14 +54,14 @@ public class ProcessFetcher: @unchecked Sendable {
 
   public init() {
     argumentBufferSize = Self.maxArgumentBufferSize
-    argumentBuffer = .allocate(capacity: argumentBufferSize)
+    unsafe argumentBuffer = .allocate(capacity: argumentBufferSize)
     pidCount = Self.maxPidCount
-    pidBuffer = .allocate(capacity: pidCount)
+    unsafe pidBuffer = .allocate(capacity: pidCount)
   }
 
   deinit {
-    argumentBuffer.deallocate()
-    pidBuffer.deallocate()
+    unsafe argumentBuffer.deallocate()
+    unsafe pidBuffer.deallocate()
   }
 
   // MARK: - Queries
@@ -73,17 +74,17 @@ public class ProcessFetcher: @unchecked Sendable {
   /// The processes named `processName`.
   public func processes(withProcessName processName: String) -> [RunningProcessInfo] {
     lock.withLock {
-      let count = proc_listallpids(pidBuffer, Int32(pidCount * MemoryLayout<pid_t>.stride))
+      let count = unsafe proc_listallpids(pidBuffer, Int32(pidCount * MemoryLayout<pid_t>.stride))
       if count < 1 {
         return []
       }
       var processes: [RunningProcessInfo] = []
       for index in 0..<Int(count) {
-        let processIdentifier = pidBuffer[index]
-        guard proc_name(processIdentifier, argumentBuffer, UInt32(argumentBufferSize)) > 1 else {
+        let processIdentifier = unsafe pidBuffer[index]
+        guard unsafe proc_name(processIdentifier, argumentBuffer, UInt32(argumentBufferSize)) > 1 else {
           continue
         }
-        guard String(cString: argumentBuffer) == processName else {
+        guard unsafe String(cString: argumentBuffer) == processName else {
           continue
         }
         guard let info = readProcessInfo(for: processIdentifier) else {
@@ -97,19 +98,19 @@ public class ProcessFetcher: @unchecked Sendable {
 
   /// Whether the process is in the `SRUN` state. Throws if the process cannot be looked up.
   public func isProcessRunning(_ processIdentifier: pid_t) throws -> Bool {
-    try Int32(kernelInfo(for: processIdentifier).kp_proc.p_stat) == SRUN
+    unsafe try Int32(kernelInfo(for: processIdentifier).kp_proc.p_stat) == SRUN
   }
 
   /// Whether the process is in the `SSTOP` state. Throws if the process cannot be looked up.
   public func isProcessStopped(_ processIdentifier: pid_t) throws -> Bool {
-    try Int32(kernelInfo(for: processIdentifier).kp_proc.p_stat) == SSTOP
+    unsafe try Int32(kernelInfo(for: processIdentifier).kp_proc.p_stat) == SSTOP
   }
 
   /// Whether a tracer is attached to the process. Throws if the process cannot be looked up.
   public func isDebuggerAttached(to processIdentifier: pid_t) throws -> Bool {
-    let info = try kernelInfo(for: processIdentifier)
+    let info = unsafe try kernelInfo(for: processIdentifier)
     // When a tracer attaches, the tracee's parent becomes the tracer and the original parent moves to `p_oppid`.
-    return info.kp_proc.p_oppid != 0 && info.kp_eproc.e_ppid != info.kp_proc.p_oppid
+    return unsafe info.kp_proc.p_oppid != 0 && info.kp_eproc.e_ppid != info.kp_proc.p_oppid
   }
 
   // MARK: - Reading
@@ -119,11 +120,11 @@ public class ProcessFetcher: @unchecked Sendable {
     // Much of the layout information here comes from libtop.c in Apple's top(1) Open Source implementation.
     var name: [Int32] = [CTL_KERN, KERN_PROCARGS2, processIdentifier]
     var size = argumentBufferSize
-    guard sysctl(&name, 3, argumentBuffer, &size, nil, 0) == 0, size > MemoryLayout<Int32>.size else {
+    guard unsafe sysctl(&name, 3, argumentBuffer, &size, nil, 0) == 0, size > MemoryLayout<Int32>.size else {
       return nil
     }
-    let bytes = UnsafeRawBufferPointer(start: argumentBuffer, count: size)
-    let argc = Int(bytes.loadUnaligned(as: Int32.self))
+    let bytes = unsafe UnsafeRawBufferPointer(start: argumentBuffer, count: size)
+    let argc = unsafe Int(bytes.loadUnaligned(as: Int32.self))
     if argc < 1 {
       return nil
     }
@@ -134,10 +135,10 @@ public class ProcessFetcher: @unchecked Sendable {
         return nil
       }
       let start = position
-      while position < bytes.count, bytes[position] != 0 {
+      while position < bytes.count, unsafe bytes[position] != 0 {
         position += 1
       }
-      let string = String(decoding: UnsafeRawBufferPointer(rebasing: bytes[start..<position]), as: UTF8.self)
+      let string = unsafe String(decoding: UnsafeRawBufferPointer(rebasing: bytes[start..<position]), as: UTF8.self)
       position += 1
       return string
     }
@@ -146,7 +147,7 @@ public class ProcessFetcher: @unchecked Sendable {
     guard let launchPath = readString() else {
       return nil
     }
-    while position < bytes.count, bytes[position] == 0 {
+    while position < bytes.count, unsafe bytes[position] == 0 {
       position += 1
     }
 
@@ -160,7 +161,7 @@ public class ProcessFetcher: @unchecked Sendable {
 
     // The environment follows argv, ending at an empty string.
     var environment: [String: String] = [:]
-    while position < bytes.count, bytes[position] != 0, let entry = readString() {
+    while position < bytes.count, unsafe bytes[position] != 0, let entry = readString() {
       let tokens = entry.components(separatedBy: "=")
       if tokens.count != 2 {
         break
@@ -211,12 +212,12 @@ public class ProcessFetcher: @unchecked Sendable {
   private static let sampleDuration = 1
 
   private func kernelInfo(for processIdentifier: pid_t) throws -> kinfo_proc {
-    var info = kinfo_proc()
-    var size = MemoryLayout<kinfo_proc>.stride
+    var info = unsafe kinfo_proc()
+    var size = unsafe MemoryLayout<kinfo_proc>.stride
     var name: [Int32] = [CTL_KERN, KERN_PROC, KERN_PROC_PID, processIdentifier]
-    guard sysctl(&name, 4, &info, &size, nil, 0) == 0, info.kp_proc.p_pid == processIdentifier else {
+    guard unsafe sysctl(&name, 4, &info, &size, nil, 0) == 0, unsafe info.kp_proc.p_pid == processIdentifier else {
       throw ProcessFetcherError.processInfoUnavailable(processIdentifier: processIdentifier)
     }
-    return info
+    return unsafe info
   }
 }

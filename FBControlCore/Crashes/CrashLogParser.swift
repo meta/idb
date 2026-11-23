@@ -135,7 +135,7 @@ struct PlainTextCrashLogParser: CrashLogParser {
 
     while paraEnd < length && linesParsed < PlainTextCrashLogParser.maxLineSearch {
       linesParsed += 1
-      nsStr.getParagraphStart(&paraStart, end: &paraEnd, contentsEnd: &contentsEnd, for: NSRange(location: paraEnd, length: 0))
+      unsafe nsStr.getParagraphStart(&paraStart, end: &paraEnd, contentsEnd: &contentsEnd, for: NSRange(location: paraEnd, length: 0))
       let line = nsStr.substring(with: NSRange(location: paraStart, length: contentsEnd - paraStart))
 
       if let match = parseProcessLine(line) {

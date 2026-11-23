@@ -38,9 +38,9 @@ public class FileWriter: @unchecked Sendable {
   }
 
   private static func fileDescriptor(forPath filePath: String) throws -> Int32 {
-    let fd = open(filePath, O_WRONLY | O_CREAT, 0o644)
+    let fd = unsafe open(filePath, O_WRONLY | O_CREAT, 0o644)
     if fd == -1 {
-      throw FileWriterError.openFailed(path: filePath, message: String(cString: strerror(errno)))
+      throw unsafe FileWriterError.openFailed(path: filePath, message: String(cString: strerror(errno)))
     }
     return fd
   }
@@ -118,9 +118,9 @@ public class FileWriter: @unchecked Sendable {
     var consumption: DataConsumption { .synchronous }
 
     func consumeData(_ data: Data) {
-      data.withUnsafeBytes { buffer in
+      unsafe data.withUnsafeBytes { buffer in
         guard let baseAddress = buffer.baseAddress else { return }
-        write(self.fileDescriptor, baseAddress, buffer.count)
+        unsafe write(self.fileDescriptor, baseAddress, buffer.count)
       }
     }
 
@@ -146,7 +146,7 @@ public class FileWriter: @unchecked Sendable {
 
     func consumeData(_ data: Data) {
       guard let io else { return }
-      io.write(offset: 0, data: data.withUnsafeBytes { DispatchData(bytes: $0) }, queue: writeQueue) { _, _, _ in }
+      unsafe io.write(offset: 0, data: data.withUnsafeBytes { unsafe DispatchData(bytes: $0) }, queue: writeQueue) { _, _, _ in }
     }
 
     func write(_ data: Data, completion: @escaping @Sendable (Int32) -> Void) {
@@ -154,7 +154,7 @@ public class FileWriter: @unchecked Sendable {
         completion(ECANCELED)
         return
       }
-      io.write(offset: 0, data: data.withUnsafeBytes { DispatchData(bytes: $0) }, queue: writeQueue) { done, _, error in
+      unsafe io.write(offset: 0, data: data.withUnsafeBytes { unsafe DispatchData(bytes: $0) }, queue: writeQueue) { done, _, error in
         guard done else { return }
         completion(error)
       }

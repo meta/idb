@@ -26,36 +26,36 @@ enum HostSubprocess {
     standardError: Int32?
   ) throws -> pid_t {
     var fileActions: posix_spawn_file_actions_t?
-    try checked(posix_spawn_file_actions_init(&fileActions), executable)
-    defer { posix_spawn_file_actions_destroy(&fileActions) }
+    unsafe try checked(posix_spawn_file_actions_init(&fileActions), executable)
+    defer { unsafe posix_spawn_file_actions_destroy(&fileActions) }
     if let standardInput {
-      try checked(posix_spawn_file_actions_adddup2(&fileActions, standardInput, STDIN_FILENO), executable)
+      unsafe try checked(posix_spawn_file_actions_adddup2(&fileActions, standardInput, STDIN_FILENO), executable)
     }
     if let standardOutput {
-      try checked(posix_spawn_file_actions_adddup2(&fileActions, standardOutput, STDOUT_FILENO), executable)
+      unsafe try checked(posix_spawn_file_actions_adddup2(&fileActions, standardOutput, STDOUT_FILENO), executable)
     }
     if let standardError {
-      try checked(posix_spawn_file_actions_adddup2(&fileActions, standardError, STDERR_FILENO), executable)
+      unsafe try checked(posix_spawn_file_actions_adddup2(&fileActions, standardError, STDERR_FILENO), executable)
     }
 
     var attributes: posix_spawnattr_t?
-    try checked(posix_spawnattr_init(&attributes), executable)
-    defer { posix_spawnattr_destroy(&attributes) }
+    unsafe try checked(posix_spawnattr_init(&attributes), executable)
+    defer { unsafe posix_spawnattr_destroy(&attributes) }
     var signals = sigset_t()
-    sigemptyset(&signals)
-    try checked(posix_spawnattr_setsigmask(&attributes, &signals), executable)
-    sigfillset(&signals)
-    try checked(posix_spawnattr_setsigdefault(&attributes, &signals), executable)
-    try checked(posix_spawnattr_setflags(&attributes, Int16(POSIX_SPAWN_CLOEXEC_DEFAULT | POSIX_SPAWN_SETSIGDEF | POSIX_SPAWN_SETSIGMASK)), executable)
+    unsafe sigemptyset(&signals)
+    unsafe try checked(posix_spawnattr_setsigmask(&attributes, &signals), executable)
+    unsafe sigfillset(&signals)
+    unsafe try checked(posix_spawnattr_setsigdefault(&attributes, &signals), executable)
+    unsafe try checked(posix_spawnattr_setflags(&attributes, Int16(POSIX_SPAWN_CLOEXEC_DEFAULT | POSIX_SPAWN_SETSIGDEF | POSIX_SPAWN_SETSIGMASK)), executable)
 
     var processIdentifier: pid_t = 0
-    let status = withCStringArray([executable] + arguments) { argv in
-      withCStringArray(environment.map { "\($0.key)=\($0.value)" }) { envp in
-        posix_spawn(&processIdentifier, executable, &fileActions, &attributes, argv, envp)
+    let status = unsafe withCStringArray([executable] + arguments) { argv in
+      unsafe withCStringArray(environment.map { "\($0.key)=\($0.value)" }) { envp in
+        unsafe posix_spawn(&processIdentifier, executable, &fileActions, &attributes, argv, envp)
       }
     }
     guard status == 0 else {
-      throw SubprocessError.launchFailed(executable: executable, message: String(cString: strerror(status)))
+      throw unsafe SubprocessError.launchFailed(executable: executable, message: String(cString: strerror(status)))
     }
     return processIdentifier
   }
@@ -66,7 +66,7 @@ enum HostSubprocess {
   /// inherited signal disposition — instead of a launch that failed.
   private static func checked(_ result: Int32, _ executable: String) throws {
     guard result == 0 else {
-      throw SubprocessError.launchFailed(executable: executable, message: String(cString: strerror(result)))
+      throw unsafe SubprocessError.launchFailed(executable: executable, message: String(cString: strerror(result)))
     }
   }
 
@@ -88,12 +88,12 @@ enum HostSubprocess {
         // it. Anything else leaves the status word at zero, which decodes as
         // a clean exit — a failed reap must not be mistaken for one, so it
         // falls back to a blocking wait before giving up.
-        var reaped = waitpid(processIdentifier, &statLoc, WNOHANG)
+        var reaped = unsafe waitpid(processIdentifier, &statLoc, WNOHANG)
         if reaped == 0 {
-          reaped = waitpid(processIdentifier, &statLoc, 0)
+          reaped = unsafe waitpid(processIdentifier, &statLoc, 0)
         }
         if reaped != processIdentifier {
-          logger?.log("Failed to get the exit status with waitpid: \(String(cString: strerror(errno)))")
+          logger?.log(unsafe "Failed to get the exit status with waitpid: \(String(cString: strerror(errno)))")
         }
         continuation.resume(returning: statLoc)
         source.cancel()
@@ -107,14 +107,16 @@ private func withCStringArray<Result>(
   _ strings: [String],
   _ body: (UnsafePointer<UnsafeMutablePointer<CChar>?>) -> Result
 ) -> Result {
-  var pointers: [UnsafeMutablePointer<CChar>?] = strings.map { strdup($0) }
-  pointers.append(nil)
+  var pointers: [UnsafeMutablePointer<CChar>?] = unsafe strings.map { unsafe strdup($0) }
+  unsafe pointers.append(nil)
   defer {
-    for pointer in pointers {
-      free(pointer)
+    // swift-format would join `for unsafe` into one word.
+    // swift-format-ignore
+    for unsafe pointer in unsafe pointers {
+      unsafe free(pointer)
     }
   }
-  return body(&pointers)
+  return unsafe body(&pointers)
 }
 
 /// One resolved output stream of a host launch: the descriptor the child
@@ -169,8 +171,8 @@ extension Subprocess.Output {
       return (try Self.drainedSink(into: buffer, logger: logger), { Self.captured(Self.string(from: buffer.data(), lossy: true)) })
     case .pipe:
       var descriptors: [Int32] = [0, 0]
-      guard Darwin.pipe(&descriptors) == 0 else {
-        throw SubprocessError.outputUnavailable(path: "pipe", message: String(cString: strerror(errno)))
+      guard unsafe Darwin.pipe(&descriptors) == 0 else {
+        throw unsafe SubprocessError.outputUnavailable(path: "pipe", message: String(cString: strerror(errno)))
       }
       return (HostSink(childDescriptor: descriptors[1], reader: nil, parentDescriptor: descriptors[0]), { Self.captured(descriptors[0]) })
     case .lines(let sink):
@@ -204,17 +206,17 @@ extension Subprocess.Output {
   /// new — the engine omits one, leaving created files with undefined
   /// permissions.
   private static func openSink(at path: String) throws -> Int32 {
-    let descriptor = open(path, O_WRONLY | O_CREAT, 0o644)
+    let descriptor = unsafe open(path, O_WRONLY | O_CREAT, 0o644)
     guard descriptor >= 0 else {
-      throw SubprocessError.outputUnavailable(path: path, message: String(cString: strerror(errno)))
+      throw unsafe SubprocessError.outputUnavailable(path: path, message: String(cString: strerror(errno)))
     }
     return descriptor
   }
 
   private static func drainedSink(into consumer: any DataConsumer, logger: (any ControlCoreLogger)?) throws -> HostSink {
     var descriptors: [Int32] = [0, 0]
-    guard Darwin.pipe(&descriptors) == 0 else {
-      throw SubprocessError.outputUnavailable(path: "pipe", message: String(cString: strerror(errno)))
+    guard unsafe Darwin.pipe(&descriptors) == 0 else {
+      throw unsafe SubprocessError.outputUnavailable(path: "pipe", message: String(cString: strerror(errno)))
     }
     let composed: any DataConsumer
     if let logger {

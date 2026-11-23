@@ -58,7 +58,7 @@ extension ScreenshotEncoding: CustomStringConvertible {
     case .tiff:
       return "TIFF"
     case let .jpeg(quality):
-      return String(format: "JPEG (quality %.2f)", quality)
+      return unsafe String(format: "JPEG (quality %.2f)", quality)
     }
   }
 }
@@ -89,7 +89,7 @@ extension ScreenshotScale: CustomStringConvertible {
     case .native:
       return "Native"
     case let .factor(factor):
-      return String(format: "Factor %.4f", factor)
+      return unsafe String(format: "Factor %.4f", factor)
     case let .fit(maxWidth, maxHeight):
       let width = maxWidth.map(String.init) ?? "unbounded"
       let height = maxHeight.map(String.init) ?? "unbounded"

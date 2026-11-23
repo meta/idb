@@ -210,7 +210,7 @@ private struct MachOFile {
       }
       var bytes = uuid_t(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
       withUnsafeMutableBytes(of: &bytes) { destination in
-        _ = data.copyBytes(to: destination, from: (commandOffset + 8)..<(commandOffset + 24))
+        _ = unsafe data.copyBytes(to: destination, from: (commandOffset + 8)..<(commandOffset + 24))
       }
       return UUID(uuid: bytes)
     }
@@ -274,7 +274,7 @@ private struct MachOFile {
     guard offset >= 0, offset + size <= data.count else {
       return nil
     }
-    return data.withUnsafeBytes { $0.loadUnaligned(fromByteOffset: offset, as: Value.self) }
+    return unsafe data.withUnsafeBytes { unsafe $0.loadUnaligned(fromByteOffset: offset, as: Value.self) }
   }
 
   private static func isMagic32(_ magic: UInt32) -> Bool {

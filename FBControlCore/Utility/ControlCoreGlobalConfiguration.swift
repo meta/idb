@@ -39,15 +39,15 @@ public enum ControlCoreGlobalConfiguration {
     get {
       _loggerLock.lock()
       defer { _loggerLock.unlock() }
-      if let existing = _logger { return existing }
+      if let existing = unsafe _logger { return existing }
       let created = createDefaultLogger()
-      _logger = created
+      unsafe _logger = created
       return created
     }
     set {
       _loggerLock.lock()
-      let previous = _logger
-      _logger = newValue
+      let previous = unsafe _logger
+      unsafe _logger = newValue
       _loggerLock.unlock()
       // Outside the critical section: logging through an arbitrary logger implementation must
       // not run under the lock.
@@ -64,7 +64,7 @@ public enum ControlCoreGlobalConfiguration {
 
   public static var description: String {
     _loggerLock.lock()
-    let logger = _logger
+    let logger = unsafe _logger
     _loggerLock.unlock()
     // Stringified outside the critical section: an arbitrary logger implementation must not run
     // under the lock.

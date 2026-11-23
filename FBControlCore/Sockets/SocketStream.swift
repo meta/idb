@@ -26,7 +26,7 @@ public final class SocketStream: @unchecked Sendable {
     guard flags >= 0,
       fcntl(descriptor, F_SETFL, flags | O_NONBLOCK) == 0,
       fcntl(descriptor, F_SETFD, FD_CLOEXEC) == 0,
-      setsockopt(descriptor, SOL_SOCKET, SO_NOSIGPIPE, &enabled, socklen_t(MemoryLayout<Int32>.size)) == 0
+      unsafe setsockopt(descriptor, SOL_SOCKET, SO_NOSIGPIPE, &enabled, socklen_t(MemoryLayout<Int32>.size)) == 0
     else {
       let error = POSIXError(POSIXErrorCode(rawValue: errno) ?? .EIO)
       Darwin.close(descriptor)
@@ -62,8 +62,8 @@ public final class SocketStream: @unchecked Sendable {
         do {
           var data = Data(count: min(maxBytes, Self.chunkSize))
           let count = try withDescriptor { descriptor in
-            try data.withUnsafeMutableBytes { buffer in
-              let count = recv(descriptor, buffer.baseAddress, buffer.count, 0)
+            unsafe try data.withUnsafeMutableBytes { buffer in
+              let count = unsafe recv(descriptor, buffer.baseAddress, buffer.count, 0)
               if count < 0 { throw POSIXError(POSIXErrorCode(rawValue: errno) ?? .EIO) }
               return count
             }
@@ -96,9 +96,9 @@ public final class SocketStream: @unchecked Sendable {
         try Task.checkCancellation()
         do {
           let count = try withDescriptor { descriptor in
-            try data.withUnsafeBytes { buffer in
+            unsafe try data.withUnsafeBytes { buffer in
               guard let baseAddress = buffer.baseAddress else { return 0 }
-              let count = send(descriptor, baseAddress.advanced(by: offset), buffer.count - offset, 0)
+              let count = unsafe send(descriptor, baseAddress.advanced(by: offset), buffer.count - offset, 0)
               if count < 0 { throw POSIXError(POSIXErrorCode(rawValue: errno) ?? .EIO) }
               return count
             }

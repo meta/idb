@@ -68,14 +68,14 @@ public final class SocketServer {
       throw SocketServerError.socketCreationFailed(reason: Self.lastErrorDescription())
     }
     var flagTrue: Int32 = 1
-    setsockopt(socketDescriptor, SOL_SOCKET, SO_REUSEADDR, &flagTrue, socklen_t(MemoryLayout<Int32>.size))
+    unsafe setsockopt(socketDescriptor, SOL_SOCKET, SO_REUSEADDR, &flagTrue, socklen_t(MemoryLayout<Int32>.size))
 
     var address = sockaddr_in6()
     address.sin6_len = UInt8(MemoryLayout<sockaddr_in6>.size)
     address.sin6_family = sa_family_t(AF_INET6)
     address.sin6_port = port.bigEndian
     address.sin6_addr = in6addr_any
-    guard Self.withSocketAddress(&address, { bind(socketDescriptor, $0, socklen_t(MemoryLayout<sockaddr_in6>.size)) }) == 0 else {
+    guard unsafe Self.withSocketAddress(&address, { unsafe bind(socketDescriptor, $0, socklen_t(MemoryLayout<sockaddr_in6>.size)) }) == 0 else {
       throw SocketServerError.bindFailed(port: port, reason: Self.lastErrorDescription())
     }
     guard listen(socketDescriptor, 10) == 0 else {
@@ -99,14 +99,14 @@ public final class SocketServer {
     // Read back the port the kernel actually bound, since 0 requests an ephemeral one.
     var bound = sockaddr_in6()
     var boundLength = socklen_t(MemoryLayout<sockaddr_in6>.size)
-    _ = Self.withSocketAddress(&bound) { getsockname(socketDescriptor, $0, &boundLength) }
+    _ = unsafe Self.withSocketAddress(&bound) { unsafe getsockname(socketDescriptor, $0, &boundLength) }
     self.port = bound.sin6_port.bigEndian
   }
 
   private func accept(_ socketDescriptor: Int32) {
     var address = sockaddr_in6()
     var addressLength = socklen_t(MemoryLayout<sockaddr_in6>.size)
-    let acceptDescriptor = Self.withSocketAddress(&address) { Darwin.accept(socketDescriptor, $0, &addressLength) }
+    let acceptDescriptor = unsafe Self.withSocketAddress(&address) { unsafe Darwin.accept(socketDescriptor, $0, &addressLength) }
     guard acceptDescriptor > 0 else {
       return
     }
@@ -118,11 +118,11 @@ public final class SocketServer {
     _ body: (UnsafeMutablePointer<sockaddr>) -> Result
   ) -> Result {
     withUnsafeMutablePointer(to: &address) { pointer in
-      pointer.withMemoryRebound(to: sockaddr.self, capacity: 1, body)
+      unsafe pointer.withMemoryRebound(to: sockaddr.self, capacity: 1, body)
     }
   }
 
   private static func lastErrorDescription() -> String {
-    String(cString: strerror(errno))
+    unsafe String(cString: strerror(errno))
   }
 }

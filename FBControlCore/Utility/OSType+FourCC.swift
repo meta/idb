@@ -25,6 +25,6 @@ extension OSType {
     {
       return printable
     }
-    return String(format: "0x%08x", self)
+    return unsafe String(format: "0x%08x", self)
   }
 }

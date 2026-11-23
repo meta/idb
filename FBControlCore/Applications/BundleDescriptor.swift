@@ -191,7 +191,7 @@ extension BundleDescriptor {
 
   public static func isApplication(atPath path: String) -> Bool {
     var isDirectory: ObjCBool = false
-    return path.hasSuffix(".app")
+    return unsafe path.hasSuffix(".app")
       && FileManager.default.fileExists(atPath: path, isDirectory: &isDirectory)
       && isDirectory.boolValue
   }

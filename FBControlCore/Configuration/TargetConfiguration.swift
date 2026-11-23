@@ -22,7 +22,7 @@ public struct TargetScreenInfo: CustomStringConvertible {
   }
 
   public var description: String {
-    String(format: "Screen Pixels %lu,%lu | Scale %fX", widthPixels, heightPixels, scale)
+    unsafe String(format: "Screen Pixels %lu,%lu | Scale %fX", widthPixels, heightPixels, scale)
   }
 }
 

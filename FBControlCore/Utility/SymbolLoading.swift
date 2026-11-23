@@ -12,15 +12,15 @@ import Foundation
 /// Callers reinterpret the result as a function pointer, so a name that does not resolve would
 /// otherwise put a null pointer in a call table to be crashed through at some later call.
 public func symbolFromHandle(_ handle: UnsafeMutableRawPointer, _ name: String) -> UnsafeMutableRawPointer {
-  guard let symbol = symbolFromHandleIfPresent(handle, name) else {
+  guard let symbol = unsafe symbolFromHandleIfPresent(handle, name) else {
     preconditionFailure("\(name) could not be located")
   }
-  return symbol
+  return unsafe symbol
 }
 
 /// Resolves a symbol in an opened image, returning nil when it is not there.
 public func symbolFromHandleIfPresent(_ handle: UnsafeMutableRawPointer, _ name: String) -> UnsafeMutableRawPointer? {
-  dlsym(handle, name)
+  unsafe dlsym(handle, name)
 }
 
 extension Bundle {
@@ -34,9 +34,9 @@ extension Bundle {
     guard let path = executablePath else {
       preconditionFailure("\(self) has no executable path")
     }
-    guard let handle = dlopen(path, RTLD_LAZY) else {
+    guard let handle = unsafe dlopen(path, RTLD_LAZY) else {
       preconditionFailure("\(self) dlopen handle from \(path) could not be obtained")
     }
-    return handle
+    return unsafe handle
   }
 }

@@ -163,7 +163,7 @@ public enum ScreenshotRenderer {
     // enough shapes across simulator, device and Mac that deriving the layout means occasionally
     // failing to scale an image that is otherwise fine.
     guard
-      let context = CGContext(
+      let context = unsafe CGContext(
         data: nil,
         width: width,
         height: height,

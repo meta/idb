@@ -47,7 +47,7 @@ public struct TemporaryDirectory: Sendable {
       return nil
     }
     var buffer = [CChar](repeating: 0, count: size)
-    guard confstr(_CS_DARWIN_USER_TEMP_DIR, &buffer, size) == size else {
+    guard unsafe confstr(_CS_DARWIN_USER_TEMP_DIR, &buffer, size) == size else {
       return nil
     }
     // `confstr` reports a size that includes the terminator, which has to come off before decoding.
