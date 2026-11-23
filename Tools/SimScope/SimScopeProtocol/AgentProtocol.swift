@@ -167,7 +167,7 @@ extension AgentRequest: Decodable {
     case id, method, intent, params
   }
 
-  public init(from decoder: Decoder) throws {
+  public init(from decoder: any Decoder) throws {
     let container = try decoder.container(keyedBy: CodingKeys.self)
     self.id = try container.decodeIfPresent(Int.self, forKey: .id)
     self.intent = try container.decodeIfPresent(String.self, forKey: .intent)?.nonEmpty
@@ -339,7 +339,7 @@ extension AgentRequest: Decodable {
 
 extension AgentRequest: Encodable {
 
-  public func encode(to encoder: Encoder) throws {
+  public func encode(to encoder: any Encoder) throws {
     var container = encoder.container(keyedBy: CodingKeys.self)
     try container.encodeIfPresent(id, forKey: .id)
     try container.encode(command.methodName, forKey: .method)
@@ -486,11 +486,11 @@ public struct AgentInjection: Codable, Sendable {
 public struct AgentAcknowledgement: Codable, Sendable {
   public init() {}
 
-  public init(from decoder: Decoder) throws {
+  public init(from decoder: any Decoder) throws {
     self.init()
   }
 
-  public func encode(to encoder: Encoder) throws {
+  public func encode(to encoder: any Encoder) throws {
     var container = encoder.singleValueContainer()
     try container.encode([String: String]())
   }
@@ -511,7 +511,7 @@ public enum AgentResult: Encodable, Sendable {
   case recording(AgentRecordingState)
   case injected(AgentInjection)
 
-  public func encode(to encoder: Encoder) throws {
+  public func encode(to encoder: any Encoder) throws {
     switch self {
     case .acknowledged: try AgentAcknowledgement().encode(to: encoder)
     case let .status(payload): try payload.encode(to: encoder)
@@ -536,10 +536,10 @@ public struct AgentResponse: Encodable, Sendable {
     AgentResponse(id: id, ok: true, result: result, error: nil)
   }
 
-  public static func failure(id: Int?, _ error: Error) -> AgentResponse {
+  public static func failure(id: Int?, _ error: any Error) -> AgentResponse {
     AgentResponse(
       id: id, ok: false, result: nil,
-      error: (error as? LocalizedError)?.errorDescription ?? error.localizedDescription)
+      error: (error as? any LocalizedError)?.errorDescription ?? error.localizedDescription)
   }
 }
 
