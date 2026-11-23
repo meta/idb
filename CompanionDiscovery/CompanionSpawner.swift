@@ -160,14 +160,14 @@ private func readFirstLine(from handle: FileHandle, timeout: TimeInterval) async
 private final class LineReadState: @unchecked Sendable {
   private let lock = NSLock()
   private var bytes = [UInt8]()
-  private var continuation: CheckedContinuation<String, Error>?
+  private var continuation: CheckedContinuation<String, any Error>?
   private var handle: FileHandle?
-  private var timer: DispatchSourceTimer?
+  private var timer: (any DispatchSourceTimer)?
   private var cancelled = false
 
   /// Starts the read and the timeout timer. If cancellation already happened,
   /// resumes immediately instead.
-  func begin(handle: FileHandle, timeout: TimeInterval, continuation: CheckedContinuation<String, Error>) {
+  func begin(handle: FileHandle, timeout: TimeInterval, continuation: CheckedContinuation<String, any Error>) {
     lock.lock()
     defer { lock.unlock() }
     if cancelled {
@@ -218,7 +218,7 @@ private final class LineReadState: @unchecked Sendable {
 
   /// Finishes the read (also closing the cancel-before-`begin` race) and resumes
   /// with `result` if still pending.
-  private func finish(_ result: Result<String, Error>) {
+  private func finish(_ result: Result<String, any Error>) {
     lock.lock()
     defer { lock.unlock() }
     cancelled = true
@@ -227,7 +227,7 @@ private final class LineReadState: @unchecked Sendable {
 
   /// Resumes the continuation at most once and tears down the timer and reader so
   /// nothing is left running. The caller must hold `lock`.
-  private func finishLocked(_ result: Result<String, Error>) {
+  private func finishLocked(_ result: Result<String, any Error>) {
     timer?.cancel()
     timer = nil
     handle?.readabilityHandler = nil

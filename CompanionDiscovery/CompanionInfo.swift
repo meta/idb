@@ -63,7 +63,7 @@ public struct CompanionInfo: Codable, Equatable, Sendable {
     case path
   }
 
-  public init(from decoder: Decoder) throws {
+  public init(from decoder: any Decoder) throws {
     let container = try decoder.container(keyedBy: CodingKeys.self)
     udid = try container.decode(String.self, forKey: .udid)
     isLocal = try container.decodeIfPresent(Bool.self, forKey: .isLocal) ?? true
@@ -76,7 +76,7 @@ public struct CompanionInfo: Codable, Equatable, Sendable {
     }
   }
 
-  public func encode(to encoder: Encoder) throws {
+  public func encode(to encoder: any Encoder) throws {
     var container = encoder.container(keyedBy: CodingKeys.self)
     try container.encode(udid, forKey: .udid)
     try container.encode(isLocal, forKey: .isLocal)
