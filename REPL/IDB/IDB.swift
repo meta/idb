@@ -34,11 +34,11 @@ import ImageIO
 @discardableResult
 private func perform(_ command: ReplCommand) -> Any? {
   typealias InvokeFunction = @convention(c) (UnsafeRawPointer?, Int32, UnsafeMutablePointer<Int32>?) -> UnsafeMutableRawPointer?
-  guard let symbol = dlsym(dlopen(nil, RTLD_NOW), "FBReplInvokeHostCommand") else {
+  guard let symbol = unsafe dlsym(dlopen(nil, RTLD_NOW), "FBReplInvokeHostCommand") else {
     haltReplExecution() // not running inside an idb REPL host
     return nil
   }
-  let invokeHostCommand = unsafeBitCast(symbol, to: InvokeFunction.self)
+  let invokeHostCommand = unsafe unsafeBitCast(symbol, to: InvokeFunction.self)
   // Encode the command as a binary property list so values (e.g. coordinates)
   // round-trip bit-for-bit rather than through a decimal string. It travels as
   // the raw payload of a length-prefixed frame -- there is no text envelope.
@@ -48,16 +48,16 @@ private func perform(_ command: ReplCommand) -> Any? {
     return nil // a command that cannot be encoded cannot be sent; skip it
   }
   var responseLength: Int32 = 0
-  let responsePtr = commandData.withUnsafeBytes { (raw: UnsafeRawBufferPointer) in
-    invokeHostCommand(raw.baseAddress, Int32(raw.count), &responseLength)
+  let responsePtr = unsafe commandData.withUnsafeBytes { (raw: UnsafeRawBufferPointer) in
+    unsafe invokeHostCommand(raw.baseAddress, Int32(raw.count), &responseLength)
   }
-  guard let responsePtr else {
+  guard let responsePtr = unsafe responsePtr else {
     haltReplExecution() // the REPL host disconnected mid-command
     return nil
   }
-  defer { free(responsePtr) }
-  let responseData = Data(bytes: responsePtr, count: Int(responseLength))
-  let response = ((try? PropertyListSerialization.propertyList(from: responseData, options: [], format: nil)) as? [String: Any]) ?? [:]
+  defer { unsafe free(responsePtr) }
+  let responseData = unsafe Data(bytes: responsePtr, count: Int(responseLength))
+  let response = unsafe ((try? PropertyListSerialization.propertyList(from: responseData, options: [], format: nil)) as? [String: Any]) ?? [:]
   if response["success"] as? Bool == true {
     return response["result"]
   }
@@ -84,10 +84,10 @@ private func haltReplExecution() {
 /// `FBReplInvokeHostCommand`; treated as false if the host predates this entry point.
 private func hostOutlivesSession() -> Bool {
   typealias QueryFunction = @convention(c) () -> ObjCBool
-  guard let symbol = dlsym(dlopen(nil, RTLD_NOW), "FBReplHostOutlivesSession") else {
+  guard let symbol = unsafe dlsym(dlopen(nil, RTLD_NOW), "FBReplHostOutlivesSession") else {
     return false
   }
-  return unsafeBitCast(symbol, to: QueryFunction.self)().boolValue
+  return unsafe unsafeBitCast(symbol, to: QueryFunction.self)().boolValue
 }
 
 /// Interprets a host command's raw result as a UTF-8 string, or nil when the
