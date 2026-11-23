@@ -186,6 +186,7 @@ struct SimulatorTests {
   @Test
   func temporaryDirectory_ConcurrentFirstAccess() {
     let collected = OSAllocatedUnfairLock<[TemporaryDirectory]>(initialState: [])
+    let simulator = self.simulator
     DispatchQueue.concurrentPerform(iterations: 64) { _ in
       let directory = simulator.temporaryDirectory
       collected.withLock { $0.append(directory) }

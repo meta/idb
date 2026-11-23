@@ -62,7 +62,7 @@ struct SimulatorVendorHIDTransportTests {
     }
     let attempts = await connections.attempts
     #expect(attempts == 1)
-    let peer = await connections.peer
+    let peer = connections.peer
     #expect(peer.connections == 1)
     let received = await peer.received(atLeast: 4)
     #expect(received.map { xpc_dictionary_get_bool($0, "isBarrier") } == [true, false, false, false])

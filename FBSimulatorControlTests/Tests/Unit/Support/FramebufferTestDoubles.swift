@@ -122,8 +122,8 @@ func makeTestIOSurface(
   pixel: (_ x: Int, _ y: Int) -> (b: UInt8, g: UInt8, r: UInt8, a: UInt8)
 ) throws -> IOSurface {
   let surface = makeTestIOSurface(width: width, height: height)
-  try surface.lock(options: [], seed: nil)
-  defer { try? surface.unlock(options: [], seed: nil) }
+  surface.lock(options: [], seed: nil)
+  defer { surface.unlock(options: [], seed: nil) }
   let base = surface.baseAddress.assumingMemoryBound(to: UInt8.self)
   let bytesPerRow = surface.bytesPerRow
   for y in 0..<height {

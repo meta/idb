@@ -78,9 +78,9 @@ private final class ToolSpawnDevice: @unchecked Sendable {
     withPath path: String,
     options: [String: Any],
     terminationQueue: DispatchQueue,
-    terminationHandler: @escaping (Int32) -> Void,
+    terminationHandler: @escaping @Sendable (Int32) -> Void,
     completionQueue: DispatchQueue,
-    completionHandler: @escaping (NSError?, pid_t) -> Void
+    completionHandler: @escaping @Sendable (NSError?, pid_t) -> Void
   ) {
     spawnedOptions = options
     for (key, payload) in [("stdout", stdOut), ("stderr", stdErr)] {

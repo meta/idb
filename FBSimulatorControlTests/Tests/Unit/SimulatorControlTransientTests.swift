@@ -30,7 +30,6 @@ struct SimulatorControlTransientTests {
   @Test
   func defaultConfigurationHasEmptyEnvironment() {
     let config = SimulatorBootConfiguration.default
-    #expect(config.environment != nil)
     #expect(config.environment.count == 0)
   }
 

@@ -143,7 +143,7 @@ struct SimulatorCrownHIDTransportTests {
     let crown = transport(connections)
     try await crown.sendCrown(direction: .down, delta: 7.5)
     try await crown.sendCrown(direction: .up, delta: 0)
-    let peer = await connections.peer
+    let peer = connections.peer
     let received = await peer.received(atLeast: 3)
 
     #expect(
@@ -177,7 +177,7 @@ struct SimulatorCrownHIDTransportTests {
       try await crown.sendCrown(direction: .down, delta: 5)
     }
     try await crown.sendCrown(direction: .up, delta: 99)
-    let peer = await connections.peer
+    let peer = connections.peer
     let received = await peer.received(atLeast: 5)
     #expect(phases(received) == [1, 2, 2, 4])
     let release = try #require(payloads(received).last)
@@ -193,7 +193,7 @@ struct SimulatorCrownHIDTransportTests {
     try await crown.sendCrown(direction: .down, delta: 5)
     try await crown.sendCrown(direction: .up, delta: 0)
     try await crown.sendCrown(direction: .down, delta: 5)
-    let peer = await connections.peer
+    let peer = connections.peer
     let received = await peer.received(atLeast: 4)
     #expect(phases(received) == [1, 4, 1])
     await crown.disconnect()
@@ -207,7 +207,7 @@ struct SimulatorCrownHIDTransportTests {
       try await crown.sendCrown(direction: .down, delta: 5)
     }
     #expect(await connections.attempts == 1)
-    #expect(await connections.peer.connections == 1)
+    #expect(connections.peer.connections == 1)
     await crown.disconnect()
   }
 
@@ -251,7 +251,7 @@ struct SimulatorCrownHIDTransportTests {
       try await crown.sendCrown(direction: .down, delta: 25)
     }
     try await crown.sendCrown(direction: .down, delta: 25)
-    let peer = await connections.peer
+    let peer = connections.peer
     let received = await peer.received(atLeast: 3)
     #expect(phases(received) == [1])
     #expect(await connections.attempts == 2)
@@ -275,7 +275,7 @@ struct SimulatorCrownHIDTransportTests {
       return true
     }
     try await crown.sendCrown(direction: .down, delta: 5)
-    let peer = await connections.peer
+    let peer = connections.peer
     let received = await peer.received(atLeast: 3)
     #expect(phases(received) == [1, 1])
     #expect(await connections.attempts == 1)

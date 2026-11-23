@@ -228,9 +228,9 @@ private final class RecordingSpawnDevice: @unchecked Sendable {
     withPath path: String,
     options: [String: Any],
     terminationQueue: DispatchQueue,
-    terminationHandler: @escaping (Int32) -> Void,
+    terminationHandler: @escaping @Sendable (Int32) -> Void,
     completionQueue: DispatchQueue,
-    completionHandler: @escaping (NSError?, pid_t) -> Void
+    completionHandler: @escaping @Sendable (NSError?, pid_t) -> Void
   ) {
     spawnedOptions = options
     completionQueue.async { completionHandler(nil, 4242) }
@@ -271,9 +271,9 @@ private final class ExitingSpawnDevice: @unchecked Sendable {
     withPath path: String,
     options: [String: Any],
     terminationQueue: DispatchQueue,
-    terminationHandler: @escaping (Int32) -> Void,
+    terminationHandler: @escaping @Sendable (Int32) -> Void,
     completionQueue: DispatchQueue,
-    completionHandler: @escaping (NSError?, pid_t) -> Void
+    completionHandler: @escaping @Sendable (NSError?, pid_t) -> Void
   ) {
     spawnedOptions = options
     if let fileDescriptor = (options["stdout"] as? NSNumber)?.int32Value {
