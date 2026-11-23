@@ -48,27 +48,27 @@ private let flagIsGeneric: UInt32 = 0x80 // bit 7 of the Flags word
 
 @inline(__always)
 private func relativeDirect(_ field: UnsafeRawPointer) -> UnsafeRawPointer? {
-  let offset = field.loadUnaligned(as: Int32.self)
+  let offset = unsafe field.loadUnaligned(as: Int32.self)
   if offset == 0 { return nil }
-  return field.advanced(by: Int(offset))
+  return unsafe field.advanced(by: Int(offset))
 }
 
 @inline(__always)
 private func relativeIndirectable(_ field: UnsafeRawPointer) -> UnsafeRawPointer? {
-  let raw = field.loadUnaligned(as: Int32.self)
+  let raw = unsafe field.loadUnaligned(as: Int32.self)
   if raw == 0 { return nil }
-  let target = field.advanced(by: Int(raw & ~1))
+  let target = unsafe field.advanced(by: Int(raw & ~1))
   if (raw & 1) != 0 {
-    let p = target.loadUnaligned(as: UInt.self)
-    return p == 0 ? nil : UnsafeRawPointer(bitPattern: p)
+    let p = unsafe target.loadUnaligned(as: UInt.self)
+    return unsafe p == 0 ? nil : UnsafeRawPointer(bitPattern: p)
   }
-  return target
+  return unsafe target
 }
 
 @inline(__always)
 private func cString(at ptr: UnsafeRawPointer?) -> String? {
-  guard let ptr else { return nil }
-  return String(cString: ptr.assumingMemoryBound(to: CChar.self))
+  guard let ptr = unsafe ptr else { return nil }
+  return unsafe String(cString: ptr.assumingMemoryBound(to: CChar.self))
 }
 
 // MARK: - Swift runtime entry points (resolved dynamically)
@@ -79,7 +79,7 @@ private func cString(at ptr: UnsafeRawPointer?) -> String? {
 // image for the libswiftCore entry point.
 
 private var rtldDefault: UnsafeMutableRawPointer? {
-  UnsafeMutableRawPointer(bitPattern: -2)
+  unsafe UnsafeMutableRawPointer(bitPattern: -2)
 }
 
 // Returns the type metadata pointer (Swift runtime `const Metadata *`); callers
@@ -94,10 +94,10 @@ private typealias GetTypeByMangledNameInContext =
   ) -> UnsafeRawPointer?
 
 private let getTypeByMangledNameInContext: GetTypeByMangledNameInContext? = {
-  guard let symbol = dlsym(rtldDefault, "swift_getTypeByMangledNameInContext") else {
+  guard let symbol = unsafe dlsym(rtldDefault, "swift_getTypeByMangledNameInContext") else {
     return nil
   }
-  return unsafeBitCast(symbol, to: GetTypeByMangledNameInContext.self)
+  return unsafe unsafeBitCast(symbol, to: GetTypeByMangledNameInContext.self)
 }()
 
 private typealias SwiftDemangle =
@@ -110,18 +110,18 @@ private typealias SwiftDemangle =
   ) -> UnsafeMutablePointer<CChar>?
 
 private let swiftDemangle: SwiftDemangle? = {
-  guard let symbol = dlsym(rtldDefault, "swift_demangle") else {
+  guard let symbol = unsafe dlsym(rtldDefault, "swift_demangle") else {
     return nil
   }
-  return unsafeBitCast(symbol, to: SwiftDemangle.self)
+  return unsafe unsafeBitCast(symbol, to: SwiftDemangle.self)
 }()
 
 private func demangle(_ mangled: String) -> String? {
-  guard let demangler = swiftDemangle else { return nil }
+  guard let demangler = unsafe swiftDemangle else { return nil }
   return mangled.withCString { cstr -> String? in
-    guard let out = demangler(cstr, strlen(cstr), nil, nil, 0) else { return nil }
-    defer { free(out) }
-    return String(cString: out)
+    guard let out = unsafe demangler(cstr, strlen(cstr), nil, nil, 0) else { return nil }
+    defer { unsafe free(out) }
+    return unsafe String(cString: out)
   }
 }
 
@@ -129,33 +129,33 @@ private func demangle(_ mangled: String) -> String? {
 /// references (whose 4- or 8-byte operands may themselves contain null bytes,
 /// so a plain `strlen` is wrong).
 private func mangledNameLength(_ start: UnsafeRawPointer) -> Int {
-  var p = start
+  var p = unsafe start
   while true {
-    let b = p.loadUnaligned(as: UInt8.self)
+    let b = unsafe p.loadUnaligned(as: UInt8.self)
     if b == 0 { break }
     if b >= 0x01, b <= 0x17 {
-      p = p.advanced(by: 5) // 1 control byte + 4-byte relative reference
+      unsafe p = unsafe p.advanced(by: 5) // 1 control byte + 4-byte relative reference
     } else if b >= 0x18, b <= 0x1F {
-      p = p.advanced(by: 9) // 1 control byte + 8-byte absolute reference
+      unsafe p = unsafe p.advanced(by: 9) // 1 control byte + 8-byte absolute reference
     } else {
-      p = p.advanced(by: 1)
+      unsafe p = unsafe p.advanced(by: 1)
     }
   }
-  return start.distance(to: p)
+  return unsafe start.distance(to: p)
 }
 
 /// Best-effort: resolve a field's mangled type reference to a qualified Swift
 /// type spelling (e.g. "Swift.Int"). Returns nil if the type can't be resolved
 /// in-process (e.g. unbound generic), so callers can fall back to a placeholder.
 private func resolveTypeName(_ mangled: UnsafeRawPointer?, context: UnsafeRawPointer) -> String? {
-  guard let mangled, let resolve = getTypeByMangledNameInContext else { return nil }
-  let len = mangledNameLength(mangled)
+  guard let mangled = unsafe mangled, let resolve = unsafe getTypeByMangledNameInContext else { return nil }
+  let len = unsafe mangledNameLength(mangled)
   guard len > 0 else { return nil }
-  let bytes = mangled.assumingMemoryBound(to: UInt8.self)
-  guard let metadata = resolve(bytes, UInt(len), context, nil) else {
+  let bytes = unsafe mangled.assumingMemoryBound(to: UInt8.self)
+  guard let metadata = unsafe resolve(bytes, UInt(len), context, nil) else {
     return nil
   }
-  let type = unsafeBitCast(metadata, to: Any.Type.self)
+  let type = unsafe unsafeBitCast(metadata, to: Any.Type.self)
   return String(reflecting: type)
 }
 
@@ -175,26 +175,26 @@ private struct TypeInfo {
 /// Resolve a `__swift5_types` record (a relative, possibly-indirect pointer) to
 /// the type context descriptor it names.
 private func resolveTypeRecord(_ entry: UnsafeRawPointer) -> UnsafeRawPointer? {
-  let raw = entry.loadUnaligned(as: Int32.self)
+  let raw = unsafe entry.loadUnaligned(as: Int32.self)
   if raw == 0 { return nil }
-  let target = entry.advanced(by: Int(raw & ~1))
+  let target = unsafe entry.advanced(by: Int(raw & ~1))
   if (raw & 1) != 0 {
-    let p = target.loadUnaligned(as: UInt.self)
-    return p == 0 ? nil : UnsafeRawPointer(bitPattern: p)
+    let p = unsafe target.loadUnaligned(as: UInt.self)
+    return unsafe p == 0 ? nil : UnsafeRawPointer(bitPattern: p)
   }
-  return target
+  return unsafe target
 }
 
 /// Walk the parent chain to the enclosing module descriptor and read its name.
 private func moduleName(of descriptor: UnsafeRawPointer) -> String? {
-  var current: UnsafeRawPointer? = relativeIndirectable(descriptor.advanced(by: 4)) // Parent
+  var current: UnsafeRawPointer? = unsafe relativeIndirectable(descriptor.advanced(by: 4)) // Parent
   var depth = 0
-  while let c = current, depth < 16 {
-    let kind = c.loadUnaligned(as: UInt32.self) & 0x1F
+  while let c = unsafe current, depth < 16 {
+    let kind = unsafe c.loadUnaligned(as: UInt32.self) & 0x1F
     if kind == kindModule {
-      return cString(at: relativeDirect(c.advanced(by: 8))) // module descriptor: Name at +8
+      return unsafe cString(at: relativeDirect(c.advanced(by: 8))) // module descriptor: Name at +8
     }
-    current = relativeIndirectable(c.advanced(by: 4))
+    unsafe current = unsafe relativeIndirectable(c.advanced(by: 4))
     depth += 1
   }
   return nil
@@ -203,15 +203,15 @@ private func moduleName(of descriptor: UnsafeRawPointer) -> String? {
 /// Whether the descriptor's immediate parent is a module (a top-level type); nested
 /// types are not recovered.
 private func isTopLevel(_ descriptor: UnsafeRawPointer) -> Bool {
-  guard let parent = relativeIndirectable(descriptor.advanced(by: 4)) else { return false }
-  return (parent.loadUnaligned(as: UInt32.self) & 0x1F) == kindModule
+  guard let parent = unsafe relativeIndirectable(descriptor.advanced(by: 4)) else { return false }
+  return unsafe (parent.loadUnaligned(as: UInt32.self) & 0x1F) == kindModule
 }
 
 /// The kind/name/module of a top-level, non-generic nominal type, or nil to skip.
 private func typeInfo(of descriptor: UnsafeRawPointer) -> TypeInfo? {
-  let flags = descriptor.loadUnaligned(as: UInt32.self)
+  let flags = unsafe descriptor.loadUnaligned(as: UInt32.self)
   guard (flags & flagIsGeneric) == 0 else { return nil } // generics are not recovered
-  guard isTopLevel(descriptor) else { return nil } // nested types are not recovered
+  guard unsafe isTopLevel(descriptor) else { return nil } // nested types are not recovered
 
   let keyword: String
   switch flags & 0x1F {
@@ -220,24 +220,24 @@ private func typeInfo(of descriptor: UnsafeRawPointer) -> TypeInfo? {
   case kindEnum: keyword = "enum"
   default: return nil
   }
-  guard let name = cString(at: relativeDirect(descriptor.advanced(by: 8))) else { return nil } // Name at +8
-  let module = moduleName(of: descriptor) ?? "Unknown"
+  guard let name = unsafe cString(at: relativeDirect(descriptor.advanced(by: 8))) else { return nil } // Name at +8
+  let module = unsafe moduleName(of: descriptor) ?? "Unknown"
   return TypeInfo(module: module, name: name, keyword: keyword)
 }
 
 /// Stored properties from the type's field descriptor (`Fields` at +16).
 private func storedFields(of descriptor: UnsafeRawPointer) -> [FieldInfo] {
-  guard let fd = relativeDirect(descriptor.advanced(by: 16)) else { return [] }
-  let recordSize = Int(fd.advanced(by: 10).loadUnaligned(as: UInt16.self))
-  let numFields = Int(fd.advanced(by: 12).loadUnaligned(as: UInt32.self))
+  guard let fd = unsafe relativeDirect(descriptor.advanced(by: 16)) else { return [] }
+  let recordSize = unsafe Int(fd.advanced(by: 10).loadUnaligned(as: UInt16.self))
+  let numFields = unsafe Int(fd.advanced(by: 12).loadUnaligned(as: UInt32.self))
   guard recordSize >= 12, numFields > 0, numFields < 4096 else { return [] }
-  let records = fd.advanced(by: 16)
+  let records = unsafe fd.advanced(by: 16)
   var fields: [FieldInfo] = []
   for i in 0..<numFields {
-    let rec = records.advanced(by: i * recordSize)
-    let name = cString(at: relativeDirect(rec.advanced(by: 8))) ?? "field\(i)" // FieldName at +8
+    let rec = unsafe records.advanced(by: i * recordSize)
+    let name = unsafe cString(at: relativeDirect(rec.advanced(by: 8))) ?? "field\(i)" // FieldName at +8
     let typeName =
-      resolveTypeName(relativeDirect(rec.advanced(by: 4)), context: descriptor) // MangledTypeName at +4
+      unsafe resolveTypeName(relativeDirect(rec.advanced(by: 4)), context: descriptor) // MangledTypeName at +4
       ?? "Any /* TODO: unresolved type */"
     fields.append(FieldInfo(name: name, typeName: typeName))
   }
@@ -474,9 +474,9 @@ private func matchingParen(_ s: String, openAfter: String.Index) -> String.Index
 
 private func readSegmentName(_ command: UnsafeRawPointer) -> String {
   // segname is a 16-byte field at offset 8 in segment_command_64.
-  let p = command.advanced(by: 8)
+  let p = unsafe command.advanced(by: 8)
   var bytes = [UInt8](repeating: 0, count: 16)
-  for i in 0..<16 { bytes[i] = p.advanced(by: i).loadUnaligned(as: UInt8.self) }
+  for i in 0..<16 { bytes[i] = unsafe p.advanced(by: i).loadUnaligned(as: UInt8.self) }
   return String(decoding: bytes.prefix { $0 != 0 }, as: UTF8.self)
 }
 
@@ -484,10 +484,10 @@ private func readSegmentName(_ command: UnsafeRawPointer) -> String {
 /// methods, initializers, computed properties, and free functions it defines.
 private func collectMembers(in header: UnsafeRawPointer, slide: Int) -> ImageMembers {
   var members = ImageMembers()
-  let mh = header.assumingMemoryBound(to: mach_header_64.self)
-  guard mh.pointee.magic == MH_MAGIC_64 else { return members }
+  let mh = unsafe header.assumingMemoryBound(to: mach_header_64.self)
+  guard unsafe mh.pointee.magic == MH_MAGIC_64 else { return members }
 
-  var command = header.advanced(by: MemoryLayout<mach_header_64>.size)
+  var command = unsafe header.advanced(by: MemoryLayout<mach_header_64>.size)
   var linkeditVMAddr: UInt64 = 0
   var linkeditFileOff: UInt64 = 0
   var haveLinkedit = false
@@ -496,38 +496,38 @@ private func collectMembers(in header: UnsafeRawPointer, slide: Int) -> ImageMem
   var strOff: UInt32 = 0
   var haveSymtab = false
 
-  for _ in 0..<Int(mh.pointee.ncmds) {
-    let lc = command.loadUnaligned(as: load_command.self)
+  for _ in unsafe 0..<Int(mh.pointee.ncmds) {
+    let lc = unsafe command.loadUnaligned(as: load_command.self)
     if lc.cmd == UInt32(LC_SEGMENT_64) {
-      let seg = command.loadUnaligned(as: segment_command_64.self)
-      if readSegmentName(command) == "__LINKEDIT" {
+      let seg = unsafe command.loadUnaligned(as: segment_command_64.self)
+      if unsafe readSegmentName(command) == "__LINKEDIT" {
         linkeditVMAddr = seg.vmaddr
         linkeditFileOff = seg.fileoff
         haveLinkedit = true
       }
     } else if lc.cmd == UInt32(LC_SYMTAB) {
-      let st = command.loadUnaligned(as: symtab_command.self)
+      let st = unsafe command.loadUnaligned(as: symtab_command.self)
       symOff = st.symoff
       numSyms = st.nsyms
       strOff = st.stroff
       haveSymtab = true
     }
-    command = command.advanced(by: Int(lc.cmdsize))
+    unsafe command = unsafe command.advanced(by: Int(lc.cmdsize))
   }
   guard haveLinkedit, haveSymtab, numSyms > 0 else { return members }
 
   let fileBase = slide + Int(linkeditVMAddr) - Int(linkeditFileOff)
-  guard let symBase = UnsafeRawPointer(bitPattern: fileBase + Int(symOff)),
-    let strBase = UnsafeRawPointer(bitPattern: fileBase + Int(strOff))
+  guard let symBase = unsafe UnsafeRawPointer(bitPattern: fileBase + Int(symOff)),
+    let strBase = unsafe UnsafeRawPointer(bitPattern: fileBase + Int(strOff))
   else { return members }
 
   for i in 0..<Int(numSyms) {
-    let n = symBase.advanced(by: i * MemoryLayout<nlist_64>.size).loadUnaligned(as: nlist_64.self)
+    let n = unsafe symBase.advanced(by: i * MemoryLayout<nlist_64>.size).loadUnaligned(as: nlist_64.self)
     guard (n.n_type & UInt8(N_STAB)) == 0 else { continue } // skip debug entries
     guard (n.n_type & UInt8(N_TYPE)) == UInt8(N_SECT) else { continue } // defined in a section
-    let strx = Int(n.n_un.n_strx)
+    let strx = unsafe Int(n.n_un.n_strx)
     guard strx != 0 else { continue }
-    let raw = String(cString: strBase.advanced(by: strx).assumingMemoryBound(to: CChar.self))
+    let raw = unsafe String(cString: strBase.advanced(by: strx).assumingMemoryBound(to: CChar.self))
     // Symbol table names carry a leading '_'; Swift mangling then starts "$s"/"$S".
     guard raw.hasPrefix("_$s") || raw.hasPrefix("_$S") else { continue }
     guard let demangled = demangle(String(raw.dropFirst())) else { continue }
@@ -569,33 +569,33 @@ private func record(_ parsed: ParsedSymbol, into members: inout ImageMembers) {
 // MARK: - Image enumeration
 
 private func matchingImages(filter: String) -> [(header: UnsafeRawPointer, slide: Int)] {
-  var images: [(UnsafeRawPointer, Int)] = []
+  var images: [(UnsafeRawPointer, Int)] = unsafe []
   let count = _dyld_image_count()
   var i: UInt32 = 0
   while i < count {
     defer { i += 1 }
-    guard let nameC = _dyld_get_image_name(i) else { continue }
-    guard String(cString: nameC).contains(filter) else { continue }
-    if let header = _dyld_get_image_header(i) {
-      images.append((UnsafeRawPointer(header), _dyld_get_image_vmaddr_slide(i)))
+    guard let nameC = unsafe _dyld_get_image_name(i) else { continue }
+    guard unsafe String(cString: nameC).contains(filter) else { continue }
+    if let header = unsafe _dyld_get_image_header(i) {
+      unsafe images.append((UnsafeRawPointer(header), _dyld_get_image_vmaddr_slide(i)))
     }
   }
-  return images
+  return unsafe images
 }
 
 private func typeDescriptors(in header: UnsafeRawPointer) -> [UnsafeRawPointer] {
   var size: UInt = 0
-  let mh = header.assumingMemoryBound(to: mach_header_64.self)
-  guard let section = getsectiondata(mh, "__TEXT", "__swift5_types", &size) else { return [] }
+  let mh = unsafe header.assumingMemoryBound(to: mach_header_64.self)
+  guard let section = unsafe getsectiondata(mh, "__TEXT", "__swift5_types", &size) else { return unsafe [] }
   let base = UnsafeRawPointer(section)
   let count = Int(size) / 4
-  var descriptors: [UnsafeRawPointer] = []
+  var descriptors: [UnsafeRawPointer] = unsafe []
   for i in 0..<count {
-    if let desc = resolveTypeRecord(base.advanced(by: i * 4)) {
-      descriptors.append(desc)
+    if let desc = unsafe resolveTypeRecord(base.advanced(by: i * 4)) {
+      unsafe descriptors.append(desc)
     }
   }
-  return descriptors
+  return unsafe descriptors
 }
 
 // MARK: - Interface rendering
@@ -684,19 +684,23 @@ final class RuntimeProbe {
       NSLog("[idb-repl][probe] no image filter provided; refusing to scan all images")
       return []
     }
-    let images = matchingImages(filter: imageNameFilter)
-    guard !images.isEmpty else {
+    let images = unsafe matchingImages(filter: imageNameFilter)
+    guard unsafe !images.isEmpty else {
       NSLog("[idb-repl][probe] no loaded image matched '%@'", imageNameFilter)
       return []
     }
 
     var declarationsByModule: [String: [String]] = [:]
-    for (header, slide) in images {
-      let members = collectMembers(in: header, slide: slide)
+    // swift-format would join `for unsafe` into one word.
+    // swift-format-ignore
+    for unsafe (header, slide) in unsafe images {
+      let members = unsafe collectMembers(in: header, slide: slide)
 
-      for descriptor in typeDescriptors(in: header) {
-        guard let info = typeInfo(of: descriptor) else { continue }
-        let fields = info.keyword == "enum" ? [] : storedFields(of: descriptor)
+      // swift-format would join `for unsafe` into one word.
+      // swift-format-ignore
+      for unsafe descriptor in unsafe typeDescriptors(in: header) {
+        guard let info = unsafe typeInfo(of: descriptor) else { continue }
+        let fields = unsafe info.keyword == "enum" ? [] : storedFields(of: descriptor)
         let methods = members.typeMethods[info.module]?[info.name] ?? []
         let accessors = members.accessors[info.module]?[info.name] ?? [:]
         let declaration = renderType(info, fields: fields, methods: methods, accessors: accessors)
@@ -740,12 +744,12 @@ public func FBReplGenerateSwiftInterface(
   _ outDirC: UnsafePointer<CChar>?,
   _ imageFilterC: UnsafePointer<CChar>?
 ) -> UnsafePointer<CChar>? {
-  let outDir = outDirC.map { String(cString: $0) } ?? NSTemporaryDirectory()
-  let filter = imageFilterC.map { String(cString: $0) } ?? ""
+  let outDir = unsafe outDirC.map { unsafe String(cString: $0) } ?? NSTemporaryDirectory()
+  let filter = unsafe imageFilterC.map { unsafe String(cString: $0) } ?? ""
   let paths = RuntimeProbe().generateInterfaces(outputDir: outDir, imageNameFilter: filter)
   guard !paths.isEmpty else { return nil }
-  guard let duplicated = strdup(paths.joined(separator: "\n")) else {
+  guard let duplicated = unsafe strdup(paths.joined(separator: "\n")) else {
     return nil
   }
-  return UnsafePointer(duplicated)
+  return unsafe UnsafePointer(duplicated)
 }
