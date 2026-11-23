@@ -416,7 +416,7 @@ private final class AccessibilityRequest {
     guard let geometry = result.value else {
       return FBAXBridgeRejectedGeometry(kind: "frame", value: frameValue)
     }
-    geometry.getValue(&rect, size: MemoryLayout.size(ofValue: rect))
+    unsafe geometry.getValue(&rect, size: MemoryLayout.size(ofValue: rect))
     return CGRectCreateDictionaryRepresentation(rect) as NSDictionary
   }
 
@@ -443,7 +443,7 @@ private final class AccessibilityRequest {
     guard let geometry = result.value else {
       return FBAXBridgeRejectedGeometry(kind: "point", value: pointValue)
     }
-    geometry.getValue(&point, size: MemoryLayout.size(ofValue: point))
+    unsafe geometry.getValue(&point, size: MemoryLayout.size(ofValue: point))
     return CGPointCreateDictionaryRepresentation(point) as NSDictionary
   }
 
@@ -904,11 +904,11 @@ private final class AccessibilityRequest {
     case FBAXHitTestStatus.hit:
       return FBAXFrontmostOutcome.resolved(outcome.owningProcessIdentifier)
     case FBAXHitTestStatus.empty:
-      return FBAXFrontmostOutcome.unresolved(String(format: "system-wide hit-test at (%.1f, %.1f) found no element", anchor.x, anchor.y))
+      return unsafe FBAXFrontmostOutcome.unresolved(String(format: "system-wide hit-test at (%.1f, %.1f) found no element", anchor.x, anchor.y))
     case FBAXHitTestStatus.applicationUnavailable:
-      return FBAXFrontmostOutcome.applicationUnavailable(String(format: "no accessibility server responded to the system-wide hit-test at (%.1f, %.1f)", anchor.x, anchor.y))
+      return unsafe FBAXFrontmostOutcome.applicationUnavailable(String(format: "no accessibility server responded to the system-wide hit-test at (%.1f, %.1f)", anchor.x, anchor.y))
     case FBAXHitTestStatus.applicationNotResponding:
-      return FBAXFrontmostOutcome.applicationNotResponding(String(format: "the application at (%.1f, %.1f) did not respond to the system-wide hit-test before it timed out", anchor.x, anchor.y))
+      return unsafe FBAXFrontmostOutcome.applicationNotResponding(String(format: "the application at (%.1f, %.1f) did not respond to the system-wide hit-test before it timed out", anchor.x, anchor.y))
     case FBAXHitTestStatus.failed:
       fallthrough
     @unknown default:
@@ -1257,7 +1257,7 @@ private final class AccessibilityRequest {
       )
       if !matches {
         let description = try client.description(ofValue: actual)
-        return FBAXWriteOutcome.assertionFailed(String(format: "the element at (%.1f, %.1f) has %@ %@, expected %@", request.x, request.y, assertKey, description.value ?? "(null)", assertValue ?? ""))
+        return unsafe FBAXWriteOutcome.assertionFailed(String(format: "the element at (%.1f, %.1f) has %@ %@, expected %@", request.x, request.y, assertKey, description.value ?? "(null)", assertValue ?? ""))
       }
     }
 

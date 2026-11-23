@@ -78,7 +78,7 @@ public enum DynamicStoreService {
 
   private static func requestedSnapshot(_ data: Data) -> Snapshot? {
     do {
-      let object = try PropertyListSerialization.propertyList(from: data, options: [], format: nil)
+      let object = unsafe try PropertyListSerialization.propertyList(from: data, options: [], format: nil)
       guard let fields = object as? [String: Any], let present = fields["present"] as? NSNumber else {
         NSLog("[DynamicStoreService] Cannot read the snapshot to restore: %@", String(describing: object as AnyObject))
         return nil

@@ -97,9 +97,9 @@ public struct CommandLineServices: CommandLineServiceHandling {
 
   public func accessibility(_ action: String, arguments: [String]) -> Int32 {
     AccessibilityService.handleAction(action, arguments: arguments) { data in
-      let written = data.withUnsafeBytes { fwrite($0.baseAddress, 1, $0.count, stdout) } == data.count
+      let written = unsafe data.withUnsafeBytes { unsafe fwrite($0.baseAddress, 1, $0.count, stdout) } == data.count
       // A `quiet` stream writes a line per event and runs until it is killed.
-      return written && fputc(10, stdout) != EOF && fflush(stdout) == 0
+      return unsafe written && fputc(10, stdout) != EOF && fflush(stdout) == 0
     }
   }
 
@@ -110,27 +110,27 @@ public struct CommandLineServices: CommandLineServiceHandling {
   public func repl(_ socketPath: String?, libraryPath: String, additionalLibraryPaths: [String]) -> Int32 {
     // The socket server and any library injected code calls through must use the shim's one
     // control connection, so everything loads globally into this process.
-    guard let handle = dlopen((libraryPath as NSString).fileSystemRepresentation, RTLD_NOW | RTLD_GLOBAL) else {
+    guard let handle = unsafe dlopen((libraryPath as NSString).fileSystemRepresentation, RTLD_NOW | RTLD_GLOBAL) else {
       NSLog("Failed to load the shim at %@: %@", libraryPath, Self.lastLoaderError())
       return 1
     }
     for additionalLibraryPath in additionalLibraryPaths {
-      guard dlopen((additionalLibraryPath as NSString).fileSystemRepresentation, RTLD_NOW | RTLD_GLOBAL) != nil else {
+      guard unsafe dlopen((additionalLibraryPath as NSString).fileSystemRepresentation, RTLD_NOW | RTLD_GLOBAL) != nil else {
         NSLog("Failed to load %@: %@", additionalLibraryPath, Self.lastLoaderError())
         return 1
       }
     }
-    guard let symbol = dlsym(handle, "FBReplServeSocket") else {
+    guard let symbol = unsafe dlsym(handle, "FBReplServeSocket") else {
       NSLog("The shim is missing FBReplServeSocket: %@", Self.lastLoaderError())
       return 1
     }
     typealias Serve = @convention(c) (NSString?, NSArray, ObjCBool) -> Int32
     // The bridge exits when the session ends, so serve a single connection.
-    return unsafeBitCast(symbol, to: Serve.self)(socketPath as NSString?, [] as NSArray, false)
+    return unsafe unsafeBitCast(symbol, to: Serve.self)(socketPath as NSString?, [] as NSArray, false)
   }
 
   private static func lastLoaderError() -> String {
-    dlerror().map { String(cString: $0) } ?? "(null)"
+    unsafe dlerror().map { unsafe String(cString: $0) } ?? "(null)"
   }
 }
 

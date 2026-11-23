@@ -117,8 +117,8 @@ public enum BridgeRPC {
     case "rpc":
       guard arguments.count == 3 else { return 1 }
       let reply = process(Data(arguments[2].utf8))
-      let written = reply.data.withUnsafeBytes { fwrite($0.baseAddress, 1, $0.count, stdout) == $0.count }
-      guard written, fputc(10, stdout) != EOF, fflush(stdout) == 0 else { return 1 }
+      let written = unsafe reply.data.withUnsafeBytes { unsafe fwrite($0.baseAddress, 1, $0.count, stdout) == $0.count }
+      guard written, unsafe fputc(10, stdout) != EOF, unsafe fflush(stdout) == 0 else { return 1 }
       return reply.exitCode
     case "serve":
       guard arguments.count >= 3, !arguments[2].isEmpty else { return 1 }

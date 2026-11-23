@@ -16,7 +16,7 @@ internal import SimulatorFrameworkBridgeRuntime
 private func FBContactsClearWithStore(contactStore: CNContactStore, makeSaveRequest: () -> CNSaveRequest, output: BridgeOutput? = nil) -> Int {
   let client = FBContactsStoreClient(store: contactStore)
   var fetchError: NSError?
-  let allContacts = client.fetchContacts(error: &fetchError)
+  let allContacts = unsafe client.fetchContacts(error: &fetchError)
 
   guard let allContacts else {
     NSLog("Failed to fetch contacts: %@", fetchError?.localizedDescription ?? "(null)")
@@ -39,7 +39,7 @@ private func FBContactsClearWithStore(contactStore: CNContactStore, makeSaveRequ
   }
 
   var deleteError: NSError?
-  let success = client.execute(saveRequest, error: &deleteError)
+  let success = unsafe client.execute(saveRequest, error: &deleteError)
 
   guard success else {
     NSLog("Failed to delete contacts: %@", deleteError?.localizedDescription ?? "(null)")

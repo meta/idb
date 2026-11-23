@@ -150,7 +150,7 @@ private struct NotificationArchive {
     }
     let plist: Any
     do {
-      plist = try PropertyListSerialization.propertyList(from: data, options: [], format: nil)
+      plist = unsafe try PropertyListSerialization.propertyList(from: data, options: [], format: nil)
     } catch {
       NSLog("[DeliveredNotifications] %@ is not a property list: %@", (path as NSString).lastPathComponent, error as NSError)
       return .invalid
@@ -189,11 +189,11 @@ private enum DeliveredNotificationOutput {
       NSLog("[DeliveredNotifications] Could not serialise notification %@: %@", notification.identifier, error as NSError)
       return false
     }
-    let written = data.withUnsafeBytes { bytes in
-      fwrite(bytes.baseAddress, 1, bytes.count, stdout)
+    let written = unsafe data.withUnsafeBytes { bytes in
+      unsafe fwrite(bytes.baseAddress, 1, bytes.count, stdout)
     }
-    guard written == data.count, fputc(10, stdout) != EOF else {
-      NSLog("[DeliveredNotifications] Could not write notification %@ to stdout: %@", notification.identifier, String(cString: strerror(errno)))
+    guard written == data.count, unsafe fputc(10, stdout) != EOF else {
+      unsafe NSLog("[DeliveredNotifications] Could not write notification %@ to stdout: %@", notification.identifier, String(cString: strerror(errno)))
       return false
     }
     return true
@@ -201,8 +201,8 @@ private enum DeliveredNotificationOutput {
 
   static func flush(output: BridgeOutput?) -> Int32 {
     if let output { return output.failed ? 1 : 0 }
-    guard fflush(stdout) == 0 else {
-      NSLog("[DeliveredNotifications] Could not flush stdout: %@", String(cString: strerror(errno)))
+    guard unsafe fflush(stdout) == 0 else {
+      unsafe NSLog("[DeliveredNotifications] Could not flush stdout: %@", String(cString: strerror(errno)))
       return 1
     }
     return 0

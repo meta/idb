@@ -94,7 +94,7 @@ public enum BridgeServer {
         } else {
           timeout = pollTimeoutMilliseconds(seconds: idleTimeoutSeconds)
         }
-        let ready = poll(&listener, 1, timeout)
+        let ready = unsafe poll(&listener, 1, timeout)
         if ready == 0 {
           if initialClientDeadline != nil {
             NSLog("[BridgeServer] initial client timeout; exiting")
