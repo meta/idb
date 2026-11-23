@@ -61,7 +61,7 @@ public enum ControlSocket {
 
     var info = stat()
     // `lstat`, so a symlink is judged as itself rather than as whatever it points at.
-    guard lstat(directory, &info) == 0 else {
+    guard unsafe lstat(directory, &info) == 0 else {
       try FileManager.default.createDirectory(
         atPath: directory, withIntermediateDirectories: true,
         attributes: [.posixPermissions: 0o700])
@@ -75,7 +75,7 @@ public enum ControlSocket {
         path: directory, reason: "owned by uid \(info.st_uid), not \(getuid())")
     }
     guard info.st_mode & 0o077 == 0 else {
-      throw ControlSocketError.directoryNotPrivate(
+      throw unsafe ControlSocketError.directoryNotPrivate(
         path: directory, reason: String(format: "mode %03o is readable or writable by others", info.st_mode & 0o777))
     }
   }
