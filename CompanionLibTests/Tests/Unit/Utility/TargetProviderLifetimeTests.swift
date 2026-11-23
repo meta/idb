@@ -132,7 +132,7 @@ struct TargetProviderLifetimeTests {
   func failedLookupReleasesDiscoveryWithoutStartingOperation() async {
     let probe = LifetimeProbe()
     await #expect(throws: TargetProviderError.self) {
-      try await TargetProvider.withTarget(
+      _ = try await TargetProvider.withTarget(
         withUDID: "unknown", makingTargetSets: probe.makers(target: MacDevice(logger: logger)),
         warmUp: false, appearanceTimeout: 0, logger: logger
       ) { @Sendable _ in Issue.record("Operation started after failed lookup") }
@@ -152,7 +152,7 @@ struct TargetProviderLifetimeTests {
           throw LifetimeTestError.discoveryFailed
         },
       ]
-      try await TargetProvider.withTarget(
+      _ = try await TargetProvider.withTarget(
         withUDID: "device", makingTargetSets: makers, warmUp: false, logger: logger
       ) { @Sendable _ in Issue.record("Operation started after failed discovery") }
     }
