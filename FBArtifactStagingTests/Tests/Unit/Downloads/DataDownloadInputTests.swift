@@ -68,6 +68,7 @@ final class DataDownloadInputTests: XCTestCase {
     configuration.protocolClasses = [StubURLProtocol.self]
     // swiftlint:disable:next force_unwrapping
     let url = URL(string: "https://example.invalid/app.ipa")!
+    let logger: ControlCoreLogger = self.logger
     let download = DataDownloadInput(
       url: url,
       configuration: configuration,
