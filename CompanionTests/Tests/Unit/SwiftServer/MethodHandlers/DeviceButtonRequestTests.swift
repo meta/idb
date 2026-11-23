@@ -28,6 +28,7 @@ struct DeviceButtonRequestTests {
     case .home: #expect(button == .home)
     case .volumeUp: #expect(button == .volumeUp)
     case .volumeDown: #expect(button == .volumeDown)
+    @unknown default: Issue.record("Unexpected button \(value.button)")
     }
     #expect(value.duration == 0.15)
   }

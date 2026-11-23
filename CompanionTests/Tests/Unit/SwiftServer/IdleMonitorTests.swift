@@ -45,7 +45,7 @@ final class IdleMonitorTests: XCTestCase {
 
   /// Registers an expectation that fulfills when `expired` resolves, optionally
   /// running `onResolve` first.
-  private func expirationExpectation(for monitor: IdleMonitor, onResolve: (() -> Void)? = nil) -> XCTestExpectation {
+  private func expirationExpectation(for monitor: IdleMonitor, onResolve: (@Sendable () -> Void)? = nil) -> XCTestExpectation {
     let fulfilled = expectation(description: "monitor.expired resolves")
     Task {
       try? await monitor.waitUntilExpired()

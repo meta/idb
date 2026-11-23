@@ -21,6 +21,8 @@ extension ScreenshotScale: @retroactive Equatable {
       return leftWidth == rightWidth && leftHeight == rightHeight
     case (.native, _), (.factor, _), (.fit, _):
       return false
+    @unknown default:
+      return false
     }
   }
 }

@@ -51,7 +51,7 @@ final class IDBTestOperationTests: XCTestCase {
     await fulfillment(of: [stopped], timeout: 5)
   }
 
-  private func makeOperation(completion: Task<Void, Error>) -> IDBTestOperation {
+  private func makeOperation(completion: Task<Void, Error>) -> sending IDBTestOperation {
     let logger = IDBLogger(loggers: [ControlCoreGlobalConfiguration.systemLogger(writingToStderr: true, debugLogging: false)])
     return IDBTestOperation(
       configuration: .logic(

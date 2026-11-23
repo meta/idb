@@ -30,9 +30,7 @@ private final class FakeRecording: VideoRecording, @unchecked Sendable {
   }
 
   func stop() async throws -> URL {
-    lock.lock()
-    stopCountValue += 1
-    lock.unlock()
+    lock.withLock { stopCountValue += 1 }
     return url
   }
 }
@@ -62,10 +60,10 @@ private final class BlockingRecording: VideoRecording, @unchecked Sendable {
   }
 
   func stop() async throws -> URL {
-    lock.lock()
-    let callback = onStopEnteredCallback
-    onStopEnteredCallback = nil
-    lock.unlock()
+    let callback = lock.withLock {
+      defer { onStopEnteredCallback = nil }
+      return onStopEnteredCallback
+    }
     callback?()
     // Wait for the test to release, off the cooperative pool so a single-threaded
     // executor is not blocked.

@@ -66,7 +66,8 @@ private actor SlowAccessibilityExecutor: AccessibilityDescribing {
     try await read()
   }
 
-  func accessibilityInfoAtPoint(
+  // Nonisolated, so the caller's point is not sent into the actor; the read itself still runs on it.
+  nonisolated func accessibilityInfoAtPoint(
     _ value: NSValue?, options: AccessibilityRequestOptions, backend: UIAutomationBackend
   ) async throws -> AccessibilityElementsResponse {
     try await read()
