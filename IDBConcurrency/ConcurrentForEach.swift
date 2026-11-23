@@ -20,7 +20,7 @@ extension Sequence where Element: Sendable {
     _ operation: @escaping (Element) async throws -> Void
   ) async throws {
     let operationBox = _UncheckedSendable(operation)
-    let firstError: Error? = await withTaskGroup(of: Error?.self) { group in
+    let firstError: (any Error)? = await withTaskGroup(of: (any Error)?.self) { group in
       for element in self {
         group.addTask {
           do {
@@ -31,7 +31,7 @@ extension Sequence where Element: Sendable {
           }
         }
       }
-      var first: Error?
+      var first: (any Error)?
       for await error in group {
         if first == nil, let error {
           first = error

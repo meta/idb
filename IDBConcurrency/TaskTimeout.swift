@@ -15,14 +15,14 @@ struct TaskTimeoutError: Error, LocalizedError {
   }
 }
 
-extension Task where Failure == Error {
+extension Task where Failure == any Error {
 
   /// Runs `job`, throwing `TaskTimeoutError` if it has not finished within `nanoseconds`.
   public static func timeout(nanoseconds: UInt64, function: String = #function, file: String = #file, line: Int = #line, column: Int = #column, job: @escaping @Sendable () async throws -> Success) async throws -> Success {
-    let jobTask = Task<Success, Error> { try await job() }
-    let result = await Task<Success, Error>.select(
+    let jobTask = Task<Success, any Error> { try await job() }
+    let result = await Task<Success, any Error>.select(
       jobTask,
-      Task<Success, Error> {
+      Task<Success, any Error> {
         try await Task<Never, Never>.sleep(nanoseconds: nanoseconds)
         throw TaskTimeoutError(location: .init(function: function, file: file, line: line, column: column))
       }

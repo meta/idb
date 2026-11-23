@@ -27,7 +27,7 @@ public final class FIFOStreamWriter<StreamWriter: AsyncStreamWriter & Sendable>:
 
   // Carries the error across the semaphore boundary, which the concurrency checker cannot see through.
   private class ErrorWrapper: @unchecked Sendable {
-    var error: Error?
+    var error: (any Error)?
   }
 
   /// Call from GCD only: blocking a Swift concurrency cooperative-pool thread here can deadlock the runtime.
