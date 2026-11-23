@@ -8,7 +8,10 @@
 import Foundation
 
 /// `behaviour` is static because `URLSession` instantiates the protocol itself.
-final class StubURLProtocol: URLProtocol {
+// SAFETY: `URLSession` drives the protocol from its own threads, and a later delivery runs on a dispatch queue; the
+// subclass adds no instance state, and `behaviour` is guarded as described there.
+// patternlint-disable-next-line unchecked-sendable
+final class StubURLProtocol: URLProtocol, @unchecked Sendable {
 
   enum Behaviour {
     case none
@@ -55,7 +58,7 @@ final class StubURLProtocol: URLProtocol {
     }
   }
 
-  private func after(_ interval: DispatchTimeInterval, _ work: @escaping () -> Void) {
+  private func after(_ interval: DispatchTimeInterval, _ work: @escaping @Sendable () -> Void) {
     DispatchQueue.global(qos: .userInitiated).asyncAfter(deadline: .now() + interval, execute: work)
   }
 

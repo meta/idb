@@ -229,8 +229,8 @@ struct ArtifactTests {
   @Test
   func severalExtractedDsymsAreTheirDirectory() throws {
     let extracted = try directory("extracted")
-    try directory("extracted/A.dSYM")
-    try directory("extracted/B.dSYM")
+    _ = try directory("extracted/A.dSYM")
+    _ = try directory("extracted/B.dSYM")
     guard case .dsym(let found) = try ArtifactKind.dsym.identify(in: .extracted(extracted)) else {
       Issue.record("Not identified as a dSYM")
       return

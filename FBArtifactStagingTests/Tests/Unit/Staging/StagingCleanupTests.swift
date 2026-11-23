@@ -67,7 +67,7 @@ struct StagingCleanupTests {
         guard fcntl(descriptor, F_GETPATH, &path) == 0 else {
           return false
         }
-        return URL(fileURLWithPath: String(cString: path)).resolvingSymlinksInPath().path.hasPrefix(prefix)
+        return URL(fileURLWithPath: String(decoding: path.prefix { $0 != 0 }.map { UInt8(bitPattern: $0) }, as: UTF8.self)).resolvingSymlinksInPath().path.hasPrefix(prefix)
       })
   }
 

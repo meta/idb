@@ -252,7 +252,10 @@ struct SplitMix64: RandomNumberGenerator {
 }
 
 /// Serves each registered URL its body, so that tests running in parallel can each download their own archive.
-final class CorpusURLProtocol: URLProtocol {
+// SAFETY: `URLSession` drives the protocol from its own threads, and a later delivery runs on a dispatch queue; the
+// subclass adds no instance state, and its shared state is behind a lock.
+// patternlint-disable-next-line unchecked-sendable
+final class CorpusURLProtocol: URLProtocol, @unchecked Sendable {
 
   private static let bodies = OSAllocatedUnfairLock(initialState: [URL: Data]())
 

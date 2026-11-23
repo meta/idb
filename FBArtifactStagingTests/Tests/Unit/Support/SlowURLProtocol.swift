@@ -10,7 +10,10 @@ import os
 
 /// Serves each registered URL its body a chunk at a time with a pause between, as a slow link does, and records how much
 /// of each body it delivered and whether the transfer was stopped before the end.
-final class SlowURLProtocol: URLProtocol {
+// SAFETY: `URLSession` drives the protocol from its own threads, and a later delivery runs on a dispatch queue; the
+// subclass adds no instance state, and its shared state is behind a lock.
+// patternlint-disable-next-line unchecked-sendable
+final class SlowURLProtocol: URLProtocol, @unchecked Sendable {
 
   struct Transfer {
     let body: Data
