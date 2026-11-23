@@ -352,6 +352,7 @@ targets:
         CODE_SIGNING_ALLOWED: NO
         PRODUCT_BUNDLE_IDENTIFIER: com.facebook.CompanionLibTests
         PRODUCT_NAME: CompanionLibTests
+        OTHER_SWIFT_FLAGS: $(inherited) -warnings-as-errors
     dependencies:
       - target: CompanionLib
         embed: false
@@ -400,6 +401,7 @@ targets:
         CODE_SIGNING_ALLOWED: NO
         PRODUCT_BUNDLE_IDENTIFIER: com.facebook.CompanionTests
         PRODUCT_NAME: CompanionTests
+        OTHER_SWIFT_FLAGS: $(inherited) -warnings-as-errors
     dependencies:
       - target: CompanionLib
         embed: false
