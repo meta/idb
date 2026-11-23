@@ -9,7 +9,7 @@
 
 // FBControlCore never compares outcomes, so it does not carry this conformance; the reader tests do.
 
-extension DescriptorReader.Outcome: @retroactive Equatable {
+extension DescriptorReader.Outcome: Equatable {
   public static func == (lhs: DescriptorReader.Outcome, rhs: DescriptorReader.Outcome) -> Bool {
     switch (lhs, rhs) {
     case (.endOfFile, .endOfFile), (.stopped, .stopped):

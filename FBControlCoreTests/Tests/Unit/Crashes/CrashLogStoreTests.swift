@@ -58,7 +58,7 @@ final class CrashLogStoreTests: XCTestCase {
     let next = Task { try await store.nextCrashLog(forMatchingPredicate: CrashLogPredicate.identifier("assetsd")) }
     defer { next.cancel() }
 
-    let ingester = ingestRepeatedly(try assetsdCrashData(), into: store, named: "assetsd")
+    let ingester = ingestRepeatedly(try assetsdCrashData(), named: "assetsd")
     defer { ingester.cancel() }
 
     let delivered = try await next.value
@@ -73,10 +73,10 @@ final class CrashLogStoreTests: XCTestCase {
 
     try await Task.sleep(nanoseconds: 200_000_000)
     XCTAssertNotNil(
-      store.ingestCrashLogData(try tableSearchCrashData(), name: "tablesearch.crash"),
+      makeStore().ingestCrashLogData(try tableSearchCrashData(), name: "tablesearch.crash"),
       "The non-matching crash log should still be ingested")
 
-    let ingester = ingestRepeatedly(try assetsdCrashData(), into: store, named: "assetsd")
+    let ingester = ingestRepeatedly(try assetsdCrashData(), named: "assetsd")
     defer { ingester.cancel() }
 
     let delivered = try await next.value
@@ -163,12 +163,13 @@ final class CrashLogStoreTests: XCTestCase {
     } catch is CancellationError {}
   }
 
-  /// Ingests `data` repeatedly under distinct names until cancelled. The store registers its
-  /// notification observer asynchronously, so a single ingest can be posted before the observer
-  /// exists and be missed; identical names are deduplicated and post nothing, so each retry
-  /// needs a fresh name.
-  private func ingestRepeatedly(_ data: Data, into store: CrashLogStore, named name: String) -> Task<Void, Never> {
-    Task {
+  /// Ingests `data` repeatedly under distinct names, through a store of its own over the same
+  /// directory, until cancelled. The store registers its notification observer asynchronously, so a
+  /// single ingest can be posted before the observer exists and be missed; identical names are
+  /// deduplicated and post nothing, so each retry needs a fresh name.
+  private func ingestRepeatedly(_ data: Data, named name: String) -> Task<Void, Never> {
+    let store = makeStore()
+    return Task {
       for attempt in 0..<50 {
         if Task.isCancelled { return }
         _ = store.ingestCrashLogData(data, name: "\(name)_\(attempt).crash")
@@ -177,7 +178,7 @@ final class CrashLogStoreTests: XCTestCase {
     }
   }
 
-  private func makeStore() -> CrashLogStore {
+  private func makeStore() -> sending CrashLogStore {
     CrashLogStore(directories: [directory], logger: ControlCoreLoggerDouble())
   }
 
