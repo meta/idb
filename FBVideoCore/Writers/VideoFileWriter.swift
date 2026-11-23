@@ -11,8 +11,8 @@ import Foundation
 
 private enum VideoFileWriterError: Error {
   case cannotAddFileOutput(filePath: String)
-  case failedToRemoveExistingVideo(filePath: String, cause: Error)
-  case failedToCreateAuxiliaryDirectory(filePath: String, cause: Error)
+  case failedToRemoveExistingVideo(filePath: String, cause: any Error)
+  case failedToCreateAuxiliaryDirectory(filePath: String, cause: any Error)
 }
 
 extension VideoFileWriterError: LocalizedError {
@@ -115,11 +115,11 @@ public final class VideoFileWriter: NSObject, AVCaptureFileOutputRecordingDelega
     logger.log("Did Pause Recording at \(filePath)")
   }
 
-  public func fileOutput(_ output: AVCaptureFileOutput, willFinishRecordingTo outputFileURL: URL, from connections: [AVCaptureConnection], error: Error?) {
+  public func fileOutput(_ output: AVCaptureFileOutput, willFinishRecordingTo outputFileURL: URL, from connections: [AVCaptureConnection], error: (any Error)?) {
     logger.log("Will Finish Recording at \(filePath)")
   }
 
-  public func fileOutput(_ output: AVCaptureFileOutput, didFinishRecordingTo outputFileURL: URL, from connections: [AVCaptureConnection], error: Error?) {
+  public func fileOutput(_ output: AVCaptureFileOutput, didFinishRecordingTo outputFileURL: URL, from connections: [AVCaptureConnection], error: (any Error)?) {
     logger.log("Did Finish Recording at \(filePath)")
     finished.happen()
   }

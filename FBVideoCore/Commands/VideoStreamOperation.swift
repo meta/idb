@@ -12,7 +12,7 @@ import Foundation
 /// are awaited across concurrency domains.
 public protocol VideoStreamOperation: AnyObject, Sendable {
   /// Starts the Streaming, to a Data Consumer.
-  func startStreaming(_ consumer: DataConsumer) async throws
+  func startStreaming(_ consumer: any DataConsumer) async throws
 
   /// Stops the Streaming.
   func stopStreaming() async throws

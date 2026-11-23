@@ -310,7 +310,7 @@ public enum WebMFileWriterError: Error, LocalizedError {
   case missingCodecConfiguration
   case missingFormatDescription
   case writeAfterFinish
-  case failedToWrite(Error)
+  case failedToWrite(any Error)
 
   public var errorDescription: String? {
     switch self {
