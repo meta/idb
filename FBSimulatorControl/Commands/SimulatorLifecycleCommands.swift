@@ -16,7 +16,7 @@ public enum SimulatorLifecycleError: Error {
   case focusUnsupportedForCustomDeviceSet(deviceSetPath: String)
   case focusAmbiguous(runningApplications: String)
   case focusFailed(applicationDescription: String)
-  case openURLFailed(url: URL, simulatorDescription: String, underlying: Error?)
+  case openURLFailed(url: URL, simulatorDescription: String, underlying: (any Error)?)
 }
 
 extension SimulatorLifecycleError: LocalizedError {

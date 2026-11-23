@@ -41,7 +41,7 @@ public struct SimulatorHingeCommands {
   }
 
   /// Publishes fresh measured angles until cancelled, retaining only the newest unread sample.
-  public func angles() async throws -> AsyncThrowingStream<SimulatorHingeAngle, Error> {
+  public func angles() async throws -> AsyncThrowingStream<SimulatorHingeAngle, any Error> {
     try await MotionCapabilities.resolve(on: simulator).require(.hingeAngle)
     try Task.checkCancellation()
     let channel = UUID()

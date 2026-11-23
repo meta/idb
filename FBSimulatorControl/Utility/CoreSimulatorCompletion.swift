@@ -8,7 +8,7 @@
 import Foundation
 
 /// Awaits a CoreSimulator call that reports completion through an optional error.
-func awaitCoreSimulatorCompletion(_ call: (@escaping @Sendable (Error?) -> Void) -> Void) async throws {
+func awaitCoreSimulatorCompletion(_ call: (@escaping @Sendable ((any Error)?) -> Void) -> Void) async throws {
   try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
     call { error in
       if let error {

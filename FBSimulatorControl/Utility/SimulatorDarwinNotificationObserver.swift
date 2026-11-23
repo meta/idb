@@ -11,11 +11,11 @@ import Foundation
 
 package enum SimulatorDarwinNotificationObserver {
   package typealias Cancel = @Sendable () -> Void
-  package typealias Subscription = (changes: AsyncThrowingStream<Void, Error>, cancel: Cancel, failure: @Sendable () -> Error?)
+  package typealias Subscription = (changes: AsyncThrowingStream<Void, any Error>, cancel: Cancel, failure: @Sendable () -> (any Error)?)
   package typealias Register =
     @Sendable (
-      @escaping @Sendable () -> Void, @escaping @Sendable (Result<Cancel, Error>) -> Void,
-      @escaping @Sendable (Error) -> Void
+      @escaping @Sendable () -> Void, @escaping @Sendable (Result<Cancel, any Error>) -> Void,
+      @escaping @Sendable (any Error) -> Void
     ) -> Void
 
   package static func subscribe(on simulator: Simulator, name: String) async throws -> Subscription {
@@ -25,7 +25,7 @@ package enum SimulatorDarwinNotificationObserver {
     guard simulator.state == .booted else { throw SimulatorNotificationObservationError.notBooted }
     let queue = DispatchQueue(label: "com.facebook.fbsimulatorcontrol.settings")
     return try await subscribe { changed, registered, failed in
-      let notifier = simulator.device as SimDeviceNotifier
+      let notifier = simulator.device as any SimDeviceNotifier
       let handle = notifier.registerNotificationHandler(on: queue) { info in
         if info?["notification"] as? String == "device_state",
           let state = info?["new_state"] as? NSNumber, TargetState(rawValue: state.uintValue) != .booted
@@ -70,7 +70,7 @@ package enum SimulatorDarwinNotificationObserver {
 
   package static func values<Value: Sendable>(
     subscription: Subscription, read: @escaping @Sendable (Bool) async throws -> Value
-  ) -> AsyncThrowingStream<Value, Error> {
+  ) -> AsyncThrowingStream<Value, any Error> {
     let readValue: @Sendable (Bool) async throws -> Value = { initial in
       try Task.checkCancellation()
       if let error = subscription.failure() { throw error }
@@ -111,17 +111,17 @@ package enum SimulatorDarwinNotificationObserver {
 // SAFETY: `lock` guards registration, cancellation and ownership of the native token.
 private final class SimulatorNotificationObservation: @unchecked Sendable {
   private let lock = NSLock()
-  private let continuation: AsyncThrowingStream<Void, Error>.Continuation
-  private var ready: CheckedContinuation<Void, Error>?
+  private let continuation: AsyncThrowingStream<Void, any Error>.Continuation
+  private var ready: CheckedContinuation<Void, any Error>?
   private var unregister: SimulatorDarwinNotificationObserver.Cancel?
   private var cancelled = false
-  private var terminalError: Error?
+  private var terminalError: (any Error)?
 
-  init(continuation: AsyncThrowingStream<Void, Error>.Continuation) {
+  init(continuation: AsyncThrowingStream<Void, any Error>.Continuation) {
     self.continuation = continuation
   }
 
-  func park(_ ready: CheckedContinuation<Void, Error>) -> Bool {
+  func park(_ ready: CheckedContinuation<Void, any Error>) -> Bool {
     lock.lock()
     if cancelled {
       lock.unlock()
@@ -133,7 +133,7 @@ private final class SimulatorNotificationObservation: @unchecked Sendable {
     return true
   }
 
-  func registered(_ result: Result<SimulatorDarwinNotificationObserver.Cancel, Error>) {
+  func registered(_ result: Result<SimulatorDarwinNotificationObserver.Cancel, any Error>) {
     lock.lock()
     let ready = self.ready
     self.ready = nil
@@ -149,11 +149,11 @@ private final class SimulatorNotificationObservation: @unchecked Sendable {
     }
   }
 
-  func sourceFailure() -> Error? {
+  func sourceFailure() -> (any Error)? {
     lock.withLock { terminalError }
   }
 
-  func finish(throwing error: Error?) {
+  func finish(throwing error: (any Error)?) {
     lock.lock()
     guard !cancelled else {
       lock.unlock()

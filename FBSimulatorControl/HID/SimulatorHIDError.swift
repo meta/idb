@@ -14,11 +14,11 @@ public enum SimulatorHIDError: Error, LocalizedError {
   /// The runtime-only `SimDeviceLegacyHIDClient` class could not be looked up by name.
   case clientClassUnavailable(className: String)
   /// The HID client class was found but `initWithDevice:error:` returned nil.
-  case clientCreationFailed(clientClass: String, underlying: Error?)
+  case clientCreationFailed(clientClass: String, underlying: (any Error)?)
   /// A HID operation was attempted after the client had been disposed of.
   case clientDisposed
   /// The `PurpleWorkspacePort` could not be found in the simulator's bootstrap namespace.
-  case purpleWorkspacePortUnavailable(underlying: Error?)
+  case purpleWorkspacePortUnavailable(underlying: (any Error)?)
   /// The `mach_msg` to `PurpleWorkspacePort` timed out (receive queue full).
   case machSendTimedOut(port: mach_port_t, timeoutMs: mach_msg_timeout_t, detail: String)
   /// The `mach_msg` to `PurpleWorkspacePort` failed for a reason other than timeout.
@@ -30,7 +30,7 @@ public enum SimulatorHIDError: Error, LocalizedError {
   /// A primitive is not (yet) implemented on the DTUHID transport.
   case notImplementedOnDTUHIDTransport(operation: String)
   /// The named `dtuhidd` service could not be looked up in the simulator's bootstrap namespace.
-  case dtuhidServiceUnavailable(name: String, underlying: Error?)
+  case dtuhidServiceUnavailable(name: String, underlying: (any Error)?)
   /// The simulator's runtime does not vend the named `dtuhidd` service at all.
   case dtuhidServiceNotVended(name: String)
   /// The simulator is not booted, so it vends no `dtuhidd` service.
@@ -40,7 +40,7 @@ public enum SimulatorHIDError: Error, LocalizedError {
   /// The `dtuhidd` host XPC connection could not be created.
   case dtuhidConnectionFailed
   /// The connection was built, but no live `dtuhidd` answered behind it.
-  case dtuhidUnresponsive(attempts: Int, underlying: Error?)
+  case dtuhidUnresponsive(attempts: Int, underlying: (any Error)?)
   /// An established connection to the named service has been invalidated, so nothing sent on it
   /// can arrive.
   case dtuhidConnectionInvalidated(name: String)
@@ -53,7 +53,7 @@ public enum SimulatorHIDError: Error, LocalizedError {
   /// A delay was negative, not finite, or too long to sleep for.
   case invalidDelay(TimeInterval)
   /// An operation ended with `cause`, and releasing or draining what it had sent then failed too.
-  case cleanupFailed(cause: Error, failures: [Error])
+  case cleanupFailed(cause: any Error, failures: [any Error])
   /// A Digital Crown rotation was attempted on a target that has no crown.
   case crownUnsupportedOnProductFamily(ProductFamily)
   /// A Digital Crown rotation was attempted over the legacy Indigo transport.

@@ -80,7 +80,7 @@ final class SimulatorDTUHIDConnection: Sendable {
     using connector: SimulatorXPCConnector, serviceName: String, sleeper: any DTUHIDSleeper = TaskSleeper()
   ) async throws -> SimulatorDTUHIDConnection {
     let logger = ControlCoreGlobalConfiguration.defaultLogger
-    var lastFailure: Error?
+    var lastFailure: (any Error)?
     for attempt in 1...DTUHIDTiming.livenessAttempts {
       do {
         return try await connected(using: connector, serviceName: serviceName, sleeper: sleeper)

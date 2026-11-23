@@ -25,7 +25,7 @@ public enum SimulatorDeviceSetError: Error, LocalizedError {
 public struct SimulatorControlConfiguration: Equatable, Hashable, CustomStringConvertible {
 
   public let deviceSetPath: String?
-  public let logger: ControlCoreLogger
+  public let logger: any ControlCoreLogger
   public let hidEventLogging: SimulatorHIDEventLogging
   public let accessibilityTiming: SimulatorAccessibilityTiming
 

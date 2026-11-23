@@ -9,7 +9,7 @@ import FBControlCore
 import Foundation
 
 public enum SimulatorDapServerError: Error {
-  case logDirectoryCreationFailed(path: String, underlying: Error)
+  case logDirectoryCreationFailed(path: String, underlying: any Error)
   case logFileCreationFailed(path: String)
   case noDataDirectory
 }

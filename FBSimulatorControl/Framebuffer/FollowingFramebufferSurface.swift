@@ -31,8 +31,8 @@ final class FollowingFramebufferSurface: FramebufferSurface, @unchecked Sendable
   /// A move failed and the current screen could not be registered again either, so consumers receive nothing
   /// until a later configuration moves them.
   private struct RestoreFailure: Error {
-    let move: Error
-    let restore: Error
+    let move: any Error
+    let restore: any Error
   }
 
   private struct Registration {
@@ -184,7 +184,7 @@ final class FollowingFramebufferSurface: FramebufferSurface, @unchecked Sendable
       } catch {
         registered.forEach { next.surface.unregisterCallbacks(token: $0) }
         let current = Screen(uniqueID: screen.uniqueID, surface: screen.surface)
-        var restoreError: Error?
+        var restoreError: (any Error)?
         for (token, registration) in registrations {
           do {
             try Self.register(registration, token: token, on: current)

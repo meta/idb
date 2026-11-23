@@ -55,7 +55,7 @@ public enum SimulatorSettingsEvent: Equatable, Sendable {
 }
 
 package struct SimulatorSettingsPublisher: Sendable {
-  package typealias Source = @Sendable () async throws -> AsyncThrowingStream<BridgeAXAnswer, Error>
+  package typealias Source = @Sendable () async throws -> AsyncThrowingStream<BridgeAXAnswer, any Error>
 
   private let source: Source
 

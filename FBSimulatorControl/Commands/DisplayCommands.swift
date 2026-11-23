@@ -26,7 +26,7 @@ package protocol DisplayCommands: AnyObject, Sendable {
   var configurationTracker: DisplayConfigurationTracker { get }
 
   /// Each display report the runtime pushes, until the stream is cancelled. Throws when the runtime does not push.
-  func reportPushes() throws -> AsyncThrowingStream<SimulatorDisplayReport, Error>
+  func reportPushes() throws -> AsyncThrowingStream<SimulatorDisplayReport, any Error>
 
   var logger: (any ControlCoreLogger)? { get }
 }
@@ -179,7 +179,7 @@ extension DisplayCommands {
 
   package var transitionSettling: DisplayTransitionSettling { .standard }
 
-  func reportPushes() throws -> AsyncThrowingStream<SimulatorDisplayReport, Error> {
+  func reportPushes() throws -> AsyncThrowingStream<SimulatorDisplayReport, any Error> {
     throw SimulatorCoreDeviceError.unsupported("display pushes")
   }
 

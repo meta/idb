@@ -15,8 +15,8 @@ import UniformTypeIdentifiers
 public enum SimulatorMediaError: Error {
   case noMediaProvided
   case unknownMediaPaths(paths: [URL])
-  case addMediaFailed(paths: [URL], underlying: Error)
-  case addContactsFailed(paths: [URL], underlying: Error)
+  case addMediaFailed(paths: [URL], underlying: any Error)
+  case addContactsFailed(paths: [URL], underlying: any Error)
 }
 
 extension SimulatorMediaError: LocalizedError {

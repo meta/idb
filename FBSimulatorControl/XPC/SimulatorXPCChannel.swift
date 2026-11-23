@@ -177,7 +177,7 @@ package final class SimulatorXPCChannel: Sendable {
 final class FirstAnswer<Value: Sendable>: Sendable {
   fileprivate let outcome = AsyncEvent<Value>()
 
-  func resolve(_ result: sending Result<Value, Error>) {
+  func resolve(_ result: sending Result<Value, any Error>) {
     switch result {
     case let .success(value):
       outcome.happen(value)

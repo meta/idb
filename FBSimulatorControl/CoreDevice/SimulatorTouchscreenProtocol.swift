@@ -52,7 +52,7 @@ enum SimulatorTouchscreenProtocol {
         case displayUUID
       }
 
-      init(from decoder: Decoder) throws {
+      init(from decoder: any Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         let page = try container.decodeIfPresent(XPCValue.self, forKey: .primaryUsagePage)
         let usage = try container.decodeIfPresent(XPCValue.self, forKey: .primaryUsage)

@@ -39,7 +39,7 @@ struct CoreDeviceVersion: Encodable, Equatable, Sendable {
     case stringValue
   }
 
-  func encode(to encoder: Encoder) throws {
+  func encode(to encoder: any Encoder) throws {
     var container = encoder.container(keyedBy: CodingKeys.self)
     try container.encode(components, forKey: .components)
     try container.encode(Int64(components.count), forKey: .originalComponentsCount)
@@ -70,7 +70,7 @@ struct CoreDeviceRequest<Input: Encodable>: Encodable {
     case input = "CoreDevice.input"
   }
 
-  func encode(to encoder: Encoder) throws {
+  func encode(to encoder: any Encoder) throws {
     var container = encoder.container(keyedBy: CodingKeys.self)
     try container.encode(action, forKey: .action)
     try container.encode(deviceID, forKey: .deviceID)
@@ -101,7 +101,7 @@ enum CoreDeviceReply {
   private struct Envelope<Output: Decodable>: Decodable {
     let output: Output
 
-    init(from decoder: Decoder) throws {
+    init(from decoder: any Decoder) throws {
       let container = try decoder.container(keyedBy: CodingKeys.self)
       if container.contains(.error) {
         let error = try container.decode(ProviderError.self, forKey: .error)
@@ -123,7 +123,7 @@ enum CoreDeviceReply {
   }
 
   private struct CoreDeviceEmptyOutput: Decodable {
-    init(from decoder: Decoder) throws {
+    init(from decoder: any Decoder) throws {
       _ = try decoder.container(keyedBy: CodingKeys.self)
     }
   }

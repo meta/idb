@@ -66,10 +66,10 @@ final class CoreDeviceSession<Response: Sendable>: @unchecked Sendable {
   /// which cancels the channel. The deadline bounds only the wait for the first event.
   func subscribe(
     _ request: xpc_object_t,
-    bufferingPolicy: AsyncThrowingStream<Response, Error>.Continuation.BufferingPolicy = .unbounded,
+    bufferingPolicy: AsyncThrowingStream<Response, any Error>.Continuation.BufferingPolicy = .unbounded,
     element: @escaping @Sendable (xpc_object_t) throws -> Response?
-  ) -> AsyncThrowingStream<Response, Error> {
-    let (stream, continuation) = AsyncThrowingStream<Response, Error>.makeStream(bufferingPolicy: bufferingPolicy)
+  ) -> AsyncThrowingStream<Response, any Error> {
+    let (stream, continuation) = AsyncThrowingStream<Response, any Error>.makeStream(bufferingPolicy: bufferingPolicy)
     // Holding the session here keeps it alive for as long as the stream is.
     continuation.onTermination = { _ in self.channel.cancel() }
     queue.async { [self] in
@@ -85,7 +85,7 @@ final class CoreDeviceSession<Response: Sendable>: @unchecked Sendable {
   }
 
   private func handleSubscriptionEvent(
-    _ event: SimulatorXPCEvent, element: (xpc_object_t) throws -> Response?, continuation: AsyncThrowingStream<Response, Error>.Continuation
+    _ event: SimulatorXPCEvent, element: (xpc_object_t) throws -> Response?, continuation: AsyncThrowingStream<Response, any Error>.Continuation
   ) {
     dispatchPrecondition(condition: .onQueue(queue))
     guard !finished else { return }
@@ -106,7 +106,7 @@ final class CoreDeviceSession<Response: Sendable>: @unchecked Sendable {
     }
   }
 
-  private func handleSubscriptionReply(_ reply: Result<xpc_object_t, SimulatorXPCError>, continuation: AsyncThrowingStream<Response, Error>.Continuation) {
+  private func handleSubscriptionReply(_ reply: Result<xpc_object_t, SimulatorXPCError>, continuation: AsyncThrowingStream<Response, any Error>.Continuation) {
     dispatchPrecondition(condition: .onQueue(queue))
     guard !finished else { return }
     finished = true
@@ -149,7 +149,7 @@ final class CoreDeviceSession<Response: Sendable>: @unchecked Sendable {
 
   /// Stops acknowledging events once the stream has its result. The deadline and cancellation
   /// resolve `answer` without coming through here; `stream` cancels the channel either way.
-  private func finish(_ result: Result<Response, Error>, _ answer: FirstAnswer<Response>) {
+  private func finish(_ result: Result<Response, any Error>, _ answer: FirstAnswer<Response>) {
     dispatchPrecondition(condition: .onQueue(queue))
     finished = true
     answer.resolve(result)

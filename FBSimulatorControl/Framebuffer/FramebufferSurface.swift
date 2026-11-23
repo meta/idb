@@ -159,7 +159,7 @@ private final class SimDisplayRenderableSurface: FramebufferSurface {
     return value as? T
   }
 
-  private func guardedCall(_ body: @escaping () -> Void) -> Error? {
+  private func guardedCall(_ body: @escaping () -> Void) -> (any Error)? {
     do {
       try FBObjCExceptionGuard.guarded(body)
       return nil
@@ -262,7 +262,7 @@ enum FramebufferSurfaceLocator {
         logger.log("SimDisplay \(descriptor) does not have a state, cannot determine if it is the main display")
         continue
       }
-      guard let descriptorState = descriptor.perform(NSSelectorFromString("state"))?.takeUnretainedValue() as? SimDisplayDescriptorState else {
+      guard let descriptorState = descriptor.perform(NSSelectorFromString("state"))?.takeUnretainedValue() as? any SimDisplayDescriptorState else {
         logger.log("SimDisplay \(descriptor) state is not a SimDisplayDescriptorState")
         continue
       }

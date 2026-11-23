@@ -128,7 +128,7 @@ public enum SimulatorAudioError: Error, LocalizedError {
   case noDataDirectory
   /// The settings file could not be read. The guest writes it while booting, so it is absent on a
   /// simulator that has never been booted.
-  case unreadable(path: String, underlying: Error)
+  case unreadable(path: String, underlying: any Error)
   /// The file is not a property list dictionary.
   case malformed(path: String)
   /// The file parsed but carries no volume.
@@ -181,7 +181,7 @@ public struct SimulatorAudioCommands {
   }
 
   /// Publishes the current ringer state and subsequent native changes.
-  public func ringerChanges() async throws -> AsyncThrowingStream<Bool, Error> {
+  public func ringerChanges() async throws -> AsyncThrowingStream<Bool, any Error> {
     let simulator = self.simulator
     let name = SimulatorAudioSettings.ringerNotificationName
     let subscription = try await SimulatorDarwinNotificationObserver.subscribe(on: simulator, name: name)
@@ -191,7 +191,7 @@ public struct SimulatorAudioCommands {
   }
 
   /// Publishes the current volume and subsequent native changes as a fraction from zero to one.
-  public func volumeChanges() async throws -> AsyncThrowingStream<Double, Error> {
+  public func volumeChanges() async throws -> AsyncThrowingStream<Double, any Error> {
     let simulator = self.simulator
     let name = SimulatorAudioSettings.volumeNotificationName
     let subscription = try await SimulatorDarwinNotificationObserver.subscribe(on: simulator, name: name)

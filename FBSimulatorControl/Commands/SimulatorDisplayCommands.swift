@@ -287,7 +287,7 @@ public final class SimulatorDisplayCommands: DisplayCommands, @unchecked Sendabl
     return simulator
   }
 
-  package func reportPushes() throws -> AsyncThrowingStream<SimulatorDisplayReport, Error> {
+  package func reportPushes() throws -> AsyncThrowingStream<SimulatorDisplayReport, any Error> {
     let channel = UUID()
     return try target().coreDevice.subscribe(
       action: SimulatorDisplayUpdatesProtocol.action, service: SimulatorDisplayUpdatesProtocol.service,

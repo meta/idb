@@ -19,7 +19,7 @@ enum SimulatorHingeProtocol {
 
     static let hundredMilliseconds = Duration(attoseconds: 100_000_000_000_000_000)
 
-    func encode(to encoder: Encoder) throws {
+    func encode(to encoder: any Encoder) throws {
       var container = encoder.unkeyedContainer()
       try container.encode(Int64(0))
       try container.encode(attoseconds)
@@ -74,7 +74,7 @@ enum SimulatorHingeProtocol {
         case isAngleValid, timestamp, angle
       }
 
-      init(from decoder: Decoder) throws {
+      init(from decoder: any Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         guard try container.decode(Bool.self, forKey: .isAngleValid) else {
           self = .invalid

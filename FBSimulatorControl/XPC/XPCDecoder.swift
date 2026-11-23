@@ -71,7 +71,7 @@ indirect enum XPCValue: Equatable, Sendable, Decodable {
   }
 
   /// Only `XPCDecoder` can produce an `XPCValue`; it intercepts the type before this is reached.
-  init(from decoder: Decoder) throws {
+  init(from decoder: any Decoder) throws {
     throw DecodingError.dataCorrupted(
       DecodingError.Context(codingPath: decoder.codingPath, debugDescription: "XPCValue can only be decoded from an XPC object"))
   }
@@ -85,7 +85,7 @@ private enum XPCScalar {
     String(cString: xpc_type_get_name(xpc_get_type(object)))
   }
 
-  static func require(_ object: xpc_object_t, _ type: xpc_type_t, _ name: String, _ expected: Any.Type, _ codingPath: [CodingKey]) throws {
+  static func require(_ object: xpc_object_t, _ type: xpc_type_t, _ name: String, _ expected: Any.Type, _ codingPath: [any CodingKey]) throws {
     guard xpc_get_type(object) == type else {
       throw DecodingError.typeMismatch(
         expected,
@@ -93,17 +93,17 @@ private enum XPCScalar {
     }
   }
 
-  static func bool(_ object: xpc_object_t, _ codingPath: [CodingKey]) throws -> Bool {
+  static func bool(_ object: xpc_object_t, _ codingPath: [any CodingKey]) throws -> Bool {
     try require(object, XPC_TYPE_BOOL, "bool", Bool.self, codingPath)
     return xpc_bool_get_value(object)
   }
 
-  static func double(_ object: xpc_object_t, _ codingPath: [CodingKey]) throws -> Double {
+  static func double(_ object: xpc_object_t, _ codingPath: [any CodingKey]) throws -> Double {
     try require(object, XPC_TYPE_DOUBLE, "double", Double.self, codingPath)
     return xpc_double_get_value(object)
   }
 
-  static func string(_ object: xpc_object_t, _ codingPath: [CodingKey]) throws -> String {
+  static func string(_ object: xpc_object_t, _ codingPath: [any CodingKey]) throws -> String {
     try require(object, XPC_TYPE_STRING, "string", String.self, codingPath)
     guard let pointer = xpc_string_get_string_ptr(object),
       let string = String(data: Data(bytes: pointer, count: xpc_string_get_length(object)), encoding: .utf8)
@@ -114,17 +114,17 @@ private enum XPCScalar {
     return string
   }
 
-  static func signed<T: FixedWidthInteger & SignedInteger>(_ type: T.Type, _ object: xpc_object_t, _ codingPath: [CodingKey]) throws -> T {
+  static func signed<T: FixedWidthInteger & SignedInteger>(_ type: T.Type, _ object: xpc_object_t, _ codingPath: [any CodingKey]) throws -> T {
     try require(object, XPC_TYPE_INT64, "int64", type, codingPath)
     return try exactly(type, xpc_int64_get_value(object), codingPath)
   }
 
-  static func unsigned<T: FixedWidthInteger & UnsignedInteger>(_ type: T.Type, _ object: xpc_object_t, _ codingPath: [CodingKey]) throws -> T {
+  static func unsigned<T: FixedWidthInteger & UnsignedInteger>(_ type: T.Type, _ object: xpc_object_t, _ codingPath: [any CodingKey]) throws -> T {
     try require(object, XPC_TYPE_UINT64, "uint64", type, codingPath)
     return try exactly(type, xpc_uint64_get_value(object), codingPath)
   }
 
-  private static func exactly<T: FixedWidthInteger, Source: BinaryInteger>(_ type: T.Type, _ value: Source, _ codingPath: [CodingKey]) throws -> T {
+  private static func exactly<T: FixedWidthInteger, Source: BinaryInteger>(_ type: T.Type, _ value: Source, _ codingPath: [any CodingKey]) throws -> T {
     guard let converted = T(exactly: value) else {
       throw DecodingError.dataCorrupted(
         DecodingError.Context(codingPath: codingPath, debugDescription: "\(value) does not fit in \(type)"))
@@ -132,7 +132,7 @@ private enum XPCScalar {
     return converted
   }
 
-  static func data(_ object: xpc_object_t, _ codingPath: [CodingKey]) throws -> Data {
+  static func data(_ object: xpc_object_t, _ codingPath: [any CodingKey]) throws -> Data {
     try require(object, XPC_TYPE_DATA, "data", Data.self, codingPath)
     return data(object)
   }
@@ -142,7 +142,7 @@ private enum XPCScalar {
     return Data(bytes: bytes, count: xpc_data_get_length(object))
   }
 
-  static func uuid(_ object: xpc_object_t, _ codingPath: [CodingKey]) throws -> UUID {
+  static func uuid(_ object: xpc_object_t, _ codingPath: [any CodingKey]) throws -> UUID {
     try require(object, XPC_TYPE_UUID, "uuid", UUID.self, codingPath)
     return uuid(object)
   }
@@ -157,7 +157,7 @@ private enum XPCScalar {
 
 private struct XPCDecoderImpl: Decoder {
   let object: xpc_object_t
-  var codingPath: [CodingKey]
+  var codingPath: [any CodingKey]
   var userInfo: [CodingUserInfoKey: Any] { [:] }
 
   /// `Data`, `UUID` and `XPCValue` are read straight from the object, ahead of their own `Decodable`
@@ -180,19 +180,19 @@ private struct XPCDecoderImpl: Decoder {
     return KeyedDecodingContainer(XPCKeyedDecodingContainer<Key>(dictionary: object, codingPath: codingPath))
   }
 
-  func unkeyedContainer() throws -> UnkeyedDecodingContainer {
+  func unkeyedContainer() throws -> any UnkeyedDecodingContainer {
     try XPCScalar.require(object, XPC_TYPE_ARRAY, "array", [Any].self, codingPath)
     return XPCUnkeyedDecodingContainer(array: object, codingPath: codingPath)
   }
 
-  func singleValueContainer() throws -> SingleValueDecodingContainer {
+  func singleValueContainer() throws -> any SingleValueDecodingContainer {
     XPCSingleValueDecodingContainer(object: object, codingPath: codingPath)
   }
 }
 
 private struct XPCKeyedDecodingContainer<Key: CodingKey>: KeyedDecodingContainerProtocol {
   let dictionary: xpc_object_t
-  var codingPath: [CodingKey]
+  var codingPath: [any CodingKey]
 
   var allKeys: [Key] {
     var keys: [Key] = []
@@ -215,7 +215,7 @@ private struct XPCKeyedDecodingContainer<Key: CodingKey>: KeyedDecodingContainer
     return value
   }
 
-  private func path(_ key: Key) -> [CodingKey] { codingPath + [key] }
+  private func path(_ key: Key) -> [any CodingKey] { codingPath + [key] }
 
   /// A present key never reads as nil, so an XPC null under an optional property is a mismatch
   /// rather than an absence.
@@ -247,20 +247,20 @@ private struct XPCKeyedDecodingContainer<Key: CodingKey>: KeyedDecodingContainer
     try XPCDecoderImpl(object: value(key), codingPath: path(key)).container(keyedBy: type)
   }
 
-  func nestedUnkeyedContainer(forKey key: Key) throws -> UnkeyedDecodingContainer {
+  func nestedUnkeyedContainer(forKey key: Key) throws -> any UnkeyedDecodingContainer {
     try XPCDecoderImpl(object: value(key), codingPath: path(key)).unkeyedContainer()
   }
 
-  func superDecoder() throws -> Decoder { XPCDecoderImpl(object: dictionary, codingPath: codingPath) }
-  func superDecoder(forKey key: Key) throws -> Decoder { XPCDecoderImpl(object: try value(key), codingPath: path(key)) }
+  func superDecoder() throws -> any Decoder { XPCDecoderImpl(object: dictionary, codingPath: codingPath) }
+  func superDecoder(forKey key: Key) throws -> any Decoder { XPCDecoderImpl(object: try value(key), codingPath: path(key)) }
 }
 
 private struct XPCUnkeyedDecodingContainer: UnkeyedDecodingContainer {
   let array: xpc_object_t
-  var codingPath: [CodingKey]
+  var codingPath: [any CodingKey]
   private(set) var currentIndex = 0
 
-  init(array: xpc_object_t, codingPath: [CodingKey]) {
+  init(array: xpc_object_t, codingPath: [any CodingKey]) {
     self.array = array
     self.codingPath = codingPath
   }
@@ -268,9 +268,9 @@ private struct XPCUnkeyedDecodingContainer: UnkeyedDecodingContainer {
   var count: Int? { xpc_array_get_count(array) }
   var isAtEnd: Bool { currentIndex >= xpc_array_get_count(array) }
 
-  private var currentPath: [CodingKey] { codingPath + [XPCIndexKey(intValue: currentIndex)] }
+  private var currentPath: [any CodingKey] { codingPath + [XPCIndexKey(intValue: currentIndex)] }
 
-  private mutating func next(_ expected: Any.Type) throws -> (object: xpc_object_t, codingPath: [CodingKey]) {
+  private mutating func next(_ expected: Any.Type) throws -> (object: xpc_object_t, codingPath: [any CodingKey]) {
     guard !isAtEnd else {
       throw DecodingError.valueNotFound(
         expected, DecodingError.Context(codingPath: currentPath, debugDescription: "Array has no element at index \(currentIndex)"))
@@ -357,12 +357,12 @@ private struct XPCUnkeyedDecodingContainer: UnkeyedDecodingContainer {
     return try XPCDecoderImpl(object: next.object, codingPath: next.codingPath).container(keyedBy: type)
   }
 
-  mutating func nestedUnkeyedContainer() throws -> UnkeyedDecodingContainer {
+  mutating func nestedUnkeyedContainer() throws -> any UnkeyedDecodingContainer {
     let next = try next([Any].self)
     return try XPCDecoderImpl(object: next.object, codingPath: next.codingPath).unkeyedContainer()
   }
 
-  mutating func superDecoder() throws -> Decoder {
+  mutating func superDecoder() throws -> any Decoder {
     let next = try next(Any.self)
     return XPCDecoderImpl(object: next.object, codingPath: next.codingPath)
   }
@@ -370,7 +370,7 @@ private struct XPCUnkeyedDecodingContainer: UnkeyedDecodingContainer {
 
 private struct XPCSingleValueDecodingContainer: SingleValueDecodingContainer {
   let object: xpc_object_t
-  var codingPath: [CodingKey]
+  var codingPath: [any CodingKey]
 
   func decodeNil() -> Bool { xpc_get_type(object) == XPC_TYPE_NULL }
 

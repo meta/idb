@@ -13,7 +13,7 @@ import Foundation
 final class SimulatorHIDOperationLease: @unchecked Sendable {
   private let lock = NSLock()
   private var inUse = false
-  private var waiters: [(UUID, CheckedContinuation<Void, Error>)] = []
+  private var waiters: [(UUID, CheckedContinuation<Void, any Error>)] = []
 
   func withLease<T>(_ operation: () async throws -> T) async throws -> T {
     let id = UUID()
@@ -29,7 +29,7 @@ final class SimulatorHIDOperationLease: @unchecked Sendable {
     return try await operation()
   }
 
-  private func park(_ id: UUID, _ continuation: CheckedContinuation<Void, Error>) {
+  private func park(_ id: UUID, _ continuation: CheckedContinuation<Void, any Error>) {
     lock.lock()
     if Task.isCancelled {
       lock.unlock()
@@ -72,10 +72,10 @@ final class SimulatorHIDOperationLease: @unchecked Sendable {
 // SAFETY: The failure is accessed only while holding lock.
 final class SimulatorHIDDisplayObservation: @unchecked Sendable {
   private let lock = NSLock()
-  private var failure: Error?
+  private var failure: (any Error)?
 
-  func record(_ result: Result<SimulatorHIDDisplay?, Error>, matching display: SimulatorHIDDisplay) {
-    let error: Error?
+  func record(_ result: Result<SimulatorHIDDisplay?, any Error>, matching display: SimulatorHIDDisplay) {
+    let error: (any Error)?
     switch result {
     case let .success(current):
       error = current.map { display.hasSameConfiguration(as: $0) } == true ? nil : SimulatorDisplayError.changed
@@ -266,14 +266,14 @@ struct SimulatorHIDOperation {
 
   /// Cleanup is shielded from cancellation and uses the original target, even if it became inactive.
   /// Returns the failures from releasing contacts and draining; each step runs regardless.
-  func cleanup() async -> [Error] {
+  func cleanup() async -> [any Error] {
     await stopObserving()
     let releases = [singleRelease, twoFingerRelease, crownRelease, watchButtonRelease].compactMap { $0 }
     let display = display
     let sink = sink
     let shouldFlush = needsFlush || !releases.isEmpty
     let cleanup = Task {
-      var failures: [Error] = []
+      var failures: [any Error] = []
       for event in releases {
         do { try await sink.deliver(event, display: display) } catch { failures.append(error) }
       }

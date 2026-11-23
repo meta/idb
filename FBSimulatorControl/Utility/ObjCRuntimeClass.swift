@@ -15,7 +15,7 @@ public enum ObjCRuntimeClassError: Error, LocalizedError {
   /// The instance could not be allocated, so no initializer was ever sent.
   case allocationFailed(className: String)
   /// The designated initializer raised an `NSException` instead of returning.
-  case initializerRaised(className: String, underlying: Error)
+  case initializerRaised(className: String, underlying: any Error)
   case initializerReturnedNil(className: String)
 
   public var errorDescription: String? {

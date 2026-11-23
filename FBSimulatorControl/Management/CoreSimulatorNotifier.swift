@@ -15,13 +15,13 @@ import Foundation
 /// `@unchecked Sendable`: all mutable state is guarded by `lock`.
 private final class StateChangeWaiter: @unchecked Sendable {
   private let lock = NSLock()
-  private var continuation: CheckedContinuation<Void, Error>?
+  private var continuation: CheckedContinuation<Void, any Error>?
   private var notifier: CoreSimulatorNotifier?
   private var finished = false
 
   /// Returns false when cancellation beat the continuation, in which case it is resumed here and
   /// the caller must not register a handler.
-  func park(_ continuation: CheckedContinuation<Void, Error>) -> Bool {
+  func park(_ continuation: CheckedContinuation<Void, any Error>) -> Bool {
     lock.lock()
     if finished {
       lock.unlock()
@@ -46,7 +46,7 @@ private final class StateChangeWaiter: @unchecked Sendable {
     lock.unlock()
   }
 
-  func finish(throwing error: Error?) {
+  func finish(throwing error: (any Error)?) {
     lock.lock()
     if finished {
       lock.unlock()
@@ -71,7 +71,7 @@ private final class StateChangeWaiter: @unchecked Sendable {
 public final class CoreSimulatorNotifier {
 
   private let handle: UInt64
-  private let notifier: SimDeviceNotifier? // nil in test doubles
+  private let notifier: (any SimDeviceNotifier)? // nil in test doubles
 
   /// Calls `block` on `queue` with each notification `simDevice` posts, until terminated.
   public convenience init(device simDevice: SimDevice, queue: DispatchQueue, block: @escaping @Sendable ([String: Any]) -> Void) {
@@ -120,7 +120,7 @@ public final class CoreSimulatorNotifier {
 
   private init(notifier: AnyObject?, queue: DispatchQueue, block: @escaping @Sendable ([String: Any]) -> Void) {
     // nil for test doubles; mirror ObjC nil-messaging with a 0 handle.
-    guard let notifier = notifier as? SimDeviceNotifier else {
+    guard let notifier = notifier as? any SimDeviceNotifier else {
       self.notifier = nil
       self.handle = 0
       return

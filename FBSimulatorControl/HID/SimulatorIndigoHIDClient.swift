@@ -29,7 +29,7 @@ import Foundation
     withMessage message: UnsafeMutableRawPointer,
     freeWhenDone: Bool,
     completionQueue: DispatchQueue,
-    completion: @escaping @Sendable (Error?) -> Void)
+    completion: @escaping @Sendable ((any Error)?) -> Void)
 }
 
 /**
@@ -54,8 +54,8 @@ final class SimulatorIndigoHIDClient: @unchecked Sendable {
   private var client: AnyObject?
   // Accessed only on `queue`, which is also where the client delivers acknowledgements.
   private var pendingAcknowledgements = 0
-  private var firstDeliveryFailure: Error?
-  private var acknowledgementWaiters: [CheckedContinuation<Void, Error>] = []
+  private var firstDeliveryFailure: (any Error)?
+  private var acknowledgementWaiters: [CheckedContinuation<Void, any Error>] = []
 
   /// Resolves the runtime-only `SimDeviceLegacyHIDClient` class, dlopening the Xcode frameworks that
   /// vend it first — `FBSimulatorControl` itself loads only the essential set (CoreSimulator), so
@@ -80,14 +80,14 @@ final class SimulatorIndigoHIDClient: @unchecked Sendable {
     var clientError: AnyObject?
     let client: AnyObject
     do {
-      client = try clientClass.instantiate(as: SimDeviceLegacyHIDClientMessaging.self) {
+      client = try clientClass.instantiate(as: (any SimDeviceLegacyHIDClientMessaging).self) {
         $0.initWithDevice(device, error: &clientError)
       }
     } catch {
       // `clientError` first: when the client declines by contract it says why, and that is more
       // specific than "the initializer returned nil".
       throw SimulatorHIDError.clientCreationFailed(
-        clientClass: clientClass.name, underlying: (clientError as? Error) ?? error)
+        clientClass: clientClass.name, underlying: (clientError as? any Error) ?? error)
     }
     self.init(
       client: client, queue: DispatchQueue(label: "com.facebook.fbsimulatorcontrol.hid"))
@@ -130,7 +130,7 @@ final class SimulatorIndigoHIDClient: @unchecked Sendable {
         pendingAcknowledgements += 1
         do {
           try FBObjCExceptionGuard.run {
-            unsafeBitCast(client, to: SimDeviceLegacyHIDClientMessaging.self)
+            unsafeBitCast(client, to: (any SimDeviceLegacyHIDClientMessaging).self)
               .send(withMessage: raw, freeWhenDone: true, completionQueue: queue) { [self] error in
                 settleAcknowledgement(error)
               }
@@ -162,7 +162,7 @@ final class SimulatorIndigoHIDClient: @unchecked Sendable {
     }
   }
 
-  private func settleAcknowledgement(_ error: Error?) {
+  private func settleAcknowledgement(_ error: (any Error)?) {
     dispatchPrecondition(condition: .onQueue(queue))
     if let error, firstDeliveryFailure == nil {
       firstDeliveryFailure = error

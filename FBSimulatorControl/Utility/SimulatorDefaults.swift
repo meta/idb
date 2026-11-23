@@ -12,7 +12,7 @@ import Foundation
 /// Errors thrown while modifying simulator defaults/preferences. String-representable so the message
 /// reaches the caller and the error log without the NSError wrapper.
 enum SimulatorDefaultsError: Error, CustomStringConvertible {
-  case couldNotCreateDirectory(plist: String, underlying: Error)
+  case couldNotCreateDirectory(plist: String, underlying: any Error)
   case couldNotWritePlist(String)
   case invalidState(TargetState, action: String)
   case commandFailed(command: String, exitCode: Int32, stderr: String)

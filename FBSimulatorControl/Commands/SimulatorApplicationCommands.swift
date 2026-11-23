@@ -47,7 +47,7 @@ public enum SimulatorApplicationInstallError: Error, LocalizedError {
 
 public enum SimulatorApplicationUninstallError: Error, LocalizedError {
   case uninstallingSystemApplication(applicationDescription: String)
-  case uninstallFailed(bundleID: String, underlying: Error)
+  case uninstallFailed(bundleID: String, underlying: any Error)
 
   public var errorDescription: String? {
     switch self {
@@ -60,7 +60,7 @@ public enum SimulatorApplicationUninstallError: Error, LocalizedError {
 }
 
 public enum SimulatorApplicationLaunchError: Error, LocalizedError {
-  case launchingUninstalledApplication(bundleID: String, underlying: Error)
+  case launchingUninstalledApplication(bundleID: String, underlying: any Error)
   case foregroundIfRunningIncompatibleWithWaitForDebugger
   case applicationAlreadyRunning(bundleID: String, processIdentifier: pid_t)
   case noDataDirectory(bundleID: String)
@@ -139,7 +139,7 @@ public struct SimulatorApplicationCommands: ApplicationCommands {
       })
   }
 
-  public func launch(_ configuration: ApplicationLaunchConfiguration) async throws -> LaunchedApplication {
+  public func launch(_ configuration: ApplicationLaunchConfiguration) async throws -> any LaunchedApplication {
     try await ensureApplicationIsInstalled(configuration.bundleID)
     try await confirmApplicationLaunchState(configuration.bundleID, launchMode: configuration.launchMode, waitForDebugger: configuration.waitForDebugger)
     var outputs: [FileBackedOutput] = []

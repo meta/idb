@@ -14,7 +14,7 @@ actor SimulatorSharedConnection<Connection: Sendable> {
   typealias Connect = @Sendable () async throws -> Connection
 
   private let connect: Connect
-  private var attempt: Task<Connection, Error>?
+  private var attempt: Task<Connection, any Error>?
 
   init(_ connect: @escaping Connect) {
     self.connect = connect
@@ -39,7 +39,7 @@ actor SimulatorSharedConnection<Connection: Sendable> {
 
   /// Forgets the connection so the next caller makes a new one. Returns the forgotten attempt, whose
   /// connection, if it produced one, is the caller's to close.
-  func reset() -> Task<Connection, Error>? {
+  func reset() -> Task<Connection, any Error>? {
     defer { attempt = nil }
     return attempt
   }

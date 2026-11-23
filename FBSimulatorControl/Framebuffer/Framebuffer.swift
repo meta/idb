@@ -24,7 +24,7 @@ public enum FramebufferError: Error, LocalizedError {
   /// No renderable main-display surface could be located for the simulator.
   case mainScreenSurfaceNotFound(description: String)
   /// The surface-change or frame-rendered callbacks could not be registered on the display surface.
-  case surfaceCallbackRegistrationFailed(underlying: Error?)
+  case surfaceCallbackRegistrationFailed(underlying: (any Error)?)
 
   public var errorDescription: String? {
     switch self {

@@ -44,10 +44,10 @@ private func xpcUUID(_ uuid: UUID) -> xpc_object_t {
 
 private struct XPCEncoderImpl: Encoder {
   let storage: XPCBox
-  var codingPath: [CodingKey]
+  var codingPath: [any CodingKey]
   var userInfo: [CodingUserInfoKey: Any] { [:] }
 
-  init(storage: XPCBox = XPCBox(), codingPath: [CodingKey] = []) {
+  init(storage: XPCBox = XPCBox(), codingPath: [any CodingKey] = []) {
     self.storage = storage
     self.codingPath = codingPath
   }
@@ -71,11 +71,11 @@ private struct XPCEncoderImpl: Encoder {
     return KeyedEncodingContainer(XPCKeyedContainer<Key>(dictionary: dictionary, codingPath: codingPath))
   }
 
-  func singleValueContainer() -> SingleValueEncodingContainer {
+  func singleValueContainer() -> any SingleValueEncodingContainer {
     XPCSingleValueContainer(storage: storage, codingPath: codingPath)
   }
 
-  func unkeyedContainer() -> UnkeyedEncodingContainer {
+  func unkeyedContainer() -> any UnkeyedEncodingContainer {
     let array = storage.object ?? xpc_array_create(nil, 0)
     storage.object = array
     return XPCUnkeyedContainer(array: array, codingPath: codingPath)
@@ -83,7 +83,7 @@ private struct XPCEncoderImpl: Encoder {
 }
 
 /// Encodes one nested value to its own object, for a keyed or unkeyed parent to attach.
-private func encodeNested(_ value: some Encodable, codingPath: [CodingKey]) throws -> xpc_object_t {
+private func encodeNested(_ value: some Encodable, codingPath: [any CodingKey]) throws -> xpc_object_t {
   let nested = XPCEncoderImpl(codingPath: codingPath)
   try nested.encode(value)
   guard let object = nested.storage.object else {
@@ -95,7 +95,7 @@ private func encodeNested(_ value: some Encodable, codingPath: [CodingKey]) thro
 
 private struct XPCKeyedContainer<Key: CodingKey>: KeyedEncodingContainerProtocol {
   let dictionary: xpc_object_t
-  var codingPath: [CodingKey]
+  var codingPath: [any CodingKey]
 
   func encodeNil(forKey key: Key) throws {} // omit the key entirely
 
@@ -126,23 +126,23 @@ private struct XPCKeyedContainer<Key: CodingKey>: KeyedEncodingContainerProtocol
     return KeyedEncodingContainer(XPCKeyedContainer<NestedKey>(dictionary: nested, codingPath: codingPath + [key]))
   }
 
-  func nestedUnkeyedContainer(forKey key: Key) -> UnkeyedEncodingContainer {
+  func nestedUnkeyedContainer(forKey key: Key) -> any UnkeyedEncodingContainer {
     let nested = xpc_array_create(nil, 0)
     xpc_dictionary_set_value(dictionary, key.stringValue, nested)
     return XPCUnkeyedContainer(array: nested, codingPath: codingPath + [key])
   }
 
-  func superEncoder() -> Encoder { XPCEncoderImpl(storage: XPCBox(), codingPath: codingPath) }
-  func superEncoder(forKey key: Key) -> Encoder { XPCEncoderImpl(storage: XPCBox(), codingPath: codingPath + [key]) }
+  func superEncoder() -> any Encoder { XPCEncoderImpl(storage: XPCBox(), codingPath: codingPath) }
+  func superEncoder(forKey key: Key) -> any Encoder { XPCEncoderImpl(storage: XPCBox(), codingPath: codingPath + [key]) }
 }
 
 private struct XPCUnkeyedContainer: UnkeyedEncodingContainer {
   let array: xpc_object_t
-  var codingPath: [CodingKey]
+  var codingPath: [any CodingKey]
 
   var count: Int { xpc_array_get_count(array) }
 
-  private var nextPath: [CodingKey] { codingPath + [XPCIndexKey(intValue: count)] }
+  private var nextPath: [any CodingKey] { codingPath + [XPCIndexKey(intValue: count)] }
 
   mutating func encodeNil() throws { xpc_array_append_value(array, xpc_null_create()) }
 
@@ -175,19 +175,19 @@ private struct XPCUnkeyedContainer: UnkeyedEncodingContainer {
     return KeyedEncodingContainer(XPCKeyedContainer<NestedKey>(dictionary: nested, codingPath: path))
   }
 
-  mutating func nestedUnkeyedContainer() -> UnkeyedEncodingContainer {
+  mutating func nestedUnkeyedContainer() -> any UnkeyedEncodingContainer {
     let path = nextPath
     let nested = xpc_array_create(nil, 0)
     xpc_array_append_value(array, nested)
     return XPCUnkeyedContainer(array: nested, codingPath: path)
   }
 
-  mutating func superEncoder() -> Encoder { XPCEncoderImpl(storage: XPCBox(), codingPath: nextPath) }
+  mutating func superEncoder() -> any Encoder { XPCEncoderImpl(storage: XPCBox(), codingPath: nextPath) }
 }
 
 private struct XPCSingleValueContainer: SingleValueEncodingContainer {
   let storage: XPCBox
-  var codingPath: [CodingKey]
+  var codingPath: [any CodingKey]
 
   func encodeNil() throws {} // leaves the slot empty
 

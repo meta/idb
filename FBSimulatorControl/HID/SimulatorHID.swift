@@ -91,7 +91,7 @@ public final class SimulatorHID: CustomStringConvertible, Sendable {
   /// nothing reached it.
   public func send(
     event: SimulatorHIDEvent,
-    logger: ControlCoreLogger,
+    logger: any ControlCoreLogger,
     drain: SimulatorHIDDrain = .perEvent,
     on binding: DisplaySelection = .active
   ) async throws {
@@ -106,13 +106,13 @@ public final class SimulatorHID: CustomStringConvertible, Sendable {
   /// at the first touch. An observed display change fails the operation; cancellation releases contacts on the
   /// original display.
   public func send<S: AsyncSequence>(
-    events: S, logger: ControlCoreLogger, on binding: DisplaySelection = .active
+    events: S, logger: any ControlCoreLogger, on binding: DisplaySelection = .active
   ) async throws where S.Element == SimulatorHIDEvent {
     try await send(events: events, logger: logger, flushing: true, binding: binding)
   }
 
   private func send<S: AsyncSequence>(
-    events: S, logger: ControlCoreLogger, flushing: Bool, binding: DisplaySelection
+    events: S, logger: any ControlCoreLogger, flushing: Bool, binding: DisplaySelection
   ) async throws where S.Element == SimulatorHIDEvent {
     try await operationLease.withLease {
       var operation = SimulatorHIDOperation(
@@ -182,7 +182,7 @@ public final class SimulatorHID: CustomStringConvertible, Sendable {
 /// One operation's view of the HID, logging each event before it is delivered.
 private struct LoggingSink: SimulatorHIDOperationSink {
   let hid: SimulatorHID
-  let logger: ControlCoreLogger
+  let logger: any ControlCoreLogger
   let logging: SimulatorHIDEventLogging
 
   func deliver(_ event: SimulatorHIDEvent, display: SimulatorHIDDisplay?) async throws {

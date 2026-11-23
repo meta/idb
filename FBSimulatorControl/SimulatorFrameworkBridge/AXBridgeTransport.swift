@@ -73,5 +73,5 @@ extension AXBridgeTransport where Self: Sendable {
 
 /// A transport that can hold a connection open for a response streamed in many frames.
 package protocol AXBridgeStreamingTransport: AXBridgeTransport {
-  func stream(_ request: AXBridgeRequest) async throws -> AsyncThrowingStream<BridgeAXAnswer, Error>
+  func stream(_ request: AXBridgeRequest) async throws -> AsyncThrowingStream<BridgeAXAnswer, any Error>
 }
