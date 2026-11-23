@@ -127,7 +127,7 @@ private func writeJSONToStdOut(_ json: Any) {
   fflush(stdout)
 }
 
-private func writeTargetToStdOut(_ target: TargetInfo) {
+private func writeTargetToStdOut(_ target: any TargetInfo) {
   writeJSONToStdOut(TargetDescription(target: target).asJSON)
 }
 
@@ -139,7 +139,7 @@ private func hidEventLogging(_ userDefaults: UserDefaults) -> SimulatorHIDEventL
   return detailed ? .detailed : .redacted
 }
 
-private func simulatorSetWithPath(_ deviceSetPath: String?, userDefaults: UserDefaults, logger: ControlCoreLogger) throws -> SimulatorSet {
+private func simulatorSetWithPath(_ deviceSetPath: String?, userDefaults: UserDefaults, logger: any ControlCoreLogger) throws -> SimulatorSet {
   // Give a more meaningful message if we can't load the frameworks.
   try SimulatorControlFrameworkLoader.essentialFrameworks.loadPrivateFrameworks(logger)
   let configuration = SimulatorControlConfiguration(
@@ -147,7 +147,7 @@ private func simulatorSetWithPath(_ deviceSetPath: String?, userDefaults: UserDe
   return try SimulatorControlBootstrap(configuration: configuration).set
 }
 
-private func simulatorSet(_ userDefaults: UserDefaults, logger: ControlCoreLogger) throws -> SimulatorSet {
+private func simulatorSet(_ userDefaults: UserDefaults, logger: any ControlCoreLogger) throws -> SimulatorSet {
   let deviceSetPath = userDefaults.string(forKey: "-device-set-path")
   return try simulatorSetWithPath(deviceSetPath, userDefaults: userDefaults, logger: logger)
 }
@@ -158,7 +158,7 @@ private let deviceDiscoveryTimeout: TimeInterval = 5
 private let deviceDiscoveryPollInterval: TimeInterval = 0.1
 private let restorableDevicePopulationNap: UInt64 = 200_000_000
 
-private func deviceSet(_ logger: ControlCoreLogger, ecidFilter: String?, waitForDevices: Bool = false) async throws -> DeviceSet {
+private func deviceSet(_ logger: any ControlCoreLogger, ecidFilter: String?, waitForDevices: Bool = false) async throws -> DeviceSet {
   // `DeviceSet` hardcodes `DispatchQueue.main` for its device managers and
   // registers MobileDevice notifications that expect the main run loop, so it
   // must be created on the main thread.
@@ -185,7 +185,7 @@ private func deviceSet(_ logger: ControlCoreLogger, ecidFilter: String?, waitFor
 /// Waits for at least one device to land in `set`. Devices arrive asynchronously over MobileDevice
 /// notifications on the main run loop, so a freshly constructed set is briefly empty. Timing out is
 /// tolerated: a host with no device attached should still get the caller's usual "no targets" message.
-private func awaitDevicePopulation(of set: DeviceSet, logger: ControlCoreLogger) async throws {
+private func awaitDevicePopulation(of set: DeviceSet, logger: any ControlCoreLogger) async throws {
   do {
     try await Task.timeout(nanoseconds: UInt64(deviceDiscoveryTimeout * Double(NSEC_PER_SEC))) {
       // The set is mutated on the main queue, so the condition is polled there.
@@ -200,7 +200,7 @@ private func awaitDevicePopulation(of set: DeviceSet, logger: ControlCoreLogger)
   }
 }
 
-private func defaultTargetSetMakers(_ userDefaults: UserDefaults, xcodeAvailable: Bool, waitForDevices: Bool = false, logger: ControlCoreLogger) throws -> [TargetSetMaker] {
+private func defaultTargetSetMakers(_ userDefaults: UserDefaults, xcodeAvailable: Bool, waitForDevices: Bool = false, logger: any ControlCoreLogger) throws -> [TargetSetMaker] {
   let only = userDefaults.string(forKey: "-only")
   if let only {
     if only.lowercased().contains("simulator") {
@@ -229,20 +229,20 @@ private func defaultTargetSetMakers(_ userDefaults: UserDefaults, xcodeAvailable
   ]
 }
 
-private func defaultTargetSets(_ userDefaults: UserDefaults, xcodeAvailable: Bool, waitForDevices: Bool = false, logger: ControlCoreLogger) async throws -> [TargetSet] {
-  var targetSets: [TargetSet] = []
+private func defaultTargetSets(_ userDefaults: UserDefaults, xcodeAvailable: Bool, waitForDevices: Bool = false, logger: any ControlCoreLogger) async throws -> [any TargetSet] {
+  var targetSets: [any TargetSet] = []
   for make in try defaultTargetSetMakers(userDefaults, xcodeAvailable: xcodeAvailable, waitForDevices: waitForDevices, logger: logger) {
     targetSets.append(try await make())
   }
   return targetSets
 }
 
-private func targetForUDID(_ udid: String, userDefaults: UserDefaults, xcodeAvailable: Bool, warmUp: Bool, logger: ControlCoreLogger) async throws -> CompanionTarget {
+private func targetForUDID(_ udid: String, userDefaults: UserDefaults, xcodeAvailable: Bool, warmUp: Bool, logger: any ControlCoreLogger) async throws -> CompanionTarget {
   let makers = try defaultTargetSetMakers(userDefaults, xcodeAvailable: xcodeAvailable, logger: logger)
   return try await TargetProvider.target(withUDID: udid, makingTargetSets: makers, warmUp: warmUp, logger: logger)
 }
 
-private func deviceForECID(_ ecid: String, logger: ControlCoreLogger) async throws -> Device {
+private func deviceForECID(_ ecid: String, logger: any ControlCoreLogger) async throws -> Device {
   let set = try await deviceSet(logger, ecidFilter: ecid.replacingOccurrences(of: "ecid:", with: ""), waitForDevices: true)
   let devices = set.allDevices
   if devices.isEmpty {
@@ -251,11 +251,11 @@ private func deviceForECID(_ ecid: String, logger: ControlCoreLogger) async thro
   return devices[0]
 }
 
-private func resolveSimulator(_ udid: String, userDefaults: UserDefaults, logger: ControlCoreLogger) async throws -> Simulator {
+private func resolveSimulator(_ udid: String, userDefaults: UserDefaults, logger: any ControlCoreLogger) async throws -> Simulator {
   try resolveSimulator(udid, in: try simulatorSet(userDefaults, logger: logger), logger: logger)
 }
 
-private func resolveSimulator(_ udid: String, in set: SimulatorSet, logger: ControlCoreLogger) throws -> Simulator {
+private func resolveSimulator(_ udid: String, in set: SimulatorSet, logger: any ControlCoreLogger) throws -> Simulator {
   let target = try TargetProvider.target(withUDID: udid, targetSets: [set], warmUp: false, logger: logger)
   guard let simulator = target as? Simulator else {
     throw IDBCompanionError.simulatorLifecycleUnsupported(targetDescription: String(describing: target))
@@ -263,12 +263,12 @@ private func resolveSimulator(_ udid: String, in set: SimulatorSet, logger: Cont
   return simulator
 }
 
-private func awaitTargetOffline(_ target: any Target, logger: ControlCoreLogger) async throws {
+private func awaitTargetOffline(_ target: any Target, logger: any ControlCoreLogger) async throws {
   try await target.lifecycle.resolveLeavesState(.booted)
   target.logger.log("Target is no longer booted, companion going offline")
 }
 
-private func runBoot(_ udid: String, userDefaults: UserDefaults, logger: ControlCoreLogger) async throws {
+private func runBoot(_ udid: String, userDefaults: UserDefaults, logger: any ControlCoreLogger) async throws {
   let headless = userDefaults.bool(forKey: "-headless")
   let verifyBooted = userDefaults.object(forKey: "-verify-booted") == nil ? true : userDefaults.bool(forKey: "-verify-booted")
   let simulator = try await resolveSimulator(udid, userDefaults: userDefaults, logger: logger)
@@ -315,22 +315,22 @@ private func runBoot(_ udid: String, userDefaults: UserDefaults, logger: Control
   }
 }
 
-private func runShutdown(_ udid: String, userDefaults: UserDefaults, xcodeAvailable: Bool, logger: ControlCoreLogger) async throws {
+private func runShutdown(_ udid: String, userDefaults: UserDefaults, xcodeAvailable: Bool, logger: any ControlCoreLogger) async throws {
   let target = try await targetForUDID(udid, userDefaults: userDefaults, xcodeAvailable: xcodeAvailable, warmUp: false, logger: logger)
   try await target.power.shutdown()
 }
 
-private func runReboot(_ udid: String, userDefaults: UserDefaults, xcodeAvailable: Bool, logger: ControlCoreLogger) async throws {
+private func runReboot(_ udid: String, userDefaults: UserDefaults, xcodeAvailable: Bool, logger: any ControlCoreLogger) async throws {
   let target = try await targetForUDID(udid, userDefaults: userDefaults, xcodeAvailable: xcodeAvailable, warmUp: false, logger: logger)
   try await target.power.reboot()
 }
 
-private func runErase(_ udid: String, userDefaults: UserDefaults, xcodeAvailable: Bool, logger: ControlCoreLogger) async throws {
+private func runErase(_ udid: String, userDefaults: UserDefaults, xcodeAvailable: Bool, logger: any ControlCoreLogger) async throws {
   let target = try await targetForUDID(udid, userDefaults: userDefaults, xcodeAvailable: xcodeAvailable, warmUp: false, logger: logger)
   try await target.erase()
 }
 
-private func runDelete(_ udidOrAll: String, userDefaults: UserDefaults, logger: ControlCoreLogger) async throws {
+private func runDelete(_ udidOrAll: String, userDefaults: UserDefaults, logger: any ControlCoreLogger) async throws {
   let set = try simulatorSet(userDefaults, logger: logger)
   if udidOrAll.lowercased() == "all" {
     try await set.deleteAll()
@@ -342,7 +342,7 @@ private func runDelete(_ udidOrAll: String, userDefaults: UserDefaults, logger: 
   try await set.delete(simulator)
 }
 
-private func runList(_ userDefaults: UserDefaults, xcodeAvailable: Bool, logger: ControlCoreLogger) async throws {
+private func runList(_ userDefaults: UserDefaults, xcodeAvailable: Bool, logger: any ControlCoreLogger) async throws {
   let targetSets = try await defaultTargetSets(userDefaults, xcodeAvailable: xcodeAvailable, waitForDevices: true, logger: logger)
   var reportedCount: UInt = 0
   for targetSet in targetSets {
@@ -354,7 +354,7 @@ private func runList(_ userDefaults: UserDefaults, xcodeAvailable: Bool, logger:
   logger.log("Reported \(reportedCount) targets to stdout")
 }
 
-private func runCreate(_ create: String, userDefaults: UserDefaults, logger: ControlCoreLogger) async throws {
+private func runCreate(_ create: String, userDefaults: UserDefaults, logger: any ControlCoreLogger) async throws {
   let parameters = create.components(separatedBy: ",")
   func selector(_ value: String) -> SimulatorSelector {
     value.hasPrefix("com.apple.CoreSimulator.") ? .identifier(value) : .name(value)
@@ -366,7 +366,7 @@ private func runCreate(_ create: String, userDefaults: UserDefaults, logger: Con
   writeTargetToStdOut(simulator)
 }
 
-private func runClone(_ udid: String, userDefaults: UserDefaults, logger: ControlCoreLogger) async throws {
+private func runClone(_ udid: String, userDefaults: UserDefaults, logger: any ControlCoreLogger) async throws {
   let destinationSet = userDefaults.string(forKey: "-clone-destination-set")
   let sourceSet = try simulatorSet(userDefaults, logger: logger)
   let base = try resolveSimulator(udid, in: sourceSet, logger: logger)
@@ -375,17 +375,17 @@ private func runClone(_ udid: String, userDefaults: UserDefaults, logger: Contro
   writeTargetToStdOut(cloned)
 }
 
-private func runEnterRecovery(_ ecid: String, logger: ControlCoreLogger) async throws {
+private func runEnterRecovery(_ ecid: String, logger: any ControlCoreLogger) async throws {
   let device = try await deviceForECID(ecid, logger: logger)
   try await device.recovery.enter()
 }
 
-private func runExitRecovery(_ ecid: String, logger: ControlCoreLogger) async throws {
+private func runExitRecovery(_ ecid: String, logger: any ControlCoreLogger) async throws {
   let device = try await deviceForECID(ecid, logger: logger)
   try await device.recovery.exit()
 }
 
-private func runActivate(_ ecid: String, logger: ControlCoreLogger) async throws {
+private func runActivate(_ ecid: String, logger: any ControlCoreLogger) async throws {
   let device = try await deviceForECID(ecid, logger: logger)
   try await device.activate()
 }
@@ -403,14 +403,14 @@ private func runClean(_ udid: String, userDefaults: UserDefaults, xcodeAvailable
   try await commandExecutor.clean()
 }
 
-private func runCompanionServer(_ udid: String, userDefaults: UserDefaults, xcodeAvailable: Bool, logger: IDBLogger, reporter: EventReporter) async throws {
+private func runCompanionServer(_ udid: String, userDefaults: UserDefaults, xcodeAvailable: Bool, logger: IDBLogger, reporter: any EventReporter) async throws {
   let makers = try defaultTargetSetMakers(userDefaults, xcodeAvailable: xcodeAvailable, logger: logger)
   try await CompanionServerSession.run(
     udid, userDefaults: userDefaults, makingTargetSets: makers,
     logger: logger, reporter: reporter, onStarted: writeJSONToStdOut)
 }
 
-private func runNotifier(_ notify: String, userDefaults: UserDefaults, xcodeAvailable: Bool, logger: ControlCoreLogger) async throws {
+private func runNotifier(_ notify: String, userDefaults: UserDefaults, xcodeAvailable: Bool, logger: any ControlCoreLogger) async throws {
   let targetSets = try await defaultTargetSets(userDefaults, xcodeAvailable: xcodeAvailable, logger: logger)
   let notifier: TargetStateChangeNotifier
   if notify == "stdout" {
@@ -429,7 +429,7 @@ private func runNotifier(_ notify: String, userDefaults: UserDefaults, xcodeAvai
   }
 }
 
-private func runForward(_ forward: String, userDefaults: UserDefaults, xcodeAvailable: Bool, logger: ControlCoreLogger) async throws {
+private func runForward(_ forward: String, userDefaults: UserDefaults, xcodeAvailable: Bool, logger: any ControlCoreLogger) async throws {
   let components = forward.components(separatedBy: ":")
   if components.count != 2 {
     throw IDBCompanionError.invalidForwardArgument(argument: forward)
@@ -516,7 +516,7 @@ private func runSelectedCommand(_ userDefaults: UserDefaults, xcodeAvailable: Bo
 
 /// Suspends until `signalCode` is delivered, returning the signal number. The default disposition is set
 /// to `SIG_IGN` so the dispatch source is the sole handler; cancelling the awaiting task tears it down.
-private func waitForSignal(_ signalCode: Int32, exitMessage: String, logger: ControlCoreLogger) async throws -> Int32 {
+private func waitForSignal(_ signalCode: Int32, exitMessage: String, logger: any ControlCoreLogger) async throws -> Int32 {
   let promise = AsyncEvent<Int32>()
   let source = DispatchSource.makeSignalSource(signal: signalCode, queue: DispatchQueue.main)
   source.setEventHandler {
@@ -533,7 +533,7 @@ private func waitForSignal(_ signalCode: Int32, exitMessage: String, logger: Con
 
 /// Suspends until any of `signals` is delivered, returning the first signal
 /// number seen.
-private func waitForAnySignal(_ signals: [(code: Int32, message: String)], logger: ControlCoreLogger) async throws -> Int32 {
+private func waitForAnySignal(_ signals: [(code: Int32, message: String)], logger: any ControlCoreLogger) async throws -> Int32 {
   let tasks = signals.map { signal in
     Task { try await waitForSignal(signal.code, exitMessage: signal.message, logger: logger) }
   }
@@ -583,11 +583,11 @@ private func idbMain() async -> Int32 {
     return 1
   }
 
-  let command = Task<CompanionOutcome, Error> {
+  let command = Task<CompanionOutcome, any Error> {
     try await runSelectedCommand(userDefaults, xcodeAvailable: true, logger: logger)
     return .finished
   }
-  let signals = Task<CompanionOutcome, Error> {
+  let signals = Task<CompanionOutcome, any Error> {
     .signalled(
       try await waitForAnySignal(
         [(SIGINT, "Signalled: SIGINT"), (SIGTERM, "Signalled: SIGTERM")],
