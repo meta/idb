@@ -17,8 +17,8 @@ public enum IPCSocket {
     let fileDescriptor = socket(AF_UNIX, SOCK_STREAM, 0)
     guard fileDescriptor >= 0 else { return nil }
     let connected = withUnsafePointer(to: &address) {
-      $0.withMemoryRebound(to: sockaddr.self, capacity: 1) {
-        Darwin.connect(fileDescriptor, $0, socklen_t(MemoryLayout<sockaddr_un>.size))
+      unsafe $0.withMemoryRebound(to: sockaddr.self, capacity: 1) {
+        unsafe Darwin.connect(fileDescriptor, $0, socklen_t(MemoryLayout<sockaddr_un>.size))
       }
     }
     guard connected == 0 else {
@@ -26,15 +26,15 @@ public enum IPCSocket {
       return nil
     }
     var noSigPipe: Int32 = 1
-    setsockopt(fileDescriptor, SOL_SOCKET, SO_NOSIGPIPE, &noSigPipe, socklen_t(MemoryLayout<Int32>.size))
+    unsafe setsockopt(fileDescriptor, SOL_SOCKET, SO_NOSIGPIPE, &noSigPipe, socklen_t(MemoryLayout<Int32>.size))
     setTimeout(fileDescriptor, seconds: timeoutSeconds)
     return fileDescriptor
   }
 
   public static func setTimeout(_ fileDescriptor: Int32, seconds: Int) {
     var timeout = timeval(tv_sec: seconds, tv_usec: 0)
-    setsockopt(fileDescriptor, SOL_SOCKET, SO_RCVTIMEO, &timeout, socklen_t(MemoryLayout<timeval>.size))
-    setsockopt(fileDescriptor, SOL_SOCKET, SO_SNDTIMEO, &timeout, socklen_t(MemoryLayout<timeval>.size))
+    unsafe setsockopt(fileDescriptor, SOL_SOCKET, SO_RCVTIMEO, &timeout, socklen_t(MemoryLayout<timeval>.size))
+    unsafe setsockopt(fileDescriptor, SOL_SOCKET, SO_SNDTIMEO, &timeout, socklen_t(MemoryLayout<timeval>.size))
   }
 
   public static func writeFrame(_ fileDescriptor: Int32, _ payload: Data) throws {
@@ -58,11 +58,11 @@ public enum IPCSocket {
   }
 
   public static func requirePrivateDirectory(_ directory: String, creating: Bool) throws {
-    if creating, mkdir(directory, mode_t(ownerOnlyPermissions)) != 0, errno != EEXIST {
+    if creating, unsafe mkdir(directory, mode_t(ownerOnlyPermissions)) != 0, errno != EEXIST {
       throw POSIXError(POSIXErrorCode(rawValue: errno) ?? .EIO)
     }
     var status = stat()
-    guard lstat(directory, &status) == 0 else {
+    guard unsafe lstat(directory, &status) == 0 else {
       if errno == ENOENT, !creating { return }
       throw POSIXError(POSIXErrorCode(rawValue: errno) ?? .EIO)
     }
@@ -70,7 +70,7 @@ public enum IPCSocket {
       throw IPCError.sharedDirectory(path: directory)
     }
     if status.st_mode & 0o077 != 0 {
-      guard creating, chmod(directory, mode_t(ownerOnlyPermissions)) == 0 else {
+      guard creating, unsafe chmod(directory, mode_t(ownerOnlyPermissions)) == 0 else {
         throw IPCError.sharedDirectory(path: directory)
       }
     }
@@ -81,18 +81,18 @@ public enum IPCSocket {
     let bytes = Array(path.utf8)
     guard bytes.count < pathCapacity else { throw IPCError.pathTooLong(path: path, limit: pathCapacity) }
     withUnsafeMutableBytes(of: &address.sun_path) {
-      $0.copyBytes(from: bytes)
-      $0[bytes.count] = 0
+      unsafe $0.copyBytes(from: bytes)
+      unsafe $0[bytes.count] = 0
     }
     return address
   }
 
   private static func writeAll(_ fileDescriptor: Int32, _ data: Data) throws {
-    try data.withUnsafeBytes { buffer in
+    unsafe try data.withUnsafeBytes { buffer in
       guard let base = buffer.baseAddress else { return }
       var offset = 0
       while offset < buffer.count {
-        let written = send(fileDescriptor, base + offset, buffer.count - offset, MSG_NOSIGNAL)
+        let written = unsafe send(fileDescriptor, base + offset, buffer.count - offset, MSG_NOSIGNAL)
         if written < 0 {
           if errno == EINTR { continue }
           throw IPCError.failed(operation: "write", errno: errno)
@@ -105,11 +105,11 @@ public enum IPCSocket {
 
   private static func readAll(_ fileDescriptor: Int32, count: Int) throws -> Data {
     var data = Data(count: count)
-    try data.withUnsafeMutableBytes { buffer in
+    unsafe try data.withUnsafeMutableBytes { buffer in
       guard let base = buffer.baseAddress else { return }
       var offset = 0
       while offset < count {
-        let received = recv(fileDescriptor, base + offset, count - offset, 0)
+        let received = unsafe recv(fileDescriptor, base + offset, count - offset, 0)
         if received < 0 {
           if errno == EINTR { continue }
           if errno == EAGAIN || errno == EWOULDBLOCK { throw IPCError.timedOut }
@@ -139,7 +139,7 @@ public final class IPCListener {
     let fileDescriptor = socket(AF_UNIX, SOCK_STREAM, 0)
     guard fileDescriptor >= 0 else { throw IPCError.failed(operation: "socket", errno: errno) }
     // Keep the inode stable: unlinking a lock file lets another starter lock a different inode.
-    let lockFileDescriptor = open(path + ".lock", O_CREAT | O_RDWR | O_NOFOLLOW, mode_t(0o600))
+    let lockFileDescriptor = unsafe open(path + ".lock", O_CREAT | O_RDWR | O_NOFOLLOW, mode_t(0o600))
     guard lockFileDescriptor >= 0 else {
       let error = IPCError.failed(operation: "open lock", errno: errno)
       close(fileDescriptor)
@@ -153,10 +153,10 @@ public final class IPCListener {
       if contended { return nil }
       throw error
     }
-    unlink(bindingPath)
+    unsafe unlink(bindingPath)
     let bound = withUnsafePointer(to: &address) {
-      $0.withMemoryRebound(to: sockaddr.self, capacity: 1) {
-        Darwin.bind(fileDescriptor, $0, socklen_t(MemoryLayout<sockaddr_un>.size))
+      unsafe $0.withMemoryRebound(to: sockaddr.self, capacity: 1) {
+        unsafe Darwin.bind(fileDescriptor, $0, socklen_t(MemoryLayout<sockaddr_un>.size))
       }
     }
     let failedOperation: String? =
@@ -164,14 +164,14 @@ public final class IPCListener {
         "bind"
       } else if listen(fileDescriptor, backlog) != 0 {
         "listen"
-      } else if rename(bindingPath, path) != 0 {
+      } else if unsafe rename(bindingPath, path) != 0 {
         "rename"
       } else {
         nil
       }
     if let failedOperation {
       let error = IPCError.failed(operation: failedOperation, errno: errno)
-      if bound == 0 { unlink(bindingPath) }
+      if bound == 0 { unsafe unlink(bindingPath) }
       close(lockFileDescriptor)
       close(fileDescriptor)
       throw error
@@ -186,7 +186,7 @@ public final class IPCListener {
   }
 
   deinit {
-    unlink(path)
+    unsafe unlink(path)
     close(lockFileDescriptor)
     close(fileDescriptor)
   }

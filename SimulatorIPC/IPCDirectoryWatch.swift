@@ -14,9 +14,9 @@ public final class IPCDirectoryWatch {
   private let registered: Bool
 
   public init(directory: String) {
-    var descriptor = open(directory, O_EVTONLY)
+    var descriptor = unsafe open(directory, O_EVTONLY)
     if descriptor < 0 {
-      descriptor = open((directory as NSString).deletingLastPathComponent, O_EVTONLY)
+      descriptor = unsafe open((directory as NSString).deletingLastPathComponent, O_EVTONLY)
     }
     watchedDescriptor = descriptor
     queue = kqueue()
@@ -24,14 +24,14 @@ public final class IPCDirectoryWatch {
       registered = false
       return
     }
-    var change = kevent(
+    var change = unsafe kevent(
       ident: UInt(descriptor),
       filter: Int16(EVFILT_VNODE),
       flags: UInt16(EV_ADD | EV_CLEAR),
       fflags: UInt32(NOTE_WRITE | NOTE_DELETE | NOTE_RENAME | NOTE_REVOKE),
       data: 0,
       udata: nil)
-    registered = kevent(queue, &change, 1, nil, 0, nil) == 0
+    registered = unsafe kevent(queue, &change, 1, nil, 0, nil) == 0
   }
 
   deinit {
@@ -44,9 +44,9 @@ public final class IPCDirectoryWatch {
       return false
     }
     var timeout = timespec(tv_sec: Int(timeoutMilliseconds / 1_000), tv_nsec: Int(timeoutMilliseconds % 1_000) * 1_000_000)
-    var event = kevent()
+    var event = unsafe kevent()
     while true {
-      let count = kevent(queue, nil, 0, &event, 1, &timeout)
+      let count = unsafe kevent(queue, nil, 0, &event, 1, &timeout)
       if count < 0, errno == EINTR { continue }
       return count > 0
     }

@@ -28,7 +28,7 @@ extension IPCError: CustomStringConvertible {
     case .timedOut:
       "socket timed out"
     case let .failed(operation, code):
-      "\(operation) failed: \(String(cString: strerror(code)))"
+      unsafe "\(operation) failed: \(String(cString: strerror(code)))"
     case let .sharedDirectory(path):
       "\(path) is not private to this user"
     }
@@ -41,7 +41,7 @@ public enum IPCFrame {
   public static func header(forSize size: Int) throws -> Data {
     guard size > 0, size <= maximumSize else { throw IPCError.invalidFrameSize(size) }
     var length = UInt32(size).bigEndian
-    return withUnsafeBytes(of: &length) { Data($0) }
+    return withUnsafeBytes(of: &length) { unsafe Data($0) }
   }
 
   public static func size(fromHeader header: Data) throws -> Int {
