@@ -32,7 +32,7 @@ extension Task {
 
     let state = Atomic<TaskSelectState<Success, Failure>>(wrappedValue: .init())
     return await withTaskCancellationHandler {
-      await withUnsafeContinuation { continuation in
+      unsafe await withUnsafeContinuation { continuation in
         for task in tasks {
           Task<Void, Never> {
             _ = await task.result
@@ -41,7 +41,7 @@ extension Task {
               return !state.complete
             }
             if winner {
-              continuation.resume(returning: task)
+              unsafe continuation.resume(returning: task)
             }
           }
           state.sync { state in

@@ -24,23 +24,23 @@ final class Mutex: @unchecked Sendable {
 
   init() {
     var attr = pthread_mutexattr_t()
-    guard pthread_mutexattr_init(&attr) == 0 else {
+    guard unsafe pthread_mutexattr_init(&attr) == 0 else {
       preconditionFailure()
     }
-    pthread_mutexattr_settype(&attr, PTHREAD_MUTEX_NORMAL)
-    guard pthread_mutex_init(&underlyingMutex, &attr) == 0 else {
+    unsafe pthread_mutexattr_settype(&attr, PTHREAD_MUTEX_NORMAL)
+    guard unsafe pthread_mutex_init(&underlyingMutex, &attr) == 0 else {
       preconditionFailure()
     }
-    pthread_mutexattr_destroy(&attr)
+    unsafe pthread_mutexattr_destroy(&attr)
   }
 
   func sync<R>(execute work: () throws -> R) rethrows -> R {
-    pthread_mutex_lock(&underlyingMutex)
-    defer { pthread_mutex_unlock(&underlyingMutex) }
+    unsafe pthread_mutex_lock(&underlyingMutex)
+    defer { unsafe pthread_mutex_unlock(&underlyingMutex) }
     return try work()
   }
 
   deinit {
-    pthread_mutex_destroy(&underlyingMutex)
+    unsafe pthread_mutex_destroy(&underlyingMutex)
   }
 }
