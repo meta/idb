@@ -9,6 +9,18 @@ import FBControlCore
 import Foundation
 import Testing
 
+/// Hands one cache to several threads at once.
+// SAFETY: The box only forwards to `TargetCommandCache`, which serializes every access under its lock; that
+// serialization is what the concurrent test checks.
+// patternlint-disable-next-line unchecked-sendable
+private final class SharedCache: @unchecked Sendable {
+  let cache: TargetCommandCache
+
+  init(_ cache: TargetCommandCache) {
+    self.cache = cache
+  }
+}
+
 /// Counts how many times a slot's `build` closure ran, across threads.
 private final class BuildCounter: @unchecked Sendable {
   private let lock = NSLock()
@@ -88,11 +100,11 @@ struct TargetCommandCacheTests {
 
   @Test("Concurrent first access builds the command exactly once")
   func concurrentFirstAccessBuildsOnce() {
-    let cache = TargetCommandCache()
+    let cache = SharedCache(TargetCommandCache())
     let counter = BuildCounter()
 
     DispatchQueue.concurrentPerform(iterations: 64) { _ in
-      _ = cache.resolve(StubCommand.self) {
+      _ = cache.cache.resolve(StubCommand.self) {
         counter.increment()
         return StubCommand(identifier: 1)
       }

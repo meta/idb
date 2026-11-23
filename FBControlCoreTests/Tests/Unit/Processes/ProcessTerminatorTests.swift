@@ -10,7 +10,9 @@ import Foundation
 import Testing
 
 /// Reports every process as absent, so the existence check fails before any signal is sent.
-private final class AbsentProcessFetcher: ProcessFetcher {
+// SAFETY: Adds no state to `ProcessFetcher`, whose `@unchecked Sendable` conformance a subclass must restate.
+// patternlint-disable-next-line unchecked-sendable
+private final class AbsentProcessFetcher: ProcessFetcher, @unchecked Sendable {
   override func processInfo(for processIdentifier: pid_t) -> RunningProcessInfo? {
     nil
   }

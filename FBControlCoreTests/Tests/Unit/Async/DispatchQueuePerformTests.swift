@@ -18,7 +18,7 @@ struct DispatchQueuePerformTests {
   func returnsWhatTheWorkReturns() async throws {
     let queue = DispatchQueue(label: "com.facebook.fbcontrolcore.tests.perform")
 
-    #expect(try await queue.perform { 42 } == 42)
+    #expect(await queue.perform { 42 } == 42)
   }
 
   @Test
@@ -36,7 +36,7 @@ struct DispatchQueuePerformTests {
     let key = DispatchSpecificKey<Bool>()
     queue.setSpecific(key: key, value: true)
 
-    #expect(try await queue.perform { DispatchQueue.getSpecific(key: key) } == true)
+    #expect(await queue.perform { DispatchQueue.getSpecific(key: key) } == true)
   }
 
   @Test
@@ -54,7 +54,7 @@ struct DispatchQueuePerformTests {
     let queue = DispatchQueue(label: "com.facebook.fbcontrolcore.tests.perform")
     let counter = Counter()
 
-    try await queue.perform { counter.value += 1 }
+    await queue.perform { counter.value += 1 }
 
     #expect(counter.value == 1)
   }
