@@ -29,7 +29,7 @@ extension CodeInjectionError {
     case .invalidMessage:
       return RPCError(code: .internalError, message: "repl: invalid control-socket message")
     case let .readFailed(errno):
-      return RPCError(code: .internalError, message: "repl: failed to read from control socket: \(String(cString: strerror(errno)))")
+      return RPCError(code: .internalError, message: unsafe "repl: failed to read from control socket: \(String(cString: strerror(errno)))")
     case .writeFailed:
       return RPCError(code: .internalError, message: "repl: failed to write to control socket")
     case .hostCommandDidNotComplete:

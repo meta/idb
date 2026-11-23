@@ -164,14 +164,14 @@ public final class GRPCSwiftServer: @unchecked Sendable {
       var sb: stat = stat()
       try withUnsafeMutablePointer(to: &sb) { sbPtr in
         try syscall {
-          stat(path, sbPtr)
+          unsafe stat(path, sbPtr)
         }
       }
 
       if sb.st_mode & S_IFSOCK == S_IFSOCK {
         self.logger.info().log("Existed UDS socket found, unlinking")
         try syscall {
-          unlink(path)
+          unsafe unlink(path)
         }
         self.logger.info().log("UDS socket cleaned up")
       } else {

@@ -47,7 +47,7 @@ public enum CompanionServerSession {
       }
       let removeRegisteredSocket: @Sendable () -> Void = {
         if let registeredSocketPath {
-          Darwin.unlink(registeredSocketPath)
+          unsafe Darwin.unlink(registeredSocketPath)
         }
       }
 
@@ -102,7 +102,7 @@ public enum CompanionServerSession {
         // Target lifecycle operations serialize their access on the target's work queue.
         // patternlint-disable-next-line swift-nonisolated-unsafe
         nonisolated(unsafe) let target = target
-        raceTasks.append(Task { try await awaitTargetOffline(target, logger: logger) })
+        raceTasks.append(Task { unsafe try await awaitTargetOffline(target, logger: logger) })
       }
       let result = await Task.select(raceTasks).result
       raceTasks.forEach { $0.cancel() }

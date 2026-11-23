@@ -71,7 +71,7 @@ struct LogMethodHandler: @unchecked Sendable {
     // nonisolated(unsafe) so the observer Task can capture it.
     nonisolated(unsafe) let operationToObserve = operation
     let observeOperationCompletion = Task<Void, any Error> {
-      try await operationToObserve.waitUntilCompleted()
+      unsafe try await operationToObserve.waitUntilCompleted()
     }
     try await Task.select(observeWritingDone, observeOperationCompletion).value
     writingDone.happen()

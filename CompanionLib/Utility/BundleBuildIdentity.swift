@@ -27,11 +27,11 @@ enum BundleBuildIdentity {
   }
 
   private static func readRegularFile(at path: String) -> Data? {
-    let descriptor = Darwin.open(path, O_RDONLY | O_NOFOLLOW | O_NONBLOCK | O_CLOEXEC)
+    let descriptor = unsafe Darwin.open(path, O_RDONLY | O_NOFOLLOW | O_NONBLOCK | O_CLOEXEC)
     guard descriptor >= 0 else { return nil }
     defer { _ = Darwin.close(descriptor) }
     var metadata = stat()
-    guard fstat(descriptor, &metadata) == 0,
+    guard unsafe fstat(descriptor, &metadata) == 0,
       metadata.st_mode & mode_t(S_IFMT) == mode_t(S_IFREG),
       metadata.st_size > 0, metadata.st_size <= maximumBytes
     else { return nil }
@@ -40,7 +40,7 @@ enum BundleBuildIdentity {
       guard let base = buffer.baseAddress else { return false }
       var offset = 0
       while offset < buffer.count {
-        let count = Darwin.read(descriptor, base.advanced(by: offset), buffer.count - offset)
+        let count = unsafe Darwin.read(descriptor, base.advanced(by: offset), buffer.count - offset)
         if count < 0, errno == EINTR { continue }
         guard count > 0 else { return false }
         offset += count
@@ -48,7 +48,7 @@ enum BundleBuildIdentity {
       return true
     }
     var latest = stat()
-    guard complete, fstat(descriptor, &latest) == 0,
+    guard complete, unsafe fstat(descriptor, &latest) == 0,
       latest.st_size == metadata.st_size,
       latest.st_mtimespec.tv_sec == metadata.st_mtimespec.tv_sec,
       latest.st_mtimespec.tv_nsec == metadata.st_mtimespec.tv_nsec

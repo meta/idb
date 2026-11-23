@@ -11,8 +11,8 @@ import Foundation
 /// Writes `data` straight to the stdout file descriptor, bypassing stdio. A short or failed write is
 /// not reported; the stdout protocol has no way to signal one.
 public func writeToStandardOutput(_ data: Data) {
-  data.withUnsafeBytes { bytes in
+  unsafe data.withUnsafeBytes { bytes in
     guard let baseAddress = bytes.baseAddress else { return }
-    _ = Darwin.write(STDOUT_FILENO, baseAddress, bytes.count)
+    _ = unsafe Darwin.write(STDOUT_FILENO, baseAddress, bytes.count)
   }
 }

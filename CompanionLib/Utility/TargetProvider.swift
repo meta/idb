@@ -117,7 +117,7 @@ public enum TargetProvider {
       throw TargetProviderError.targetDidNotAppear(udid: udid, timeout: timeout, targetSetsDescription: String(describing: targetSets))
     }
     let waited = Double(DispatchTime.now().uptimeNanoseconds - start.uptimeNanoseconds) / Double(NSEC_PER_SEC)
-    logger.log("\(udid) appeared \(String(format: "%.3f", waited))s after its target sets were created")
+    logger.log(unsafe "\(udid) appeared \(String(format: "%.3f", waited))s after its target sets were created")
   }
 
   public static func target(withUDID udid: String, targetSets: [any TargetSet], warmUp: Bool, logger: any ControlCoreLogger) throws -> CompanionTarget {

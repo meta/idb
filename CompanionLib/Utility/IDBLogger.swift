@@ -6,7 +6,7 @@
  */
 
 import Darwin
-@preconcurrency import FBControlCore
+import FBControlCore
 import Foundation
 
 /// A failure to construct the companion's logger.
@@ -23,7 +23,7 @@ public enum IDBLoggerError: Error, CustomStringConvertible {
     case let .logDirectoryCreationFailed(path, underlyingError):
       return "Couldn't create the log directory at \(path): \(underlyingError)"
     case let .logFileOpenFailed(path, code):
-      return "Couldn't open the log file at \(path): \(String(cString: strerror(code)))"
+      return unsafe "Couldn't open the log file at \(path): \(String(cString: strerror(code)))"
     }
   }
 }
@@ -131,7 +131,7 @@ public final class IDBLogger: ControlCoreLogger {
 
     // O_CLOEXEC because the companion spawns processes throughout its life and
     // none of them have any business inheriting the log.
-    let fileDescriptor = open(logFileURL.path, O_WRONLY | O_APPEND | O_CREAT | O_CLOEXEC, 0o644)
+    let fileDescriptor = unsafe open(logFileURL.path, O_WRONLY | O_APPEND | O_CREAT | O_CLOEXEC, 0o644)
     let openError = errno
     guard fileDescriptor >= 0 else {
       throw IDBLoggerError.logFileOpenFailed(path: logFileURL.path, code: openError)

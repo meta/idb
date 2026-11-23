@@ -5,8 +5,8 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-@preconcurrency import FBControlCore
-@preconcurrency import FBDeviceControl
+import FBControlCore
+import FBDeviceControl
 import Foundation
 import GRPCCore
 import IDBGRPCSwift

@@ -54,7 +54,7 @@ public final class TargetStateChangeNotifier: TargetSetDelegate {
     )
 
     if !didCreateFile {
-      throw TargetStateChangeNotifierError.targetsFileCreationFailed(path: filePath, message: String(cString: strerror(errno)))
+      throw unsafe TargetStateChangeNotifierError.targetsFileCreationFailed(path: filePath, message: String(cString: strerror(errno)))
     }
 
     self.init(destination: filePath, targetSets: targetSets, logger: logger)
@@ -96,7 +96,7 @@ public final class TargetStateChangeNotifier: TargetSetDelegate {
           readyOutput.append(newline)
         }
         writeToStandardOutput(readyOutput)
-        fflush(stdout)
+        unsafe fflush(stdout)
       }
     }
   }
@@ -137,7 +137,7 @@ public final class TargetStateChangeNotifier: TargetSetDelegate {
   private func writeTargetsDataToStdOut(_ data: Data) -> Bool {
     writeToStandardOutput(data)
     writeToStandardOutput(Data("\n".utf8))
-    fflush(stdout)
+    unsafe fflush(stdout)
     return true
   }
 

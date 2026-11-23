@@ -5,7 +5,7 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-@preconcurrency import FBControlCore
+import FBControlCore
 import Foundation
 import IDBTelemetry
 
@@ -124,9 +124,9 @@ struct CompanionTelemetry {
   /// below one second, two-decimal seconds above it.
   static func formatDuration(_ duration: TimeInterval) -> String {
     if duration < 1 {
-      return String(format: "%.0fms", duration * 1000)
+      return unsafe String(format: "%.0fms", duration * 1000)
     }
-    return String(format: "%.2fs", duration)
+    return unsafe String(format: "%.2fs", duration)
   }
 
   /// Truncates over-long values to exactly `limit` characters, keeping the

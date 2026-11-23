@@ -34,11 +34,11 @@ struct PullMethodHandler {
     case ..<1024:
       return "\(bytes) B"
     case ..<(1024 * 1024):
-      return String(format: "%.1f KB", value / 1024)
+      return unsafe String(format: "%.1f KB", value / 1024)
     case ..<(1024 * 1024 * 1024):
-      return String(format: "%.1f MB", value / (1024 * 1024))
+      return unsafe String(format: "%.1f MB", value / (1024 * 1024))
     default:
-      return String(format: "%.1f GB", value / (1024 * 1024 * 1024))
+      return unsafe String(format: "%.1f GB", value / (1024 * 1024 * 1024))
     }
   }
 
