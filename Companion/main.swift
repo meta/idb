@@ -19,7 +19,7 @@ import IDBTelemetry
 if let temporaryDirectory = ProcessInfo.processInfo.environment["IDB_COMPANION_TMPDIR"].flatMap({ $0.isEmpty ? nil : $0 })
   ?? TemporaryDirectory.userDirectoryPath()
 {
-  setenv("TMPDIR", temporaryDirectory, 1)
+  unsafe setenv("TMPDIR", temporaryDirectory, 1)
 }
 
 // @oss-disable
@@ -124,7 +124,7 @@ private func writeJSONToStdOut(_ json: Any) {
     readyOutput.append(newline)
   }
   writeToStandardOutput(readyOutput)
-  fflush(stdout)
+  unsafe fflush(stdout)
 }
 
 private func writeTargetToStdOut(_ target: any TargetInfo) {
@@ -464,7 +464,7 @@ private func runSelectedCommand(_ userDefaults: UserDefaults, xcodeAvailable: Bo
   let clean = userDefaults.string(forKey: "-clean")
   let forward = userDefaults.string(forKey: "-forward")
 
-  let reporter = IDBConfiguration.eventReporter
+  let reporter = unsafe IDBConfiguration.eventReporter
   if let udid {
     try await runCompanionServer(udid, userDefaults: userDefaults, xcodeAvailable: xcodeAvailable, logger: logger, reporter: reporter)
   } else if list != nil {
@@ -525,8 +525,8 @@ private func waitForSignal(_ signalCode: Int32, exitMessage: String, logger: any
   }
   source.resume()
   var action = sigaction()
-  action.__sigaction_u.__sa_handler = SIG_IGN
-  sigaction(signalCode, &action, nil)
+  unsafe action.__sigaction_u.__sa_handler = SIG_IGN
+  unsafe sigaction(signalCode, &action, nil)
   defer { source.cancel() }
   return try await promise.wait()
 }
@@ -579,7 +579,7 @@ private func idbMain() async -> Int32 {
 
   guard XcodeConfiguration.developerDirectory != "" else {
     logger.error().log("Failed to resolve the Xcode developer directory. Ensure Xcode is installed and selected with xcode-select.")
-    fputs(kXcodeHelpMessage, stderr)
+    unsafe fputs(kXcodeHelpMessage, stderr)
     return 1
   }
 
