@@ -481,7 +481,7 @@ enum AccessibilityTranslatorRequests {
   }
 }
 
-typealias AccessibilityResponseHandler = (Any, @escaping (Any?) -> Void) -> Void
+typealias AccessibilityResponseHandler = (Any, @escaping @Sendable (AXPTranslatorResponse?) -> Void) -> Void
 
 // MARK: - Resolution without a client
 
@@ -510,7 +510,7 @@ class SimDeviceAccessibilityDouble: NSObject {
   private(set) var accessibilityRequests = NSMutableArray()
 
   @objc
-  func sendAccessibilityRequestAsync(_ request: Any, completionQueue queue: DispatchQueue, completionHandler handler: @escaping (Any?) -> Void) {
+  func sendAccessibilityRequestAsync(_ request: Any, completionQueue queue: DispatchQueue, completionHandler handler: @escaping @Sendable (Any?) -> Void) {
     requestsLock.withLock { accessibilityRequests.add(request) }
     if let responseHandler = accessibilityResponseHandler {
       responseHandler(request) { response in

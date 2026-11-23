@@ -1040,7 +1040,6 @@ final class SimulatorAccessibilityCommandsTests: XCTestCase {
   func testDisplayGeometryOverridesRootBoundsForFrontmostAndMarkerReads() async throws {
     let legacy = SimulatorInteractionDisplay.legacy(
       SimulatorDisplayGeometry(bounds: CGRect(x: 0, y: 0, width: 2007, height: 2853), scale: 3, rotation: .clockwise))
-    let context = AXTranslationDisplay.sole(legacy)
     try setUp(withRootElement: defaultElementTree, displays: DisplayCommandsDouble(.sole(legacy)))
     let automation = try simulator.uiAutomation(backend: .accessibility)
     for query: AccessibilityElementQuery in [.frontmost, .marker(value: "OK", key: .label, depth: 10)] {

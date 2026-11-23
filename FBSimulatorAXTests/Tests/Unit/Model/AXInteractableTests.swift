@@ -129,7 +129,7 @@ final class AXInteractableTests: XCTestCase {
   // hardcoded `true` on this backend.
   func testABackendWithoutTheAttributesReportsNull() {
     let value = Self.interactable(Self.node(isVisible: nil, visiblePoint: nil, centrePoint: nil, userInteractionEnabled: nil))
-    XCTAssertNotNil(value, "the key was requested, so it must be present")
+    XCTAssertNotNil(value as Any?, "the key was requested, so it must be present")
     XCTAssertNil(value ?? nil, "and its value must be an explicit null")
   }
 
