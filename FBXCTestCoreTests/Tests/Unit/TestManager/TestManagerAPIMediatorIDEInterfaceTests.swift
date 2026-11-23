@@ -147,7 +147,7 @@ struct TestManagerAPIMediatorIDEInterfaceTests {
       testedApplicationAdditionalEnvironment: [:],
       testConfiguration: testConfiguration)
     return TestManagerAPIMediatorIDEInterface(
-      mediator: unsafeBitCast(mediatorPlaceholder, to: TestManagerAPIMediator.self),
+      mediator: Unmanaged<TestManagerAPIMediator>.fromOpaque(Unmanaged.passUnretained(mediatorPlaceholder).toOpaque()).takeUnretainedValue(),
       context: context,
       reporter: reporter,
       logger: logger)
