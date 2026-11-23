@@ -5,7 +5,7 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-@preconcurrency import FBSimulatorControl
+import FBSimulatorControl
 
 // The simulator's profilers, added onto `Simulator` from outside `FBSimulatorControl` so that
 // consumers with no interest in profiling do not link them.

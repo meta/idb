@@ -7,7 +7,7 @@
 
 import FBControlCore
 import FBProfilingCore
-@preconcurrency import FBSimulatorControl
+import FBSimulatorControl
 import Foundation
 
 /// Profiles simulator processes with the runtime's own memory and sampling tools, which can read a `dyld_sim` process
