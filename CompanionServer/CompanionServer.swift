@@ -272,7 +272,7 @@ public final class CompanionServer: @unchecked Sendable {
     // socket file to remove. A TCP companion left both untouched.
     if case let .domainSocket(path)? = boundAddress {
       _ = try? registry.remove(udid: udid)
-      unlink(path)
+      unsafe unlink(path)
     }
     try await shutdownGroup()
   }
@@ -318,13 +318,13 @@ public final class CompanionServer: @unchecked Sendable {
   private func prepareSocketPath(_ path: String) throws {
     try paths.ensureBaseDirectory()
     var info = stat()
-    guard stat(path, &info) == 0 else {
+    guard unsafe stat(path, &info) == 0 else {
       return // nothing there (or unreadable); bind will surface any real error
     }
     guard (info.st_mode & S_IFMT) == S_IFSOCK else {
       throw CompanionServerError.socketPathOccupied(path: path)
     }
-    unlink(path)
+    unsafe unlink(path)
   }
 
   private func shutdownGroup() async throws {
