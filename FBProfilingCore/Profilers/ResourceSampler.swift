@@ -11,7 +11,7 @@ import Foundation
 
 private let machTimebase: mach_timebase_info_data_t = {
   var info = mach_timebase_info_data_t()
-  mach_timebase_info(&info)
+  unsafe mach_timebase_info(&info)
   return info
 }()
 
@@ -275,7 +275,7 @@ public enum ResourceSampler {
     var buffer = [CChar](repeating: 0, count: capacity)
     let written = buffer.withUnsafeMutableBufferPointer { pointer -> Int32 in
       guard let base = pointer.baseAddress else { return 0 }
-      return proc_name(pid, base, UInt32(capacity))
+      return unsafe proc_name(pid, base, UInt32(capacity))
     }
     guard written > 0 else { return nil }
     let bytes = buffer.prefix { $0 != 0 }.map { UInt8(bitPattern: $0) }
@@ -288,7 +288,7 @@ public enum ResourceSampler {
     var info = proc_bsdinfo()
     let size = Int32(MemoryLayout<proc_bsdinfo>.size)
     let returned = withUnsafeMutablePointer(to: &info) { pointer -> Int32 in
-      proc_pidinfo(pid, PROC_PIDTBSDINFO, 0, pointer, size)
+      unsafe proc_pidinfo(pid, PROC_PIDTBSDINFO, 0, pointer, size)
     }
     guard returned == size else { return nil }
     return Int64(info.pbi_start_tvsec)
@@ -299,7 +299,7 @@ public enum ResourceSampler {
     var info = proc_bsdshortinfo()
     let size = Int32(MemoryLayout<proc_bsdshortinfo>.size)
     let returned = withUnsafeMutablePointer(to: &info) { pointer -> Int32 in
-      proc_pidinfo(pid, PROC_PIDT_SHORTBSDINFO, 0, pointer, size)
+      unsafe proc_pidinfo(pid, PROC_PIDT_SHORTBSDINFO, 0, pointer, size)
     }
     guard returned == size else { return nil }
     return pid_t(info.pbsi_ppid)
@@ -313,7 +313,7 @@ public enum ResourceSampler {
     var pids = [pid_t](repeating: 0, count: count)
     let filledBytes = pids.withUnsafeMutableBufferPointer { pointer -> Int32 in
       guard let base = pointer.baseAddress else { return 0 }
-      return proc_listchildpids(parentPID, base, Int32(count * MemoryLayout<pid_t>.size))
+      return unsafe proc_listchildpids(parentPID, base, Int32(count * MemoryLayout<pid_t>.size))
     }
     guard filledBytes > 0 else { return [] }
     let filledCount = Int(filledBytes) / MemoryLayout<pid_t>.size
@@ -325,8 +325,8 @@ public enum ResourceSampler {
 private func readResourceUsage(pid: pid_t) -> rusage_info_current? {
   var info = rusage_info_current()
   let result = withUnsafeMutablePointer(to: &info) { pointer in
-    pointer.withMemoryRebound(to: rusage_info_t?.self, capacity: 1) { reboundPointer in
-      proc_pid_rusage(pid, RUSAGE_INFO_CURRENT, reboundPointer)
+    unsafe pointer.withMemoryRebound(to: rusage_info_t?.self, capacity: 1) { reboundPointer in
+      unsafe proc_pid_rusage(pid, RUSAGE_INFO_CURRENT, reboundPointer)
     }
   }
   return result == 0 ? info : nil
