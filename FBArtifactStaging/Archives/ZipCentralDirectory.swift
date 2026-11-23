@@ -97,7 +97,7 @@ public struct ZipCentralDirectory {
         }
         // The stream extractor skips AppleDouble entries it can recognise as they arrive.
         var status = stat()
-        if lstat(path, &status) != 0, errno == ENOENT {
+        if unsafe lstat(path, &status) != 0, errno == ENOENT {
           continue
         }
       }
@@ -319,7 +319,7 @@ public struct ZipCentralDirectory {
   }
 
   private static func setPermissions(_ mode: mode_t, atPath path: String) throws {
-    guard fchmodat(AT_FDCWD, path, mode & 0o7777, AT_SYMLINK_NOFOLLOW) == 0 else {
+    guard unsafe fchmodat(AT_FDCWD, path, mode & 0o7777, AT_SYMLINK_NOFOLLOW) == 0 else {
       throw POSIXError.current
     }
   }

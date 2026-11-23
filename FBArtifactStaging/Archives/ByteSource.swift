@@ -29,7 +29,7 @@ extension ByteSource {
 
   public func drain() throws {
     var chunk = [UInt8](repeating: 0, count: 1 << 16)
-    while try chunk.withUnsafeMutableBytes({ try read(into: $0) }) > 0 {}
+    while try chunk.withUnsafeMutableBytes({ unsafe try read(into: $0) }) > 0 {}
   }
 }
 
@@ -44,7 +44,7 @@ public final class FileDescriptorSource: ByteSource {
 
   public func read(into buffer: UnsafeMutableRawBufferPointer) throws -> Int {
     while true {
-      let count = Darwin.read(fileDescriptor, buffer.baseAddress, buffer.count)
+      let count = unsafe Darwin.read(fileDescriptor, buffer.baseAddress, buffer.count)
       if count >= 0 {
         return count
       }
@@ -70,11 +70,11 @@ final class FileRangeSource: ByteSource {
   }
 
   func read(into buffer: UnsafeMutableRawBufferPointer) throws -> Int {
-    guard remaining > 0, !buffer.isEmpty else {
+    guard remaining > 0, unsafe !buffer.isEmpty else {
       return 0
     }
     while true {
-      let count = pread(fileDescriptor, buffer.baseAddress, Int(min(UInt64(buffer.count), remaining)), off_t(offset))
+      let count = unsafe pread(fileDescriptor, buffer.baseAddress, Int(min(UInt64(buffer.count), remaining)), off_t(offset))
       if count >= 0 {
         offset += UInt64(count)
         remaining = count == 0 ? 0 : remaining - UInt64(count)
@@ -100,9 +100,9 @@ final class TeeSource: ByteSource {
   }
 
   func read(into buffer: UnsafeMutableRawBufferPointer) throws -> Int {
-    let count = try source.read(into: buffer)
+    let count = unsafe try source.read(into: buffer)
     if count > 0 {
-      try file.write(contentsOf: UnsafeRawBufferPointer(rebasing: buffer[..<count]))
+      unsafe try file.write(contentsOf: UnsafeRawBufferPointer(rebasing: buffer[..<count]))
     }
     return count
   }
@@ -146,12 +146,12 @@ public final class PeekableSource: ByteSource {
         guard let base = bytes.baseAddress else {
           return
         }
-        memmove(base, base + from, count)
+        unsafe memmove(base, base + from, count)
       }
       (start, end) = (0, count)
     }
     let offset = end
-    let count = try bytes.withUnsafeMutableBytes { try source.read(into: UnsafeMutableRawBufferPointer(rebasing: $0[offset...])) }
+    let count = try bytes.withUnsafeMutableBytes { unsafe try source.read(into: UnsafeMutableRawBufferPointer(rebasing: $0[offset...])) }
     ended = count == 0
     end += count
     return count > 0
@@ -168,7 +168,7 @@ public final class PeekableSource: ByteSource {
   }
 
   func withAvailable<T>(_ body: (UnsafeRawBufferPointer) throws -> T) rethrows -> T {
-    try bytes.withUnsafeBytes { try body(UnsafeRawBufferPointer(rebasing: $0[start..<end])) }
+    try bytes.withUnsafeBytes { unsafe try body(UnsafeRawBufferPointer(rebasing: $0[start..<end])) }
   }
 
   func consume(_ count: Int) {
@@ -181,12 +181,12 @@ public final class PeekableSource: ByteSource {
       guard !ended else {
         return 0
       }
-      let count = try source.read(into: buffer)
+      let count = unsafe try source.read(into: buffer)
       ended = count == 0
       return count
     }
     let count = min(available, buffer.count)
-    withAvailable { buffer.copyMemory(from: UnsafeRawBufferPointer(rebasing: $0[0..<count])) }
+    unsafe withAvailable { unsafe buffer.copyMemory(from: UnsafeRawBufferPointer(rebasing: $0[0..<count])) }
     start += count
     return count
   }
@@ -228,7 +228,7 @@ public final class GzipSource: ByteSource {
       guard try input.buffer(atLeast: 1) else {
         throw ArchiveError.corrupt("the gzip ends early")
       }
-      guard let step = input.withAvailable({ inflater.inflate($0, into: buffer) }) else {
+      guard let step = unsafe input.withAvailable({ unsafe inflater.inflate($0, into: buffer) }) else {
         throw ArchiveError.corrupt("the gzip does not inflate")
       }
       input.consume(step.consumed)
@@ -278,11 +278,11 @@ public final class GzippingSource: ByteSource {
     }
     while true {
       if start == end && !inputEnded {
-        let count = try input.withUnsafeMutableBytes { try source.read(into: $0) }
+        let count = try input.withUnsafeMutableBytes { unsafe try source.read(into: $0) }
         (start, end, inputEnded) = (0, count, count == 0)
       }
       let (from, to, finish) = (start, end, inputEnded)
-      guard let step = input.withUnsafeBytes({ deflater.deflate(UnsafeRawBufferPointer(rebasing: $0[from..<to]), into: buffer, finish: finish) }) else {
+      guard let step = input.withUnsafeBytes({ unsafe deflater.deflate(UnsafeRawBufferPointer(rebasing: $0[from..<to]), into: buffer, finish: finish) }) else {
         throw ArchiveCreationError.compressionFailed
       }
       start += step.consumed
@@ -341,7 +341,7 @@ public final class ZstdSource: ByteSource {
         state = .finished
         return 0
       }
-      guard let step = input.withAvailable({ decoder.decompress($0, into: buffer) }) else {
+      guard let step = unsafe input.withAvailable({ unsafe decoder.decompress($0, into: buffer) }) else {
         throw ArchiveError.corrupt("the zstd does not decompress")
       }
       input.consume(step.consumed)

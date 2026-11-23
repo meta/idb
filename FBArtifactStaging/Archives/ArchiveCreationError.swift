@@ -19,7 +19,7 @@ public enum ArchiveCreationError: Error, Equatable {
 
   /// The failure `errno` describes for the call that just failed on `path`.
   static func unreadable(atPath path: String) -> Self {
-    .unreadable(path: path, reason: String(cString: strerror(errno)))
+    unsafe .unreadable(path: path, reason: String(cString: strerror(errno)))
   }
 }
 

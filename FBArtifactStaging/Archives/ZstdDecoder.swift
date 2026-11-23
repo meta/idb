@@ -10,7 +10,8 @@ import Foundation
 internal import ZstdDecompress
 
 /// A zstd decompression stream. Frames are read one after another, and skippable frames are skipped.
-final class ZstdDecoder {
+// @safe: The stream is created here, freed in `deinit` and never handed out; callers lend their buffers for one call.
+@safe final class ZstdDecoder {
 
   struct Step {
     let consumed: Int
@@ -22,24 +23,24 @@ final class ZstdDecoder {
   private let stream: OpaquePointer
 
   init?() {
-    guard let stream = ZSTD_createDStream() else {
+    guard let stream = unsafe ZSTD_createDStream() else {
       return nil
     }
-    self.stream = stream
+    unsafe self.stream = unsafe stream
   }
 
   deinit {
-    ZSTD_freeDStream(stream)
+    unsafe ZSTD_freeDStream(stream)
   }
 
   /// Nil if `input` is not zstd.
   func decompress(_ input: UnsafeRawBufferPointer, into output: UnsafeMutableRawBufferPointer) -> Step? {
-    var inBuffer = ZSTD_inBuffer(src: input.baseAddress, size: input.count, pos: 0)
-    var outBuffer = ZSTD_outBuffer(dst: output.baseAddress, size: output.count, pos: 0)
-    let hint = ZSTD_decompressStream(stream, &outBuffer, &inBuffer)
+    var inBuffer = unsafe ZSTD_inBuffer(src: input.baseAddress, size: input.count, pos: 0)
+    var outBuffer = unsafe ZSTD_outBuffer(dst: output.baseAddress, size: output.count, pos: 0)
+    let hint = unsafe ZSTD_decompressStream(stream, &outBuffer, &inBuffer)
     guard ZSTD_isError(hint) == 0 else {
       return nil
     }
-    return Step(consumed: inBuffer.pos, produced: outBuffer.pos, frameEnded: hint == 0)
+    return unsafe Step(consumed: inBuffer.pos, produced: outBuffer.pos, frameEnded: hint == 0)
   }
 }

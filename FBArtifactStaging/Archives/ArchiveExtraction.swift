@@ -14,7 +14,7 @@ public struct ArchiveExtractionSummary: Equatable, Sendable {
   public var bytes: UInt64
 
   func description(from source: String, since start: Date) -> String {
-    "Extracted \(files) files, \(bytes) bytes, from \(source) in-process in \(String(format: "%.2f", Date().timeIntervalSince(start)))s"
+    unsafe "Extracted \(files) files, \(bytes) bytes, from \(source) in-process in \(String(format: "%.2f", Date().timeIntervalSince(start)))s"
   }
 }
 
@@ -26,19 +26,19 @@ enum ArchiveExtraction {
   static let writerCount = 8
 
   static func makeDirectory(_ path: String) throws {
-    if mkdir(path, 0o755) == 0 {
+    if unsafe mkdir(path, 0o755) == 0 {
       return
     }
     let error = POSIXError.current
     var info = stat()
-    guard error.code == .EEXIST, lstat(path, &info) == 0, info.st_mode & S_IFMT == S_IFDIR else {
+    guard error.code == .EEXIST, unsafe lstat(path, &info) == 0, info.st_mode & S_IFMT == S_IFDIR else {
       throw error
     }
   }
 
   /// Exclusive: an archive naming a path twice is left to an extractor with an opinion on it.
   static func createFile(_ path: String) throws -> Int32 {
-    let fd = open(path, O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW | O_CLOEXEC, 0o644)
+    let fd = unsafe open(path, O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW | O_CLOEXEC, 0o644)
     guard fd >= 0 else {
       throw POSIXError.current
     }
@@ -51,7 +51,7 @@ enum ArchiveExtraction {
     }
     var offset = 0
     while offset < buffer.count {
-      let written = Darwin.write(fd, base + offset, buffer.count - offset)
+      let written = unsafe Darwin.write(fd, base + offset, buffer.count - offset)
       guard written > 0 else {
         throw POSIXError.current
       }
@@ -62,7 +62,7 @@ enum ArchiveExtraction {
   /// Gives a written file its entry's metadata. Extended attributes are best effort, as for `bsdtar`: some are the system's to set.
   static func finishFile(_ fd: Int32, mode: mode_t?, modified: timespec?, extendedAttributes: [String: Data] = [:]) throws {
     for (name, value) in extendedAttributes {
-      _ = value.withUnsafeBytes { fsetxattr(fd, name, $0.baseAddress, $0.count, 0, 0) }
+      _ = unsafe value.withUnsafeBytes { unsafe fsetxattr(fd, name, $0.baseAddress, $0.count, 0, 0) }
     }
     if let mode {
       guard fchmod(fd, mode & 0o7777) == 0 else {
@@ -71,7 +71,7 @@ enum ArchiveExtraction {
     }
     if let modified {
       let times = [modified, modified]
-      guard futimens(fd, times) == 0 else {
+      guard unsafe futimens(fd, times) == 0 else {
         throw POSIXError.current
       }
     }
@@ -79,7 +79,7 @@ enum ArchiveExtraction {
 
   static func setTimes(_ modified: timespec, on path: String, flags: Int32 = 0) throws {
     let times = [modified, modified]
-    guard utimensat(AT_FDCWD, path, times, flags) == 0 else {
+    guard unsafe utimensat(AT_FDCWD, path, times, flags) == 0 else {
       throw POSIXError.current
     }
   }

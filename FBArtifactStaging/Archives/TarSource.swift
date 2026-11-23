@@ -48,7 +48,7 @@ final class TarSource: ByteSource {
   /// A directory, followed if `path` is a symlink to one, is archived as `./`; anything else by its last path component.
   init(path: String) {
     var isDirectory: ObjCBool = false
-    if FileManager.default.fileExists(atPath: path, isDirectory: &isDirectory), isDirectory.boolValue {
+    if unsafe FileManager.default.fileExists(atPath: path, isDirectory: &isDirectory), isDirectory.boolValue {
       pending = [Node(name: "./", path: path)]
       rootPending = true
     } else {
@@ -69,14 +69,14 @@ final class TarSource: ByteSource {
       if outputStart < output.count {
         let count = min(output.count - outputStart, buffer.count - written)
         output.withUnsafeBytes { output in
-          UnsafeMutableRawBufferPointer(rebasing: buffer[written..<written + count]).copyMemory(from: UnsafeRawBufferPointer(rebasing: output[outputStart..<outputStart + count]))
+          unsafe UnsafeMutableRawBufferPointer(rebasing: buffer[written..<written + count]).copyMemory(from: UnsafeRawBufferPointer(rebasing: output[outputStart..<outputStart + count]))
         }
         outputStart += count
         written += count
         continue
       }
       if var current = file {
-        let count = try readFile(&current, into: UnsafeMutableRawBufferPointer(rebasing: buffer[written...]))
+        let count = unsafe try readFile(&current, into: UnsafeMutableRawBufferPointer(rebasing: buffer[written...]))
         written += count
         file = current
         if current.remaining == 0 {
@@ -106,7 +106,7 @@ final class TarSource: ByteSource {
     let isRoot = rootPending
     rootPending = false
     // The root directory is followed through a symlink, as `-C <directory> .` follows it; everything beneath is not.
-    guard (isRoot ? stat(node.path, &status) : lstat(node.path, &status)) == 0 else {
+    guard unsafe (isRoot ? stat(node.path, &status) : lstat(node.path, &status)) == 0 else {
       throw ArchiveCreationError.unreadable(atPath: node.path)
     }
     let mode = Int(status.st_mode) & 0o7777
@@ -134,7 +134,7 @@ final class TarSource: ByteSource {
       guard size > 0 else {
         return
       }
-      let descriptor = open(node.path, O_RDONLY | O_CLOEXEC)
+      let descriptor = unsafe open(node.path, O_RDONLY | O_CLOEXEC)
       guard descriptor >= 0 else {
         throw ArchiveCreationError.unreadable(atPath: node.path)
       }
@@ -148,21 +148,21 @@ final class TarSource: ByteSource {
   }
 
   private static func children(ofDirectory path: String) throws -> [String] {
-    guard let directory = opendir(path) else {
+    guard let directory = unsafe opendir(path) else {
       throw ArchiveCreationError.unreadable(atPath: path)
     }
-    defer { closedir(directory) }
+    defer { unsafe closedir(directory) }
     var children: [String] = []
     while true {
       // `readdir` returns nil at the end and on failure alike, telling them apart only by `errno`.
       errno = 0
-      guard let entry = readdir(directory) else {
+      guard let entry = unsafe readdir(directory) else {
         guard errno == 0 else {
           throw ArchiveCreationError.unreadable(atPath: path)
         }
         return children.sorted()
       }
-      let name = withUnsafeBytes(of: entry.pointee.d_name) { String(decoding: $0.prefix(Int(entry.pointee.d_namlen)), as: UTF8.self) }
+      let name = unsafe withUnsafeBytes(of: entry.pointee.d_name) { unsafe String(decoding: $0.prefix(Int(entry.pointee.d_namlen)), as: UTF8.self) }
       if name != "." && name != ".." {
         children.append(name)
       }
@@ -172,7 +172,7 @@ final class TarSource: ByteSource {
   private func readFile(_ file: inout OpenFile, into buffer: UnsafeMutableRawBufferPointer) throws -> Int {
     let wanted = min(file.remaining, buffer.count)
     while true {
-      let count = Darwin.read(file.descriptor, buffer.baseAddress, wanted)
+      let count = unsafe Darwin.read(file.descriptor, buffer.baseAddress, wanted)
       if count > 0 {
         file.remaining -= count
         return count

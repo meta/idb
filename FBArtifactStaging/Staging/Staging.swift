@@ -233,14 +233,14 @@ public enum Staging {
       return true
     }
     var isDirectory: ObjCBool = false
-    guard FileManager.default.fileExists(atPath: path, isDirectory: &isDirectory), !isDirectory.boolValue else {
+    guard unsafe FileManager.default.fileExists(atPath: path, isDirectory: &isDirectory), !isDirectory.boolValue else {
       return false
     }
     guard kind.canBeAFile else {
       return true
     }
     // Not `FileHandle(forReadingFrom:)`, whose error for an unreadable file says it couldn't be saved.
-    let descriptor = open(path, O_RDONLY | O_CLOEXEC)
+    let descriptor = unsafe open(path, O_RDONLY | O_CLOEXEC)
     guard descriptor >= 0 else {
       let posix = POSIXError.current
       throw CocoaError(posix.code == .EACCES ? .fileReadNoPermission : .fileReadUnknown, userInfo: [NSFilePathErrorKey: path, NSUnderlyingErrorKey: posix])
@@ -277,7 +277,7 @@ public enum Staging {
     case .localPath(let path):
       return try await runExtractStage(to: extractPath, totalStart: totalStart, onProgress: onProgress) {
         if case .dylib(let name) = kind {
-          let descriptor = open(path, O_RDONLY | O_CLOEXEC)
+          let descriptor = unsafe open(path, O_RDONLY | O_CLOEXEC)
           guard descriptor >= 0 else {
             throw POSIXError.current
           }
@@ -397,7 +397,7 @@ public enum Staging {
       let output = try FileHandle(forWritingTo: file)
       defer { try? output.close() }
       var chunk = [UInt8](repeating: 0, count: 1 << 16)
-      while case let count = try chunk.withUnsafeMutableBytes({ try handedOver.value.read(into: $0) }), count > 0 {
+      while case let count = try chunk.withUnsafeMutableBytes({ unsafe try handedOver.value.read(into: $0) }), count > 0 {
         try output.write(contentsOf: chunk[..<count])
       }
     }.get()
@@ -440,9 +440,9 @@ public enum Staging {
     let onEvent: @Sendable (DataDownloadEvent) -> Void = { event in
       switch event {
       case .response(let expectedContentLength):
-        progress.observe(expectedContentLength: expectedContentLength)
+        unsafe progress.observe(expectedContentLength: expectedContentLength)
       case .data(let byteCount):
-        guard let update = progress.track(byteCount: byteCount) else {
+        guard let update = unsafe progress.track(byteCount: byteCount) else {
           return
         }
         onProgress(
@@ -486,7 +486,7 @@ public enum Staging {
           throw (download.failedOnItsOwn ? nil : extractionFailure.withLock { $0 }) ?? error
         }
         onReport(.download(report))
-        onProgress(
+        unsafe onProgress(
           .downloadCompleted(
             timing: .measure(stageStart: downloadStart, totalStart: totalStart),
             totalBytes: progress.downloadedBytes))

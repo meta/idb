@@ -31,7 +31,7 @@ public enum ZipStreamExtractor {
         let relative = try ZipCentralDirectory.safeRelativePath(header.path)
         defer { seen.insert(ArchiveExtraction.trimmingTrailingSlash(relative)) }
         if header.path.hasSuffix("/") {
-          try reader.decode(header) { _ in }
+          unsafe try reader.decode(header) { _ in }
           if !relative.isEmpty {
             try created.create(relative)
             directories.append(((root as NSString).appendingPathComponent(relative), header.modified))
@@ -39,7 +39,7 @@ public enum ZipStreamExtractor {
           continue
         }
         if ArchiveExtraction.isMacMetadata(relative) {
-          try reader.decode(header) { _ in }
+          unsafe try reader.decode(header) { _ in }
           continue
         }
         // `ditto` puts each file's AppleDouble entry straight after it, so skipping
@@ -47,7 +47,7 @@ public enum ZipStreamExtractor {
         var appleDoubleCandidate: Data?
         if ArchiveExtraction.isAppleDouble(relative, alongside: seen) {
           var contents = Data()
-          try reader.decode(header) { contents.append(contentsOf: $0) }
+          unsafe try reader.decode(header) { unsafe contents.append(contentsOf: $0) }
           if contents.starts(with: ArchiveExtraction.appleDoubleMagic) {
             continue
           }
@@ -55,12 +55,12 @@ public enum ZipStreamExtractor {
         }
         try created.create((relative as NSString).deletingLastPathComponent)
         var size: UInt64 = 0
-        try writer.write((root as NSString).appendingPathComponent(relative), modified: header.modified.map(ArchiveExtraction.fileTime)) { output in
+        unsafe try writer.write((root as NSString).appendingPathComponent(relative), modified: header.modified.map(ArchiveExtraction.fileTime)) { output in
           guard let contents = appleDoubleCandidate else {
-            size = try reader.decode(header, into: output)
+            size = unsafe try reader.decode(header, into: output)
             return
           }
-          try contents.withUnsafeBytes { try output($0) }
+          unsafe try contents.withUnsafeBytes { unsafe try output($0) }
           size = UInt64(contents.count)
         }
         summary.files += 1
@@ -177,13 +177,13 @@ public enum ZipStreamExtractor {
       guard try input.buffer(atLeast: 4) else {
         return nil
       }
-      return input.withAvailable { Data($0[0..<4]) }.uint32(at: 0)
+      return unsafe input.withAvailable { unsafe Data($0[0..<4]) }.uint32(at: 0)
     }
 
     mutating func read(_ count: Int) throws -> Data {
       try ensure(count)
       defer { input.consume(count) }
-      return input.withAvailable { Data($0[0..<count]) }
+      return unsafe input.withAvailable { unsafe Data($0[0..<count]) }
     }
 
     mutating func drain() throws {
@@ -194,7 +194,7 @@ public enum ZipStreamExtractor {
     /// CRC, and returns their size.
     @discardableResult
     mutating func decode(_ header: LocalHeader, into output: (UnsafeRawBufferPointer) throws -> Void) throws -> UInt64 {
-      let decoded = try ZipEntryData.decode(header.path, method: header.method, compressedSize: header.compressedSize, from: input, into: output)
+      let decoded = unsafe try ZipEntryData.decode(header.path, method: header.method, compressedSize: header.compressedSize, from: input, into: output)
       var expected = (crc32: header.crc32, size: header.size)
       if header.flags & 8 != 0 {
         if try peekSignature() == ZipSignature.dataDescriptor {

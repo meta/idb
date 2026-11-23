@@ -35,9 +35,9 @@ final class DownloadSpool: @unchecked Sendable {
 
   init(directory: URL = FileManager.default.temporaryDirectory) {
     let path = directory.appendingPathComponent("idb-download-\(UUID().uuidString)").path
-    let writeDescriptor = open(path, O_WRONLY | O_CREAT | O_EXCL | O_CLOEXEC, 0o600)
-    readDescriptor = writeDescriptor >= 0 ? open(path, O_RDONLY | O_CLOEXEC) : -1
-    unlink(path)
+    let writeDescriptor = unsafe open(path, O_WRONLY | O_CREAT | O_EXCL | O_CLOEXEC, 0o600)
+    readDescriptor = unsafe writeDescriptor >= 0 ? open(path, O_RDONLY | O_CLOEXEC) : -1
+    unsafe unlink(path)
     guard writeDescriptor >= 0, readDescriptor >= 0 else {
       if writeDescriptor >= 0 {
         close(writeDescriptor)
@@ -120,7 +120,7 @@ final class DownloadSpool: @unchecked Sendable {
         return 0
       }
       while true {
-        let count = pread(spool.readDescriptor, buffer.baseAddress, min(buffer.count, written - offset), off_t(offset))
+        let count = unsafe pread(spool.readDescriptor, buffer.baseAddress, min(buffer.count, written - offset), off_t(offset))
         if count >= 0 {
           offset += count
           return count

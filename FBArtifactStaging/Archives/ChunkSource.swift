@@ -119,8 +119,8 @@ public final class ChunkSource: ByteSource, @unchecked Sendable {
     }
     let chunk = chunks[first]
     let count = min(buffer.count, chunk.count - offset)
-    chunk.withUnsafeBytes { bytes in
-      buffer.copyMemory(from: UnsafeRawBufferPointer(rebasing: bytes[offset..<offset + count]))
+    unsafe chunk.withUnsafeBytes { bytes in
+      unsafe buffer.copyMemory(from: UnsafeRawBufferPointer(rebasing: bytes[offset..<offset + count]))
     }
     offset += count
     waiting -= count

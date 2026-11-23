@@ -93,11 +93,11 @@ public enum ArchiveOperations {
         let gzip = try GzipSource(source.value)
         var buffer = [UInt8](repeating: 0, count: 1 << 20)
         while true {
-          let count = try buffer.withUnsafeMutableBytes { try gzip.read(into: $0) }
+          let count = try buffer.withUnsafeMutableBytes { unsafe try gzip.read(into: $0) }
           guard count > 0 else {
             break
           }
-          try buffer.withUnsafeBytes { try ArchiveExtraction.writeAll(UnsafeRawBufferPointer(rebasing: $0[0..<count]), to: file) }
+          try buffer.withUnsafeBytes { unsafe try ArchiveExtraction.writeAll(UnsafeRawBufferPointer(rebasing: $0[0..<count]), to: file) }
         }
         try gzip.drain()
       } catch {
@@ -153,7 +153,7 @@ public enum ArchiveOperations {
     logger: any ControlCoreLogger
   ) async throws -> Data {
     try await readToEnd {
-      let descriptor = open(path, O_RDONLY | O_CLOEXEC)
+      let descriptor = unsafe open(path, O_RDONLY | O_CLOEXEC)
       guard descriptor >= 0 else {
         throw ArchiveCreationError.unreadable(atPath: path)
       }
@@ -197,7 +197,7 @@ public enum ArchiveOperations {
       var data = Data()
       var chunk = [UInt8](repeating: 0, count: 1 << 16)
       while true {
-        let count = try chunk.withUnsafeMutableBytes { try source.read(into: $0) }
+        let count = try chunk.withUnsafeMutableBytes { unsafe try source.read(into: $0) }
         guard count > 0 else {
           break
         }
@@ -227,7 +227,7 @@ public enum ArchiveOperations {
 
   private static func archiveRoot(forPath path: String, logger: any ControlCoreLogger) throws -> (directory: String, fileName: String) {
     var isDirectory: ObjCBool = false
-    guard FileManager.default.fileExists(atPath: path, isDirectory: &isDirectory) else {
+    guard unsafe FileManager.default.fileExists(atPath: path, isDirectory: &isDirectory) else {
       throw ArchiveCreationError.pathDoesNotExist(path: path)
     }
 
@@ -272,7 +272,7 @@ private final class StandardInputWriter: Sendable {
     while !stopped.withLock({ $0 }) {
       let count: Int
       do {
-        count = try chunk.withUnsafeMutableBytes { try source.read(into: $0) }
+        count = try chunk.withUnsafeMutableBytes { unsafe try source.read(into: $0) }
       } catch {
         throw SourceFailure(underlying: error)
       }

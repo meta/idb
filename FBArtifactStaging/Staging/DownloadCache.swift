@@ -94,7 +94,7 @@ public struct DownloadCache: Sendable {
       path.deleteLastPathComponent()
     }
     var stats = statfs()
-    guard statfs(path.path, &stats) == 0 else {
+    guard unsafe statfs(path.path, &stats) == 0 else {
       return nil
     }
     return Int64(stats.f_bavail) * Int64(stats.f_bsize)
@@ -125,7 +125,7 @@ public struct DownloadCache: Sendable {
       hash ^= UInt64(byte)
       hash = hash &* 0x0000_0100_0000_01b3
     }
-    return String(format: "%016llx", hash)
+    return unsafe String(format: "%016llx", hash)
   }
 
   private func treeURL(_ name: String) -> URL {
@@ -183,7 +183,7 @@ public struct DownloadCache: Sendable {
 
   private static func inode(of url: URL) -> UInt64? {
     var info = stat()
-    guard lstat(url.path, &info) == 0 else {
+    guard unsafe lstat(url.path, &info) == 0 else {
       return nil
     }
     return UInt64(info.st_ino)
@@ -208,7 +208,7 @@ public struct DownloadCache: Sendable {
     guard contains(identity) else {
       return false
     }
-    guard clonefile(treeURL(name).path, destination.path, 0) == 0 else {
+    guard unsafe clonefile(treeURL(name).path, destination.path, 0) == 0 else {
       logger.info().log("Install cache entry \(name) could not be cloned (\(POSIXError.current)); downloading instead")
       try? FileManager.default.removeItem(at: destination)
       return false
@@ -246,11 +246,11 @@ public struct DownloadCache: Sendable {
       if !contains(identity) {
         remove(Entry(name: name, used: .distantPast, bytes: 0, expiry: nil), deleting: .later, removals: &removals, logger: logger)
       }
-      guard clonefile(tree.path, staging.path, 0) == 0 else {
+      guard unsafe clonefile(tree.path, staging.path, 0) == 0 else {
         throw POSIXError.current
       }
       try identity.write(to: identityURL(name), atomically: true, encoding: .utf8)
-      if rename(staging.path, treeURL(name).path) != 0 {
+      if unsafe rename(staging.path, treeURL(name).path) != 0 {
         let error = POSIXError.current
         try? fileManager.removeItem(at: staging)
         guard error.code == .ENOTEMPTY || error.code == .EEXIST else {
@@ -398,7 +398,7 @@ public struct DownloadCache: Sendable {
     }
     try? FileManager.default.createDirectory(at: trashURL, withIntermediateDirectories: true)
     let destination = trashURL.appendingPathComponent("\(tree.lastPathComponent)-\(UUID().uuidString)")
-    return rename(tree.path, destination.path) == 0
+    return unsafe rename(tree.path, destination.path) == 0
   }
 
   static func allocatedBytes(of tree: URL) -> Int64 {

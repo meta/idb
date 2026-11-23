@@ -76,7 +76,7 @@ extension DownloadReport.Trust {
   /// is only for a download that has already failed.
   public init(evaluating trust: SecTrust) {
     var error: CFError?
-    let trusted = SecTrustEvaluateWithError(trust, &error)
+    let trusted = unsafe SecTrustEvaluateWithError(trust, &error)
     let certificates = SecTrustCopyCertificateChain(trust) as? [SecCertificate] ?? []
     self.init(
       error: trusted ? nil : error.map { ($0 as any Error).localizedDescription } ?? "untrusted",
@@ -90,7 +90,7 @@ extension DownloadReport.Trust {
     guard let value, CFGetTypeID(value) == SecTrustGetTypeID() else {
       return nil
     }
-    self.init(evaluating: unsafeDowncast(value, to: SecTrust.self))
+    unsafe self.init(evaluating: unsafeDowncast(value, to: SecTrust.self))
   }
 }
 
@@ -98,7 +98,7 @@ extension DownloadReport.Certificate {
 
   init(certificate: SecCertificate) {
     var commonName: CFString?
-    SecCertificateCopyCommonName(certificate, &commonName)
+    unsafe SecCertificateCopyCommonName(certificate, &commonName)
     let keys = [kSecOIDX509V1IssuerName, kSecOIDX509V1ValidityNotAfter] as CFArray
     let values = SecCertificateCopyValues(certificate, keys, nil) as? [String: [String: Any]] ?? [:]
     let issuer =

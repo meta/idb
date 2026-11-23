@@ -110,8 +110,8 @@ public enum TarStreamExtractor {
             continue
           }
           try created.create((relative as NSString).deletingLastPathComponent)
-          try writer.write(destination, mode: header.mode, modified: modified, extendedAttributes: attributes) {
-            try reader.contents(size, into: $0)
+          unsafe try writer.write(destination, mode: header.mode, modified: modified, extendedAttributes: attributes) {
+            unsafe try reader.contents(size, into: $0)
           }
           files.insert(relative)
           summary.files += 1
@@ -122,7 +122,7 @@ public enum TarStreamExtractor {
             throw ArchiveError.unsafePath(path)
           }
           try created.create((relative as NSString).deletingLastPathComponent)
-          guard symlink(link, destination) == 0 else {
+          guard unsafe symlink(link, destination) == 0 else {
             throw POSIXError.current
           }
           setExtendedAttributes(attributes, on: destination)
@@ -148,7 +148,7 @@ public enum TarStreamExtractor {
     try writer.finish()
     // Once their targets are written.
     for (path, target) in hardlinks {
-      guard linkat(AT_FDCWD, target, AT_FDCWD, path, 0) == 0 else {
+      guard unsafe linkat(AT_FDCWD, target, AT_FDCWD, path, 0) == 0 else {
         throw POSIXError.current
       }
     }
@@ -158,7 +158,7 @@ public enum TarStreamExtractor {
       if !overrideModificationTime {
         try ArchiveExtraction.setTimes(modified, on: path)
       }
-      guard chmod(path, mode & 0o7777) == 0 else {
+      guard unsafe chmod(path, mode & 0o7777) == 0 else {
         throw POSIXError.current
       }
     }
@@ -189,7 +189,7 @@ public enum TarStreamExtractor {
   /// Best effort, as for `bsdtar`: some attributes are the system's to set.
   private static func setExtendedAttributes(_ attributes: [String: Data], on path: String) {
     for (name, value) in attributes {
-      _ = value.withUnsafeBytes { setxattr(path, name, $0.baseAddress, $0.count, 0, XATTR_NOFOLLOW) }
+      _ = unsafe value.withUnsafeBytes { unsafe setxattr(path, name, $0.baseAddress, $0.count, 0, XATTR_NOFOLLOW) }
     }
   }
 
@@ -355,7 +355,7 @@ public enum TarStreamExtractor {
       guard try input.buffer(atLeast: 512) else {
         return nil
       }
-      return input.withAvailable { Array($0[0..<512]) }
+      return unsafe input.withAvailable { unsafe Array($0[0..<512]) }
     }
 
     /// Nil at the end of the input. An archive without the blocks of zeros that
@@ -379,7 +379,7 @@ public enum TarStreamExtractor {
           throw ArchiveError.corrupt("the tar ends partway through an entry")
         }
         let count = Int(min(UInt64(input.available), remaining))
-        try input.withAvailable { try output(UnsafeRawBufferPointer(rebasing: $0[0..<count])) }
+        unsafe try input.withAvailable { unsafe try output(UnsafeRawBufferPointer(rebasing: $0[0..<count])) }
         input.consume(count)
         remaining -= UInt64(count)
       }
@@ -395,7 +395,7 @@ public enum TarStreamExtractor {
     }
 
     func skip(_ size: UInt64) throws {
-      try contents(size) { _ in }
+      unsafe try contents(size) { _ in }
     }
 
     /// The contents of an entry describing the next, which are bounded to keep a
@@ -405,7 +405,7 @@ public enum TarStreamExtractor {
         throw ArchiveError.unsupported("a tar metadata entry of \(size) bytes")
       }
       var data = Data()
-      try contents(size) { data.append(contentsOf: $0) }
+      unsafe try contents(size) { unsafe data.append(contentsOf: $0) }
       return data
     }
 
@@ -428,7 +428,7 @@ public enum TarStreamExtractor {
     func read(into buffer: UnsafeMutableRawBufferPointer) throws -> Int {
       let start = DispatchTime.now().uptimeNanoseconds
       defer { wait += Double(DispatchTime.now().uptimeNanoseconds - start) / 1e9 }
-      return try source.read(into: buffer)
+      return unsafe try source.read(into: buffer)
     }
 
     func drain() throws {

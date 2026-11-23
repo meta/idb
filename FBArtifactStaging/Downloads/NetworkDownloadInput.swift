@@ -335,14 +335,14 @@ final class NetworkDownloadInput: Sendable {
     if scheme == "https" {
       let tls = NWProtocolTLS.Options()
       let security = tls.securityProtocolOptions
-      sec_protocol_options_set_tls_server_name(security, host)
-      sec_protocol_options_add_tls_application_protocol(security, "http/1.1")
+      unsafe sec_protocol_options_set_tls_server_name(security, host)
+      unsafe sec_protocol_options_add_tls_application_protocol(security, "http/1.1")
       // The same evaluation `URLSession` makes, against the URL's host rather than the address connected to, keeping
       // the chain of a server that fails it for the download's report.
       sec_protocol_options_set_verify_block(
         security,
         { _, trust, complete in
-          let trust = sec_trust_copy_ref(trust).takeRetainedValue()
+          let trust = unsafe sec_trust_copy_ref(trust).takeRetainedValue()
           SecTrustSetPolicies(trust, SecPolicyCreateSSL(true, host as CFString))
           let trusted = SecTrustEvaluateWithError(trust, nil)
           if !trusted {

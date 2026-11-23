@@ -168,7 +168,7 @@ public struct InProcessTarExtractor: ArchiveExtractor {
       logger.log("Extracting a stream that is not a tar with \(type(of: fallback))")
       try await fallback.extract(from: read, to: extractPath, options: options, logger: logger)
     case .extracted(let summary, let waits):
-      logger.log("\(summary.description(from: "a tar stream", since: start)), waiting \(String(format: "%.2f", waits.input))s for input and \(String(format: "%.2f", waits.writers))s for writers")
+      logger.log(unsafe "\(summary.description(from: "a tar stream", since: start)), waiting \(String(format: "%.2f", waits.input))s for input and \(String(format: "%.2f", waits.writers))s for writers")
     }
   }
 }

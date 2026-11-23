@@ -49,16 +49,16 @@ final class ParallelFileWriter {
     var contents = Data()
     var inline: Int32?
     defer { inline.map { _ = close($0) } }
-    try produce { buffer in
+    unsafe try produce { buffer in
       if let fd = inline {
-        try ArchiveExtraction.writeAll(buffer, to: fd)
+        unsafe try ArchiveExtraction.writeAll(buffer, to: fd)
         return
       }
-      contents.append(contentsOf: buffer)
+      unsafe contents.append(contentsOf: buffer)
       if contents.count > Self.inlineThreshold {
         let fd = try ArchiveExtraction.createFile(path)
         inline = fd
-        try contents.withUnsafeBytes { try ArchiveExtraction.writeAll($0, to: fd) }
+        unsafe try contents.withUnsafeBytes { unsafe try ArchiveExtraction.writeAll($0, to: fd) }
         contents = Data()
       }
     }
@@ -104,7 +104,7 @@ final class ParallelFileWriter {
   private static func write(_ file: File, overrideModificationTime: Bool) throws {
     let fd = try ArchiveExtraction.createFile(file.path)
     defer { close(fd) }
-    try file.contents.withUnsafeBytes { try ArchiveExtraction.writeAll($0, to: fd) }
+    unsafe try file.contents.withUnsafeBytes { unsafe try ArchiveExtraction.writeAll($0, to: fd) }
     try finish(file, fd: fd, overrideModificationTime: overrideModificationTime)
   }
 

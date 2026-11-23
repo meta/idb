@@ -23,7 +23,7 @@ public enum ZipExtractor {
   @discardableResult
   public static func extract(archiveAtPath archivePath: String, to root: String, overrideModificationTime: Bool = false) throws -> ArchiveExtractionSummary {
     let plan = try Plan(ZipCentralDirectory(archiveAtPath: archivePath).entries)
-    let archive = open(archivePath, O_RDONLY | O_CLOEXEC)
+    let archive = unsafe open(archivePath, O_RDONLY | O_CLOEXEC)
     guard archive >= 0 else {
       throw POSIXError.current
     }
@@ -59,11 +59,11 @@ public enum ZipExtractor {
     // Last, so that nothing is written through one.
     for (entry, relative) in plan.symlinks {
       var target = Data()
-      try decode(entry, from: archive) { target.append(contentsOf: $0) }
+      unsafe try decode(entry, from: archive) { unsafe target.append(contentsOf: $0) }
       guard let destination = String(data: target, encoding: .utf8) else {
         throw ArchiveError.corrupt("symlink target of \(relative)")
       }
-      guard symlink(destination, (root as NSString).appendingPathComponent(relative)) == 0 else {
+      guard unsafe symlink(destination, (root as NSString).appendingPathComponent(relative)) == 0 else {
         throw POSIXError.current
       }
     }
@@ -75,7 +75,7 @@ public enum ZipExtractor {
         try ArchiveExtraction.setTimes(ArchiveExtraction.fileTime(modified), on: path)
       }
       if let mode = entry.mode, mode != 0 {
-        guard chmod(path, mode & 0o7777) == 0 else {
+        guard unsafe chmod(path, mode & 0o7777) == 0 else {
           throw POSIXError.current
         }
       }
@@ -142,17 +142,17 @@ public enum ZipExtractor {
     let path = (root as NSString).appendingPathComponent(file.relative)
     if file.appleDoubleCandidate {
       var contents = Data()
-      try decode(file.entry, from: archive) { contents.append(contentsOf: $0) }
+      unsafe try decode(file.entry, from: archive) { unsafe contents.append(contentsOf: $0) }
       if contents.starts(with: ArchiveExtraction.appleDoubleMagic) {
         return false
       }
-      try write(to: path, entry: file.entry, overrideModificationTime: overrideModificationTime) { output in
-        try contents.withUnsafeBytes { try output($0) }
+      unsafe try write(to: path, entry: file.entry, overrideModificationTime: overrideModificationTime) { output in
+        unsafe try contents.withUnsafeBytes { unsafe try output($0) }
       }
       return true
     }
-    try write(to: path, entry: file.entry, overrideModificationTime: overrideModificationTime) { output in
-      try decode(file.entry, from: archive, into: output)
+    unsafe try write(to: path, entry: file.entry, overrideModificationTime: overrideModificationTime) { output in
+      unsafe try decode(file.entry, from: archive, into: output)
     }
     return true
   }
@@ -165,7 +165,7 @@ public enum ZipExtractor {
   ) throws {
     let fd = try ArchiveExtraction.createFile(path)
     defer { close(fd) }
-    try contents { try ArchiveExtraction.writeAll($0, to: fd) }
+    unsafe try contents { unsafe try ArchiveExtraction.writeAll($0, to: fd) }
     let mode = entry.mode.flatMap { $0 & 0o7777 == 0 ? nil : $0 }
     try ArchiveExtraction.finishFile(fd, mode: mode, modified: overrideModificationTime ? nil : entry.modified.map(ArchiveExtraction.fileTime))
   }
@@ -173,14 +173,14 @@ public enum ZipExtractor {
   /// Calls `output` with the entry's contents in order, checking their size and CRC.
   private static func decode(_ entry: ZipCentralDirectory.Entry, from archive: Int32, into output: (UnsafeRawBufferPointer) throws -> Void) throws {
     var header = [UInt8](repeating: 0, count: 30)
-    guard pread(archive, &header, 30, off_t(entry.localHeaderOffset)) == 30, Data(header).uint32(at: 0) == ZipSignature.localHeader else {
+    guard unsafe pread(archive, &header, 30, off_t(entry.localHeaderOffset)) == 30, Data(header).uint32(at: 0) == ZipSignature.localHeader else {
       throw ArchiveError.corrupt("no local header for \(entry.path)")
     }
     let dataOffset = entry.localHeaderOffset + 30 + UInt64(Data(header).uint16(at: 26)) + UInt64(Data(header).uint16(at: 28))
     var decoded: (crc32: UInt32, size: UInt64) = (0, 0)
     if entry.compressedSize > 0 {
       let input = PeekableSource(FileRangeSource(archive, offset: dataOffset, length: entry.compressedSize), capacity: 1 << 20)
-      decoded = try ZipEntryData.decode(entry.path, method: entry.method, compressedSize: entry.compressedSize, from: input, into: output)
+      decoded = unsafe try ZipEntryData.decode(entry.path, method: entry.method, compressedSize: entry.compressedSize, from: input, into: output)
     }
     guard decoded.size == entry.size, decoded.crc32 == entry.crc32 else {
       throw ArchiveError.corrupt("\(entry.path) does not match its size or CRC")

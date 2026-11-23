@@ -60,7 +60,7 @@ public struct SniffingExtractor: ArchiveExtractor {
     switch Self.format(ofFileAt: path) {
     case .zstd, .zstdZip:
       // `bsdtar` on macOS cannot decompress zstd, so a zstd file is read as the stream it holds.
-      let descriptor = open(path, O_RDONLY | O_CLOEXEC)
+      let descriptor = unsafe open(path, O_RDONLY | O_CLOEXEC)
       guard descriptor >= 0 else {
         throw POSIXError.current
       }
