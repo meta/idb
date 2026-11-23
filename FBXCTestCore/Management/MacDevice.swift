@@ -10,7 +10,7 @@ import Foundation
 import IOKit
 
 @objc private protocol XCTestManager_XPCControl {
-  func _XCT_requestConnectedSocketForTransport(_ arg1: @escaping (FileHandle?, Error?) -> Void)
+  func _XCT_requestConnectedSocketForTransport(_ arg1: @escaping (FileHandle?, (any Error)?) -> Void)
 }
 
 public enum MacDeviceError: Error {
@@ -115,11 +115,11 @@ public final class MacDevice: Target {
     self.init(logger: ControlCoreGlobalConfiguration.defaultLogger, catalyst: false)
   }
 
-  public convenience init(logger: ControlCoreLogger) {
+  public convenience init(logger: any ControlCoreLogger) {
     self.init(logger: logger, catalyst: false)
   }
 
-  public init(logger: ControlCoreLogger, catalyst: Bool) {
+  public init(logger: any ControlCoreLogger, catalyst: Bool) {
     architectures = Array(ArchitectureProcessAdapter.hostMachineSupportedArchitectures())
     asyncQueue = DispatchQueue.global(qos: .userInitiated)
     let explicitTmpDirectory = ProcessInfo.processInfo.environment["IDB_MAC_AUXILLIARY_DIR"]
@@ -148,7 +148,7 @@ public final class MacDevice: Target {
   /// Kills every launched application and uninstalls every registered one, reporting the first
   /// failure only after every teardown has run.
   func restorePrimaryDeviceState() throws {
-    var firstFailure: Error?
+    var firstFailure: (any Error)?
     for bundleID in Array(bundleIDToRunningTask.keys) {
       do {
         try killApplication(withBundleID: bundleID)
@@ -206,7 +206,7 @@ public final class MacDevice: Target {
   private func makeTransportForTestManagerService() throws -> FileHandle {
     let logger = self.logger
     let connection = NSXPCConnection(machServiceName: "com.apple.testmanagerd.control", options: [])
-    let interface = NSXPCInterface(with: XCTestManager_XPCControl.self)
+    let interface = NSXPCInterface(with: (any XCTestManager_XPCControl).self)
     connection.remoteObjectInterface = interface
     connection.interruptionHandler = { [weak self] in
       self?.connection = nil
@@ -217,18 +217,18 @@ public final class MacDevice: Target {
       logger.log("Invalidated connection with test manager daemon")
     }
     connection.resume()
-    var proxyError: Error?
+    var proxyError: (any Error)?
     let rawProxy = connection.synchronousRemoteObjectProxyWithErrorHandler { [weak self] error in
       logger.log("Error occurred during synchronousRemoteObjectProxyWithErrorHandler call: \(error.localizedDescription)")
       self?.connection = nil
       proxyError = error
     }
-    guard let proxy = rawProxy as? XCTestManager_XPCControl else {
+    guard let proxy = rawProxy as? any XCTestManager_XPCControl else {
       throw MacDeviceError.testManagerProxyNonConformant(proxyDescription: String(describing: rawProxy))
     }
 
     self.connection = connection
-    var error: Error?
+    var error: (any Error)?
     var transport: FileHandle?
     proxy._XCT_requestConnectedSocketForTransport { file, xctError in
       if file == nil {
@@ -352,7 +352,7 @@ extension MacDevice: XCTestExtendedCommands {
     reporter: AnyObject,
     logger: any ControlCoreLogger
   ) async throws {
-    guard let typedReporter = reporter as? XCTestReporter else {
+    guard let typedReporter = reporter as? any XCTestReporter else {
       throw MacDeviceError.unexpectedReporter(reporterDescription: String(describing: reporter))
     }
     try await ManagedTestRunner.runToCompletion(
@@ -390,7 +390,7 @@ extension MacDevice: ApplicationCommands {
     try uninstallApplication(withBundleID: bundleID)
   }
 
-  public func launch(_ configuration: ApplicationLaunchConfiguration) async throws -> LaunchedApplication {
+  public func launch(_ configuration: ApplicationLaunchConfiguration) async throws -> any LaunchedApplication {
     guard let bundle = bundleIDToProductMap[configuration.bundleID] else {
       throw MacDeviceError.applicationNotFound(bundleID: configuration.bundleID)
     }

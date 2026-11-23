@@ -9,7 +9,7 @@ import FBControlCore
 import Foundation
 
 enum ManagedTestRunError: Error, LocalizedError {
-  case frameworkLoadingFailed(underlying: Error)
+  case frameworkLoadingFailed(underlying: any Error)
 
   public var errorDescription: String? {
     switch self {
@@ -21,7 +21,7 @@ enum ManagedTestRunError: Error, LocalizedError {
 
 public enum ManagedTestRunner {
 
-  public static func runToCompletion(withTarget target: any XCTestExtendedTarget, configuration: TestLaunchConfiguration, codesign: CodesignProvider?, workingDirectory: String, reporter: XCTestReporter, logger: ControlCoreLogger) async throws {
+  public static func runToCompletion(withTarget target: any XCTestExtendedTarget, configuration: TestLaunchConfiguration, codesign: CodesignProvider?, workingDirectory: String, reporter: any XCTestReporter, logger: any ControlCoreLogger) async throws {
     do {
       try XCTestBootstrapFrameworkLoader.allDependentFrameworks.loadPrivateFrameworks(target.logger)
     } catch {

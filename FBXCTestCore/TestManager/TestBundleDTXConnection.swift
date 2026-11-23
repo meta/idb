@@ -45,7 +45,7 @@ import ObjectiveC
 }
 
 @objc private protocol DTXRemoteInvocationReceiptCompletion {
-  @objc(handleCompletion:) func handleCompletion(_ completion: @escaping (AnyObject?, Error?) -> Void)
+  @objc(handleCompletion:) func handleCompletion(_ completion: @escaping (AnyObject?, (any Error)?) -> Void)
 }
 
 private let protocolVersion = 36
@@ -63,12 +63,12 @@ final class TestBundleDTXConnection: NSObject {
   private let interface: NSObject
   private let delegate: TestBundleEvents
   private let requestQueue: DispatchQueue
-  private let logger: TestManagerLogSink
+  private let logger: any TestManagerLogSink
 
-  private var testManagerdConnection: DTXConnectionMessaging?
+  private var testManagerdConnection: (any DTXConnectionMessaging)?
   // Set from the proxy handler's queue and read once the delegate has been told the bundle is ready.
   private let testBundleProxyLock = NSLock()
-  private var testBundleProxy: XCTestDriverMessaging?
+  private var testBundleProxy: (any XCTestDriverMessaging)?
 
   private static let clientProcessUniqueIdentifier = ProcessInfo.processInfo.globallyUniqueString
 
@@ -89,7 +89,7 @@ final class TestBundleDTXConnection: NSObject {
     interface: NSObject,
     delegate: TestBundleEvents,
     request requestQueue: DispatchQueue,
-    logger: TestManagerLogSink
+    logger: any TestManagerLogSink
   ) {
     self.context = context
     self.workQueue = workQueue
@@ -118,21 +118,21 @@ final class TestBundleDTXConnection: NSObject {
     let socket = testManagerdSocket
     let logger = self.logger
     logger.log("Wrapping testmanagerd socket (\(socket)) in DTXTransport and DTXConnection")
-    let connection: DTXConnectionMessaging
+    let connection: any DTXConnectionMessaging
     do {
       // DTX asserts internally on a dead socket; the raise would otherwise cross Swift frames, where
       // it cannot be caught, and abort the process.
       connection = try FBObjCExceptionGuard.guarded {
         guard
           let allocatedTransport = RuntimeClassAllocation.alloc("DTXSocketTransport"),
-          let transport = unsafeBitCast(allocatedTransport, to: DTXSocketTransportMessaging.self)
+          let transport = unsafeBitCast(allocatedTransport, to: (any DTXSocketTransportMessaging).self)
             .initialize(connectedSocket: socket, disconnectAction: { logger.log("Notified that daemon socket disconnected") }),
           let allocatedConnection = RuntimeClassAllocation.alloc("DTXConnection"),
-          let connection = unsafeBitCast(allocatedConnection, to: DTXConnectionMessaging.self).initialize(transport: transport)
+          let connection = unsafeBitCast(allocatedConnection, to: (any DTXConnectionMessaging).self).initialize(transport: transport)
         else {
           throw XCTestBootstrapErrors.testFailure("DTXConnectionServices is not loaded")
         }
-        return unsafeBitCast(connection, to: DTXConnectionMessaging.self)
+        return unsafeBitCast(connection, to: (any DTXConnectionMessaging).self)
       }
     } catch {
       throw XCTestBootstrapErrors.testFailure("Failed to wrap testmanagerd socket \(socket) in DTXConnection: \(error)")
@@ -173,16 +173,16 @@ final class TestBundleDTXConnection: NSObject {
     _ = proxy?.startExecutingTestPlan(protocolVersion: NSNumber(value: protocolVersion))
   }
 
-  private func setupTestBundleConnection(_ connection: DTXConnectionMessaging) {
+  private func setupTestBundleConnection(_ connection: any DTXConnectionMessaging) {
     logger.log("Listening for proxy connection request from the test bundle (all platforms)")
     connection.handleProxyRequest(
       interface: Self.protocolNamed("XCTMessagingChannel_RunnerToIDE"),
       peerInterface: Self.protocolNamed("XCTMessagingChannel_IDEToRunner")
     ) { [self] channel in
       logger.log("Got proxy channel request from test bundle")
-      let channel = unsafeBitCast(channel, to: DTXProxyChannelMessaging.self)
+      let channel = unsafeBitCast(channel, to: (any DTXProxyChannelMessaging).self)
       channel.setExportedObject(self, queue: workQueue)
-      let proxy = unsafeBitCast(channel.remoteObjectProxy(), to: XCTestDriverMessaging.self)
+      let proxy = unsafeBitCast(channel.remoteObjectProxy(), to: (any XCTestDriverMessaging).self)
       testBundleProxyLock.withLock { testBundleProxy = proxy }
       delegate.testBundleConnectionDidOpenProxyChannel()
     }
@@ -190,16 +190,16 @@ final class TestBundleDTXConnection: NSObject {
     connection.resume()
   }
 
-  private func sendStartSessionRequest(_ connection: DTXConnectionMessaging) {
+  private func sendStartSessionRequest(_ connection: any DTXConnectionMessaging) {
     logger.log("Checking test manager availability...")
     let proxyChannel = unsafeBitCast(
       connection.makeProxyChannel(
         remoteInterface: Self.protocolNamed("XCTMessagingChannel_IDEToDaemon"),
         exportedInterface: Self.protocolNamed("XCTMessagingChannel_DaemonToIDE")),
-      to: DTXProxyChannelMessaging.self)
+      to: (any DTXProxyChannelMessaging).self)
     proxyChannel.setAllowedClassesForTestingProtocols()
     proxyChannel.setExportedObject(self, queue: workQueue)
-    let remoteProxy = unsafeBitCast(proxyChannel.remoteObjectProxy(), to: XCTestManagerDaemonConnectionMessaging.self)
+    let remoteProxy = unsafeBitCast(proxyChannel.remoteObjectProxy(), to: (any XCTestManagerDaemonConnectionMessaging).self)
 
     logger.log("Starting test session with ID \(context.sessionIdentifier.uuidString)")
     let sessionStartMethod: String
@@ -224,7 +224,7 @@ final class TestBundleDTXConnection: NSObject {
         path: Self.clientProcessDisplayPath as NSString,
         protocolVersion: NSNumber(value: protocolVersion))
     }
-    let receipt = unsafeBitCast(request, to: DTXRemoteInvocationReceiptCompletion.self)
+    let receipt = unsafeBitCast(request, to: (any DTXRemoteInvocationReceiptCompletion).self)
     receipt.handleCompletion { [self] result, error in
       proxyChannel.cancel()
       if let error {
@@ -237,7 +237,7 @@ final class TestBundleDTXConnection: NSObject {
     }
   }
 
-  private func conclude(with error: Error) {
+  private func conclude(with error: any Error) {
     logger.log("Test Completed with error: \(error)")
     delegate.testBundleConnectionBundleDidFailWithError(error)
   }

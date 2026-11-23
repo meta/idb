@@ -10,10 +10,10 @@ import Foundation
 
 public final class LogicReporterAdapter: LogicXCTestReporter {
 
-  private let reporter: XCTestReporter
-  private let logger: ControlCoreLogger?
+  private let reporter: any XCTestReporter
+  private let logger: (any ControlCoreLogger)?
 
-  public init(reporter: XCTestReporter, logger: ControlCoreLogger?) {
+  public init(reporter: any XCTestReporter, logger: (any ControlCoreLogger)?) {
     self.reporter = reporter
     self.logger = logger?.withName("LogicReporterAdapter") as (any ControlCoreLogger)?
   }
@@ -85,7 +85,7 @@ public final class LogicReporterAdapter: LogicXCTestReporter {
     }
   }
 
-  public func didCrashDuringTest(_ error: Error) {
+  public func didCrashDuringTest(_ error: any Error) {
     reporter.didCrashDuringTest(error)
     reporter.processUnderTestDidExit()
   }

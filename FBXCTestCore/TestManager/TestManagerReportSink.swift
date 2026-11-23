@@ -29,9 +29,9 @@ protocol TestManagerReportSink: AnyObject {
 }
 
 final class XCTestReporterSink: TestManagerReportSink {
-  private let reporter: XCTestReporter
+  private let reporter: any XCTestReporter
 
-  init(_ reporter: XCTestReporter) {
+  init(_ reporter: any XCTestReporter) {
     self.reporter = reporter
   }
 

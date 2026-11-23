@@ -14,7 +14,7 @@ private let daemonSessionReadyTimeout: TimeInterval = 60
 private let crashCheckWaitLimit: TimeInterval = 120
 
 enum TestBundleConnectionError: Error {
-  case hostRelaunchedByOS(underlying: Error)
+  case hostRelaunchedByOS(underlying: any Error)
   case hostStalled(processIdentifier: pid_t, stackshot: String)
   case hostCrashed(crashLog: String)
   case connectionLost(message: String)
@@ -46,7 +46,7 @@ enum TestPlanOutcome {
   case unfinished
   case finished
   /// The bundle reported a failure, such as UI testing failing to initialize, before finishing.
-  case failed(Error)
+  case failed(any Error)
 }
 
 /// What the test bundle and testmanagerd have done over the connection, as events to wait on.
@@ -70,7 +70,7 @@ final class TestBundleEvents: @unchecked Sendable {
   }
 
   /// testmanagerd answered the session request, with an error if it refused it.
-  func testBundleConnectionDidStartSessionWithError(_ error: Error?) {
+  func testBundleConnectionDidStartSessionWithError(_ error: (any Error)?) {
     if let error {
       sessionStarted.fail(error)
     } else {
@@ -84,7 +84,7 @@ final class TestBundleEvents: @unchecked Sendable {
   }
 
   /// The test bundle cannot run: a protocol mismatch, or UI testing failing to initialize.
-  func testBundleConnectionBundleDidFailWithError(_ error: Error) {
+  func testBundleConnectionBundleDidFailWithError(_ error: any Error) {
     bundleReady.fail(error)
     endTestPlan(.failed(error))
   }
@@ -115,18 +115,18 @@ final class TestBundleConnection {
   private let target: any Target
   private let socket: Int32
   private let interface: NSObject
-  private let testHostApplication: LaunchedApplication
+  private let testHostApplication: any LaunchedApplication
   private let requestQueue: DispatchQueue
-  private let logger: ControlCoreLogger
+  private let logger: any ControlCoreLogger
 
   init(
     context: TestManagerContext,
     target: any Target,
     socket: Int32,
     interface: NSObject,
-    testHostApplication: LaunchedApplication,
+    testHostApplication: any LaunchedApplication,
     requestQueue: DispatchQueue,
-    logger: ControlCoreLogger
+    logger: any ControlCoreLogger
   ) {
     self.context = context
     self.target = target
@@ -188,7 +188,7 @@ final class TestBundleConnection {
 
   // MARK: - Diagnosis
 
-  private func diagnosedConnectionError(from error: Error) async -> Error {
+  private func diagnosedConnectionError(from error: any Error) async -> any Error {
     let bundleID = context.testHostLaunchConfiguration.bundleID
     let runningPid: pid_t
     do {
@@ -208,7 +208,7 @@ final class TestBundleConnection {
     return error
   }
 
-  private func crashLogOrNotFoundError(description notFound: String) async -> Error {
+  private func crashLogOrNotFoundError(description notFound: String) async -> any Error {
     if let crashLog = try? await findCrashedProcessLog() {
       return TestBundleConnectionError.hostCrashed(crashLog: String(describing: crashLog))
     }

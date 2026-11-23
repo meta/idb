@@ -29,7 +29,7 @@ enum XCTestResultToolError: Error, LocalizedError {
 
 enum XCTestResultToolOperation {
 
-  public static func json(from path: String, forId bundleObjectId: String?, logger: ControlCoreLogger?, timeout: TimeInterval? = nil) async throws -> [String: Any] {
+  public static func json(from path: String, forId bundleObjectId: String?, logger: (any ControlCoreLogger)?, timeout: TimeInterval? = nil) async throws -> [String: Any] {
     logger?.log("Getting json for id \(bundleObjectId ?? "nil")")
     var arguments = withLegacyFlag(["get", "--path", path, "--format", "json"])
     if let bundleObjectId, !bundleObjectId.isEmpty {
@@ -38,20 +38,20 @@ enum XCTestResultToolOperation {
     return try jsonObject(parsing: try await xcresulttool(arguments: arguments, logger: logger, timeout: timeout))
   }
 
-  public static func exportFile(from path: String, to destination: String, forId bundleObjectId: String, logger: ControlCoreLogger?, timeout: TimeInterval? = nil) async throws {
+  public static func exportFile(from path: String, to destination: String, forId bundleObjectId: String, logger: (any ControlCoreLogger)?, timeout: TimeInterval? = nil) async throws {
     _ = try await xcresulttool(
       arguments: withLegacyFlag(["export", "--path", path, "--output-path", destination, "--id", bundleObjectId, "--type", "file"]),
       logger: logger,
       timeout: timeout)
   }
 
-  public static func exportDirectory(from path: String, to destination: String, forId bundleObjectId: String, logger: ControlCoreLogger?) async throws {
+  public static func exportDirectory(from path: String, to destination: String, forId bundleObjectId: String, logger: (any ControlCoreLogger)?) async throws {
     _ = try await xcresulttool(
       arguments: withLegacyFlag(["export", "--path", path, "--output-path", destination, "--id", bundleObjectId, "--type", "directory"]),
       logger: logger)
   }
 
-  public static func exportJPEG(from path: String, to destination: String, forId bundleObjectId: String, type encodeType: String, logger: ControlCoreLogger?, timeout: TimeInterval? = nil) async throws {
+  public static func exportJPEG(from path: String, to destination: String, forId bundleObjectId: String, type encodeType: String, logger: (any ControlCoreLogger)?, timeout: TimeInterval? = nil) async throws {
     // The export runs first, so an unusable result bundle masks the encoding
     // check: a caller with both problems only learns about the export.
     try await exportFile(from: path, to: destination, forId: bundleObjectId, logger: logger, timeout: timeout)
@@ -72,11 +72,11 @@ enum XCTestResultToolOperation {
     return [subcommand, "--legacy"] + arguments.dropFirst()
   }
 
-  private static func xcresulttool(arguments: [String], logger: ControlCoreLogger?, timeout: TimeInterval? = nil) async throws -> String {
+  private static func xcresulttool(arguments: [String], logger: (any ControlCoreLogger)?, timeout: TimeInterval? = nil) async throws -> String {
     try await run(XcrunPath, arguments: ["xcresulttool"] + arguments, logger: logger, timeout: timeout)
   }
 
-  private static func run(_ executable: String, arguments: [String], logger: ControlCoreLogger?, timeout: TimeInterval? = nil) async throws -> String {
+  private static func run(_ executable: String, arguments: [String], logger: (any ControlCoreLogger)?, timeout: TimeInterval? = nil) async throws -> String {
     let subprocess = Subprocess(executable: executable, arguments: arguments)
     guard let logger else {
       return try await subprocess.run(timeout: timeout).standardOutput

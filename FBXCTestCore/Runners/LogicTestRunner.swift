@@ -11,15 +11,15 @@ import Foundation
 private let EndOfFileTimeout: TimeInterval = 5
 
 private struct LogicTestRunConsumers {
-  let stdOut: DataConsumer
-  let stdErr: DataConsumer
+  let stdOut: any DataConsumer
+  let stdErr: any DataConsumer
   let stdErrBuffer: ConsumableBuffer
-  let shim: DataConsumer & DataConsumerLifecycle
+  let shim: any DataConsumer & DataConsumerLifecycle
 }
 
 enum LogicTestRunError: Error {
   case xctestProcessFailed(exitCode: Int32, exitDescription: String, stdErr: String)
-  case sigstopWaitFailed(processIdentifier: pid_t, underlying: Error)
+  case sigstopWaitFailed(processIdentifier: pid_t, underlying: any Error)
 }
 
 extension LogicTestRunError: LocalizedError {
@@ -37,10 +37,10 @@ public final class LogicTestRunner {
 
   private let target: any LogicTestTarget
   private let configuration: LogicTestConfiguration
-  private let reporter: LogicXCTestReporter
-  private let logger: ControlCoreLogger
+  private let reporter: any LogicXCTestReporter
+  private let logger: any ControlCoreLogger
 
-  public init(target: any LogicTestTarget, configuration: LogicTestConfiguration, reporter: LogicXCTestReporter, logger: ControlCoreLogger) {
+  public init(target: any LogicTestTarget, configuration: LogicTestConfiguration, reporter: any LogicXCTestReporter, logger: any ControlCoreLogger) {
     self.target = target
     self.configuration = configuration
     self.reporter = reporter
@@ -129,7 +129,7 @@ public final class LogicTestRunner {
     return try await XCTestProcess.awaitExitCode(of: process, processName: processName, completesWithin: configuration.testTimeout, crashLogCommands: target.crashLog, logger: logger)
   }
 
-  private func finishReadingShim(_ shimOutput: FileBackedOutput, consumer: DataConsumerLifecycle) async {
+  private func finishReadingShim(_ shimOutput: FileBackedOutput, consumer: any DataConsumerLifecycle) async {
     logger.log("xctest process terminated, Tearing down IO.")
     await shimOutput.finish()
     // Bounded so that a consumer that never finishes delays the result without failing the run.
@@ -181,9 +181,9 @@ public final class LogicTestRunner {
     let mirrorToLogger = (configuration.mirroring.rawValue & LogicTestMirrorLogs.logger.rawValue) != 0
     let mirrorToFiles = (configuration.mirroring.rawValue & LogicTestMirrorLogs.fileLogs.rawValue) != 0
 
-    var shimConsumers: [DataConsumer] = []
-    var stdOutConsumers: [DataConsumer] = []
-    var stdErrConsumers: [DataConsumer] = []
+    var shimConsumers: [any DataConsumer] = []
+    var stdOutConsumers: [any DataConsumer] = []
+    var stdErrConsumers: [any DataConsumer] = []
 
     let shimReportingConsumer = LineConsumer(
       delivery: .queue(queue),

@@ -15,9 +15,9 @@ private let kEnvLogDirectoryPath = "LOG_DIRECTORY_PATH"
 
 /// The ways runner-configuration preparation can fail, as data rather than assembled strings.
 enum TestRunnerConfigurationError: Error, LocalizedError {
-  case codesignCheckFailed(bundlePath: String, underlying: Error)
-  case testBundlePreparationFailed(underlying: Error)
-  case testConfigurationPreparationFailed(underlying: Error)
+  case codesignCheckFailed(bundlePath: String, underlying: any Error)
+  case testBundlePreparationFailed(underlying: any Error)
+  case testConfigurationPreparationFailed(underlying: any Error)
 
   public var errorDescription: String? {
     switch self {

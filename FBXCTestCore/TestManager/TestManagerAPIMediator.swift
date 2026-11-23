@@ -39,12 +39,12 @@ public final class TestManagerAPIMediator: NSObject, @unchecked Sendable {
 
   private let context: TestManagerContext
   private let target: any XCTestExtendedTarget
-  private let reporter: XCTestReporter
-  private let logger: ControlCoreLogger
+  private let reporter: any XCTestReporter
+  private let logger: any ControlCoreLogger
   private let requestQueue: DispatchQueue
 
   private let tokenLock = NSLock()
-  private var tokenToLaunchedApp: [NSNumber: LaunchedApplication] = [:]
+  private var tokenToLaunchedApp: [NSNumber: any LaunchedApplication] = [:]
 
   private lazy var ideInterface = TestManagerAPIMediatorIDEInterface(mediator: self, context: context, reporter: XCTestReporterSink(reporter), logger: ControlCoreLoggerSink(logger))
 
@@ -54,8 +54,8 @@ public final class TestManagerAPIMediator: NSObject, @unchecked Sendable {
   public static func connectAndRunUntilCompletion(
     with context: TestManagerContext,
     target: any XCTestExtendedTarget,
-    reporter: XCTestReporter,
-    logger: ControlCoreLogger
+    reporter: any XCTestReporter,
+    logger: any ControlCoreLogger
   ) async throws {
     let mediator = TestManagerAPIMediator(context: context, target: target, reporter: reporter, logger: logger)
     try await mediator.connectAndRunUntilCompletion()
@@ -64,8 +64,8 @@ public final class TestManagerAPIMediator: NSObject, @unchecked Sendable {
   private init(
     context: TestManagerContext,
     target: any XCTestExtendedTarget,
-    reporter: XCTestReporter,
-    logger: ControlCoreLogger
+    reporter: any XCTestReporter,
+    logger: any ControlCoreLogger
   ) {
     self.context = context
     self.target = target
@@ -79,7 +79,7 @@ public final class TestManagerAPIMediator: NSObject, @unchecked Sendable {
 
   private func connectAndRunUntilCompletion() async throws {
     let timeout = context.timeout <= 0 ? Self.defaultTestTimeout : context.timeout
-    let result: Result<Void, Error>
+    let result: Result<Void, any Error>
     do {
       let launchedApplication = try await target.application.launch(context.testHostLaunchConfiguration)
       do {
@@ -105,7 +105,7 @@ public final class TestManagerAPIMediator: NSObject, @unchecked Sendable {
     try result.get()
   }
 
-  private func runUntilCompletion(launchedApplication: LaunchedApplication, timeout: TimeInterval) async throws {
+  private func runUntilCompletion(launchedApplication: any LaunchedApplication, timeout: TimeInterval) async throws {
     // The timeout is applied to the lifecycle of the entire application.
     let outcome = try await withThrowingTaskGroup(of: RunOutcome.self) { group in
       group.addTask {
@@ -151,19 +151,19 @@ public final class TestManagerAPIMediator: NSObject, @unchecked Sendable {
 
   // MARK: - Spawned process token map (synchronous, lock-guarded)
 
-  private func storeToken(_ token: NSNumber, launchedApplication: LaunchedApplication) {
+  private func storeToken(_ token: NSNumber, launchedApplication: any LaunchedApplication) {
     tokenLock.lock()
     defer { tokenLock.unlock() }
     tokenToLaunchedApp[token] = launchedApplication
   }
 
-  private func launchedApplication(forToken token: NSNumber) -> LaunchedApplication? {
+  private func launchedApplication(forToken token: NSNumber) -> (any LaunchedApplication)? {
     tokenLock.lock()
     defer { tokenLock.unlock() }
     return tokenToLaunchedApp[token]
   }
 
-  private func drainSpawnedApplications() -> [LaunchedApplication] {
+  private func drainSpawnedApplications() -> [any LaunchedApplication] {
     tokenLock.lock()
     defer { tokenLock.unlock() }
     let apps = Array(tokenToLaunchedApp.values)
@@ -191,7 +191,7 @@ public final class TestManagerAPIMediator: NSObject, @unchecked Sendable {
     bundleID: String,
     arguments: [String],
     environment: [String: String],
-    completion: @escaping @Sendable (Error?) -> Void
+    completion: @escaping @Sendable ((any Error)?) -> Void
   ) {
     logger.log("Test process requested process launch with bundleID \(bundleID)")
     Task {
@@ -206,7 +206,7 @@ public final class TestManagerAPIMediator: NSObject, @unchecked Sendable {
   }
 
   @objc(terminateProcessForToken:completion:)
-  public func terminateProcess(forToken token: NSNumber?, completion: @escaping @Sendable (Error?) -> Void) {
+  public func terminateProcess(forToken token: NSNumber?, completion: @escaping @Sendable ((any Error)?) -> Void) {
     logger.log("Test process requested process termination with token \(String(describing: token))")
     guard let token else {
       completion(NSError(domain: "XCTestIDEInterfaceErrorDomain", code: 0x1, userInfo: [NSLocalizedDescriptionKey: "API violation: token was nil."]))
@@ -227,7 +227,7 @@ public final class TestManagerAPIMediator: NSObject, @unchecked Sendable {
     }
   }
 
-  private func launchUITestProcess(path: String?, bundleID: String, arguments: [String], environment: [String: String]) async throws -> LaunchedApplication {
+  private func launchUITestProcess(path: String?, bundleID: String, arguments: [String], environment: [String: String]) async throws -> any LaunchedApplication {
     var targetEnvironment = context.testedApplicationAdditionalEnvironment
     for (key, value) in environment {
       targetEnvironment[key] = value
@@ -245,14 +245,14 @@ public final class TestManagerAPIMediator: NSObject, @unchecked Sendable {
     return try await launchApplication(launch, atPath: path)
   }
 
-  private func launchApplication(_ configuration: ApplicationLaunchConfiguration, atPath path: String?) async throws -> LaunchedApplication {
+  private func launchApplication(_ configuration: ApplicationLaunchConfiguration, atPath path: String?) async throws -> any LaunchedApplication {
     if let installed = try? await target.application.installed(bundleID: configuration.bundleID), installed.bundle.path == path {
       return try await target.application.launch(configuration)
     }
     return try await installAndLaunchApplication(configuration, atPath: path)
   }
 
-  private func installAndLaunchApplication(_ configuration: ApplicationLaunchConfiguration, atPath path: String?) async throws -> LaunchedApplication {
+  private func installAndLaunchApplication(_ configuration: ApplicationLaunchConfiguration, atPath path: String?) async throws -> any LaunchedApplication {
     guard let path else {
       throw TestManagerError.appUnderTestNotInstallable(configurationDescription: String(describing: configuration))
     }

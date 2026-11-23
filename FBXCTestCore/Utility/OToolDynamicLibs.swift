@@ -9,7 +9,7 @@ import FBControlCore
 import Foundation
 
 enum OToolDynamicLibsError: Error {
-  case directoryListFailed(path: String, underlying: Error)
+  case directoryListFailed(path: String, underlying: any Error)
   case clangVersionNotFound(path: String)
 }
 

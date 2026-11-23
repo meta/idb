@@ -13,10 +13,10 @@ private let xctoolOutputLogDirectoryEnv = "XCTOOL_TEST_ENV_FB_LOG_DIRECTORY"
 
 public final class XCTestLogger: ControlCoreLogger, Sendable {
 
-  private let baseLogger: ControlCoreLogger
+  private let baseLogger: any ControlCoreLogger
   public let logDirectory: String
 
-  private init(baseLogger: ControlCoreLogger, logDirectory: String) {
+  private init(baseLogger: any ControlCoreLogger, logDirectory: String) {
     self.baseLogger = baseLogger
     self.logDirectory = logDirectory
   }
@@ -48,7 +48,7 @@ public final class XCTestLogger: ControlCoreLogger, Sendable {
     return NSTemporaryDirectory()
   }
 
-  private static func baseLogger(writingToNewFileIn directory: String) -> ControlCoreLogger {
+  private static func baseLogger(writingToNewFileIn directory: String) -> any ControlCoreLogger {
     let name = "\(ProcessInfo.processInfo.globallyUniqueString)_test.log"
     let success = (try? FileManager.default.createDirectory(atPath: directory, withIntermediateDirectories: true, attributes: nil)) != nil
     assert(success, "Expected to create directory at path \(directory)")
@@ -74,28 +74,28 @@ public final class XCTestLogger: ControlCoreLogger, Sendable {
   // MARK: - ControlCoreLogger
 
   @discardableResult
-  public func log(_ string: String) -> ControlCoreLogger {
+  public func log(_ string: String) -> any ControlCoreLogger {
     baseLogger.log(string)
     return self
   }
 
-  public func info() -> ControlCoreLogger {
+  public func info() -> any ControlCoreLogger {
     XCTestLogger(baseLogger: baseLogger.info(), logDirectory: logDirectory)
   }
 
-  public func debug() -> ControlCoreLogger {
+  public func debug() -> any ControlCoreLogger {
     XCTestLogger(baseLogger: baseLogger.debug(), logDirectory: logDirectory)
   }
 
-  public func error() -> ControlCoreLogger {
+  public func error() -> any ControlCoreLogger {
     XCTestLogger(baseLogger: baseLogger.error(), logDirectory: logDirectory)
   }
 
-  public func withName(_ prefix: String) -> ControlCoreLogger {
+  public func withName(_ prefix: String) -> any ControlCoreLogger {
     XCTestLogger(baseLogger: baseLogger.withName(prefix), logDirectory: logDirectory)
   }
 
-  public func withDateFormatEnabled(_ enabled: Bool) -> ControlCoreLogger {
+  public func withDateFormatEnabled(_ enabled: Bool) -> any ControlCoreLogger {
     XCTestLogger(baseLogger: baseLogger.withDateFormatEnabled(enabled), logDirectory: logDirectory)
   }
 
@@ -109,7 +109,7 @@ public final class XCTestLogger: ControlCoreLogger, Sendable {
 
   // MARK: - Log Consumption
 
-  public func logConsumption(of consumer: DataConsumer, toFileNamed fileName: String, logger: ControlCoreLogger) async throws -> CompositeDataConsumer {
+  public func logConsumption(of consumer: any DataConsumer, toFileNamed fileName: String, logger: any ControlCoreLogger) async throws -> CompositeDataConsumer {
     let filePath = (logDirectory as NSString).appendingPathComponent(fileName)
     let writer = try await FileWriter.asyncWriter(forFilePath: filePath)
     logger.info().log("Mirroring output to \(filePath)")

@@ -16,7 +16,7 @@ enum XCTestProcessError: Error {
   case stalled(timeout: TimeInterval, processIdentifier: pid_t, stackshot: String)
   case crashed(info: String, rawLog: String)
   case crashLogTimedOut(processIdentifier: pid_t)
-  case exitedWithoutCrashLog(processIdentifier: pid_t, lookupFailure: Error)
+  case exitedWithoutCrashLog(processIdentifier: pid_t, lookupFailure: any Error)
 }
 
 extension XCTestProcessError: LocalizedError {
@@ -55,7 +55,7 @@ enum XCTestProcess {
     processName: String,
     completesWithin timeout: TimeInterval,
     crashLogCommands: (any CrashLogCommands)?,
-    logger: ControlCoreLogger,
+    logger: any ControlCoreLogger,
     sampleStackshot: (pid_t) async throws -> String = ProcessFetcher.sampleStackshot
   ) async throws -> Int32 {
     let startDate = Date(timeIntervalSinceNow: CrashLogStartDateFuzz)

@@ -19,5 +19,5 @@ public protocol LogicXCTestReporter: AnyObject {
 
   func handleEventJSONData(_ data: Data)
 
-  func didCrashDuringTest(_ error: Error)
+  func didCrashDuringTest(_ error: any Error)
 }

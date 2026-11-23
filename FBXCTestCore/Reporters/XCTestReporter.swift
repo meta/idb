@@ -33,7 +33,7 @@ public protocol XCTestReporter: AnyObject {
 
   func printReport() throws
 
-  func didCrashDuringTest(_ error: Error)
+  func didCrashDuringTest(_ error: any Error)
 
   func testCase(_ testClass: String, method: String, willStartActivity activity: ActivityRecord)
 

@@ -14,9 +14,9 @@ protocol TestManagerLogSink: AnyObject {
 }
 
 final class ControlCoreLoggerSink: TestManagerLogSink {
-  private let logger: ControlCoreLogger
+  private let logger: any ControlCoreLogger
 
-  init(_ logger: ControlCoreLogger) {
+  init(_ logger: any ControlCoreLogger) {
     self.logger = logger
   }
 

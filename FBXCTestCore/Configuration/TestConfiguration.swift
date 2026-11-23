@@ -27,7 +27,7 @@ import Foundation
 
 public enum TestConfigurationError: Error, LocalizedError {
   case classUnavailable(className: String)
-  case archivingFailed(underlying: Error)
+  case archivingFailed(underlying: any Error)
 
   public var errorDescription: String? {
     switch self {
@@ -123,7 +123,7 @@ public enum TestConfigurationError: Error, LocalizedError {
     guard let capabilitiesBuilderInstance = RuntimeClassAllocation.new("XCTCapabilitiesBuilder") else {
       throw TestConfigurationError.classUnavailable(className: "XCTCapabilitiesBuilder")
     }
-    let capabilitiesBuilder = unsafeBitCast(capabilitiesBuilderInstance, to: XCTCapabilitiesBuilderMessaging.self)
+    let capabilitiesBuilder = unsafeBitCast(capabilitiesBuilderInstance, to: (any XCTCapabilitiesBuilderMessaging).self)
     capabilitiesBuilder.registerCapability("XCTIssue capability")
     capabilitiesBuilder.registerCapability("ubiquitous test identifiers")
     return capabilitiesBuilder.capabilities()
@@ -135,15 +135,15 @@ public enum TestConfigurationError: Error, LocalizedError {
     }
     guard
       let allocatedBuilder = RuntimeClassAllocation.alloc("XCTTestIdentifierSetBuilder"),
-      let builderInstance = unsafeBitCast(allocatedBuilder, to: XCTTestIdentifierSetBuilderMessaging.self).initialize()
+      let builderInstance = unsafeBitCast(allocatedBuilder, to: (any XCTTestIdentifierSetBuilderMessaging).self).initialize()
     else {
       throw TestConfigurationError.classUnavailable(className: "XCTTestIdentifierSetBuilder")
     }
-    let builder = unsafeBitCast(builderInstance, to: XCTTestIdentifierSetBuilderMessaging.self)
+    let builder = unsafeBitCast(builderInstance, to: (any XCTTestIdentifierSetBuilderMessaging).self)
     for test in tests {
       guard
         let allocatedIdentifier = RuntimeClassAllocation.alloc("XCTTestIdentifier"),
-        let identifier = unsafeBitCast(allocatedIdentifier, to: XCTTestIdentifierMessaging.self)
+        let identifier = unsafeBitCast(allocatedIdentifier, to: (any XCTTestIdentifierMessaging).self)
           .initialize(stringRepresentation: test as NSString, preserveModulePrefix: true)
       else {
         throw TestConfigurationError.classUnavailable(className: "XCTTestIdentifier")

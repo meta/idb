@@ -18,24 +18,24 @@ import Foundation
 
 /// A `DTXRemoteInvocationReceipt`: the answer to a call that arrives later.
 @objc protocol DTXRemoteInvocationReceiptMessaging {
-  @objc(invokeCompletionWithReturnValue:error:) func invokeCompletion(returnValue: AnyObject?, error: Error?)
+  @objc(invokeCompletionWithReturnValue:error:) func invokeCompletion(returnValue: AnyObject?, error: (any Error)?)
 }
 
 /// A receipt carried into the completion that answers it, with the token a terminate request names.
 /// DTX answers it once, from whichever queue the completion runs on.
 final class PendingReceipt: @unchecked Sendable {
-  let receipt: DTXRemoteInvocationReceiptMessaging
+  let receipt: any DTXRemoteInvocationReceiptMessaging
   let token: AnyObject?
 
-  init(_ receipt: DTXRemoteInvocationReceiptMessaging, token: AnyObject? = nil) {
+  init(_ receipt: any DTXRemoteInvocationReceiptMessaging, token: AnyObject? = nil) {
     self.receipt = receipt
     self.token = token
   }
 }
 
 /// A new `DTXRemoteInvocationReceipt`, or nil when DTXConnectionServices is not loaded.
-func makeRemoteInvocationReceipt() -> DTXRemoteInvocationReceiptMessaging? {
-  RuntimeClassAllocation.new("DTXRemoteInvocationReceipt").map { unsafeBitCast($0, to: DTXRemoteInvocationReceiptMessaging.self) }
+func makeRemoteInvocationReceipt() -> (any DTXRemoteInvocationReceiptMessaging)? {
+  RuntimeClassAllocation.new("DTXRemoteInvocationReceipt").map { unsafeBitCast($0, to: (any DTXRemoteInvocationReceiptMessaging).self) }
 }
 
 /// The private XCTest `XCTestManager_IDEInterface` / `XCTMessagingChannel_RunnerToIDE` callbacks the
@@ -46,10 +46,10 @@ final class TestManagerAPIMediatorIDEInterface: NSObject {
 
   private weak var mediator: TestManagerAPIMediator?
   private let context: TestManagerContext
-  private let reporter: TestManagerReportSink
-  private let logger: TestManagerLogSink?
+  private let reporter: any TestManagerReportSink
+  private let logger: (any TestManagerLogSink)?
 
-  init(mediator: TestManagerAPIMediator, context: TestManagerContext, reporter: TestManagerReportSink, logger: TestManagerLogSink?) {
+  init(mediator: TestManagerAPIMediator, context: TestManagerContext, reporter: any TestManagerReportSink, logger: (any TestManagerLogSink)?) {
     self.mediator = mediator
     self.context = context
     self.reporter = reporter
@@ -57,8 +57,8 @@ final class TestManagerAPIMediatorIDEInterface: NSObject {
     super.init()
   }
 
-  private static func identifier(_ identifier: NSObject) -> XCTTestIdentifierReading {
-    unsafeBitCast(identifier, to: XCTTestIdentifierReading.self)
+  private static func identifier(_ identifier: NSObject) -> any XCTTestIdentifierReading {
+    unsafeBitCast(identifier, to: (any XCTTestIdentifierReading).self)
   }
 }
 

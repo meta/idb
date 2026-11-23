@@ -31,9 +31,9 @@ public final class ListTestRunner {
 
   let target: any LogicTestTarget
   private let configuration: ListTestConfiguration
-  private let logger: ControlCoreLogger
+  private let logger: any ControlCoreLogger
 
-  public init(target: any LogicTestTarget, configuration: ListTestConfiguration, logger: ControlCoreLogger) {
+  public init(target: any LogicTestTarget, configuration: ListTestConfiguration, logger: any ControlCoreLogger) {
     self.target = target
     self.configuration = configuration
     self.logger = logger
@@ -44,7 +44,7 @@ public final class ListTestRunner {
     let shimBuffer = ConsumableBuffer()
     let shimOutput = try FileBackedOutput.fifo(draining: shimBuffer)
     let stdErrBuffer = ConsumableBuffer()
-    let stdErrConsumer: DataConsumer = CompositeDataConsumer(consumers: [
+    let stdErrConsumer: any DataConsumer = CompositeDataConsumer(consumers: [
       stdErrBuffer,
       LoggingDataConsumer(logger: logger),
     ])

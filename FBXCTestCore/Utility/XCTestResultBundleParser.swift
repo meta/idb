@@ -68,7 +68,7 @@ struct ResultRecord {
   // MARK: - xcresulttool's wrapped values
 
   /// The scalar xcresulttool wraps as `{"_value": …}` under `key`, logging why when there is none.
-  func unwrappedValue(_ key: String, logger: ControlCoreLogger) -> Any? {
+  func unwrappedValue(_ key: String, logger: any ControlCoreLogger) -> Any? {
     guard let wrapped = fields[key] as? [String: Any] else {
       logger.log("\(key) does not exist inside \(CollectionInformation.oneLineDescription(from: Array(fields.keys)))")
       return nil
@@ -80,12 +80,12 @@ struct ResultRecord {
     return unwrapped
   }
 
-  func unwrappedString(_ key: String, logger: ControlCoreLogger) -> String? {
+  func unwrappedString(_ key: String, logger: any ControlCoreLogger) -> String? {
     unwrappedValue(key, logger: logger) as? String
   }
 
   /// The array xcresulttool wraps as `{"_values": […]}` under `key`, logging why when there is none.
-  func unwrappedArray(_ key: String, logger: ControlCoreLogger) -> [Any]? {
+  func unwrappedArray(_ key: String, logger: any ControlCoreLogger) -> [Any]? {
     guard let wrapped = fields[key] as? [String: Any] else {
       logger.log("\(key) does not exist inside \(CollectionInformation.oneLineDescription(from: Array(fields.keys)))")
       return nil
@@ -98,7 +98,7 @@ struct ResultRecord {
   }
 
   /// The wrapped array under `key` when every element is a record.
-  func unwrappedRecords(_ key: String, logger: ControlCoreLogger) -> [ResultRecord]? {
+  func unwrappedRecords(_ key: String, logger: any ControlCoreLogger) -> [ResultRecord]? {
     (unwrappedArray(key, logger: logger) as? [[String: Any]])?.map(ResultRecord.init)
   }
 
@@ -163,7 +163,7 @@ protocol XCResultReading {
 /// Reads a bundle through `xcresulttool`.
 struct XCResultTool: XCResultReading {
   let path: String
-  let logger: ControlCoreLogger
+  let logger: any ControlCoreLogger
 
   func record(forId bundleObjectId: String?, timeout: TimeInterval?) async throws -> ResultRecord {
     ResultRecord(try await XCTestResultToolOperation.json(from: path, forId: bundleObjectId, logger: logger, timeout: timeout))
@@ -178,7 +178,7 @@ enum XCTestResultBundleParser {
 
   // MARK: - Public
 
-  public static func parse(_ resultBundlePath: String, reporter: XCTestReporter, logger: ControlCoreLogger, extractScreenshots: Bool, tool: (any XCResultReading)? = nil) async throws {
+  public static func parse(_ resultBundlePath: String, reporter: any XCTestReporter, logger: any ControlCoreLogger, extractScreenshots: Bool, tool: (any XCResultReading)? = nil) async throws {
     let tool = tool ?? XCResultTool(path: resultBundlePath, logger: logger)
     logger.log("Parsing the result bundle \(resultBundlePath)")
 
@@ -227,7 +227,7 @@ enum XCTestResultBundleParser {
 
   // MARK: - Private: Legacy XCTest Result Parsing
 
-  private static func reportResultsLegacy(_ results: ResultRecord, reporter: XCTestReporter) throws {
+  private static func reportResultsLegacy(_ results: ResultRecord, reporter: any XCTestReporter) throws {
     for targetTest in results.optionalRecords("TestableSummaries") ?? [] {
       let testBundleName = try targetTest.string("TestName")
       for selectedTest in targetTest.optionalRecords("Tests") ?? [] {
@@ -243,7 +243,7 @@ enum XCTestResultBundleParser {
     }
   }
 
-  private static func reportTestMethodLegacy(_ testMethod: ResultRecord, testBundleName: String, testClassName: String, reporter: XCTestReporter) throws {
+  private static func reportTestMethodLegacy(_ testMethod: ResultRecord, testBundleName: String, testClassName: String, reporter: any XCTestReporter) throws {
     let testStatus = try testMethod.string("TestStatus")
     let testMethodName = try testMethod.string("TestIdentifier")
     let duration = try testMethod.double("Duration")
@@ -302,7 +302,7 @@ enum XCTestResultBundleParser {
 
   // MARK: - Private: Xcode 11+ XCTest Result Parsing
 
-  private static func parseActions(_ actions: ResultRecord, logger: ControlCoreLogger) throws -> [String] {
+  private static func parseActions(_ actions: ResultRecord, logger: any ControlCoreLogger) throws -> [String] {
     guard let actionValues = actions.fields["_values"] as? [[String: Any]] else {
       throw XCTestResultBundleError.unexpectedType(key: "actions", expected: "array of actions")
     }
@@ -315,13 +315,13 @@ enum XCTestResultBundleParser {
     }
   }
 
-  private static func reportResults(_ results: ResultRecord, reporter: XCTestReporter, resultBundlePath: String, tool: any XCResultReading, logger: ControlCoreLogger, extractScreenshots: Bool) async {
+  private static func reportResults(_ results: ResultRecord, reporter: any XCTestReporter, resultBundlePath: String, tool: any XCResultReading, logger: any ControlCoreLogger, extractScreenshots: Bool) async {
     for targetTest in results.unwrappedRecords("testableSummaries", logger: logger) ?? [] {
       await reportTargetTest(targetTest, reporter: reporter, resultBundlePath: resultBundlePath, tool: tool, logger: logger, extractScreenshots: extractScreenshots)
     }
   }
 
-  private static func reportTargetTest(_ targetTest: ResultRecord, reporter: XCTestReporter, resultBundlePath: String, tool: any XCResultReading, logger: ControlCoreLogger, extractScreenshots: Bool) async {
+  private static func reportTargetTest(_ targetTest: ResultRecord, reporter: any XCTestReporter, resultBundlePath: String, tool: any XCResultReading, logger: any ControlCoreLogger, extractScreenshots: Bool) async {
     let testBundleName = targetTest.unwrappedString("targetName", logger: logger) ?? ""
     guard let selectedTests = targetTest.unwrappedArray("tests", logger: logger) else {
       logger.log("Test failed and no test results found in the bundle")
@@ -360,11 +360,11 @@ enum XCTestResultBundleParser {
     }
   }
 
-  private static func reportMissingResults(_ message: String, testClass: String, to reporter: XCTestReporter) {
+  private static func reportMissingResults(_ message: String, testClass: String, to reporter: any XCTestReporter) {
     reporter.testCaseDidFail(forTestClass: testClass, method: "", exceptions: [TestExceptionInfo(message: message)])
   }
 
-  private static func reportTestMethod(_ testMethod: ResultRecord, testBundleName: String, testClassName: String, reporter: XCTestReporter, resultBundlePath: String, tool: any XCResultReading, logger: ControlCoreLogger, extractScreenshots: Bool) async {
+  private static func reportTestMethod(_ testMethod: ResultRecord, testBundleName: String, testClassName: String, reporter: any XCTestReporter, resultBundlePath: String, tool: any XCResultReading, logger: any ControlCoreLogger, extractScreenshots: Bool) async {
     let testStatus = testMethod.unwrappedString("testStatus", logger: logger) ?? ""
     let testMethodIdentifier = testMethod.unwrappedString("identifier", logger: logger) ?? ""
     let duration = number(from: testMethod.unwrappedValue("duration", logger: logger)) ?? 0
@@ -414,7 +414,7 @@ enum XCTestResultBundleParser {
     reporter.testCaseDidFinish(forTestClass: testClassName, method: testMethodIdentifier, with: status, duration: duration, logs: logs)
   }
 
-  private static func buildTestLog(_ activitySummaries: [ResultRecord]?, testBundleName: String, testClassName: String, testMethodName: String, outcome: String, duration: Double, logger: ControlCoreLogger) -> [String] {
+  private static func buildTestLog(_ activitySummaries: [ResultRecord]?, testBundleName: String, testClassName: String, testMethodName: String, outcome: String, duration: Double, logger: any ControlCoreLogger) -> [String] {
     var logs: [String] = []
     let testCaseFullName = "-[\(testBundleName).\(testClassName) \(testMethodName)]"
     logs.append("Test Case '\(testCaseFullName)' started.")
@@ -433,7 +433,7 @@ enum XCTestResultBundleParser {
     return logs
   }
 
-  private static func addTestLogsFromActivitySummary(_ activitySummary: ResultRecord, logs: inout [String], testStartTimeInterval: Double, indent: UInt, logger: ControlCoreLogger) {
+  private static func addTestLogsFromActivitySummary(_ activitySummary: ResultRecord, logs: inout [String], testStartTimeInterval: Double, indent: UInt, logger: any ControlCoreLogger) {
     let message = activitySummary.unwrappedString("title", logger: logger) ?? ""
     let startTimeInterval = dateFromString(activitySummary.unwrappedString("start", logger: logger) ?? "")?.timeIntervalSince1970 ?? 0
     let elapsed = startTimeInterval - testStartTimeInterval
@@ -445,7 +445,7 @@ enum XCTestResultBundleParser {
     }
   }
 
-  private static func extractScreenshotsFromActivities(_ activities: [ResultRecord], resultBundlePath: String, tool: any XCResultReading, logger: ControlCoreLogger) async {
+  private static func extractScreenshotsFromActivities(_ activities: [ResultRecord], resultBundlePath: String, tool: any XCResultReading, logger: any ControlCoreLogger) async {
     let screenshotsPath: String
     do {
       screenshotsPath = try ensureSubdirectory("Attachments", insideResultBundle: resultBundlePath)
@@ -477,7 +477,7 @@ enum XCTestResultBundleParser {
     return subdirectoryFullPath
   }
 
-  private static func extractScreenshotsFromAttachments(_ attachments: [ResultRecord], to destination: String, tool: any XCResultReading, logger: ControlCoreLogger) async {
+  private static func extractScreenshotsFromAttachments(_ attachments: [ResultRecord], to destination: String, tool: any XCResultReading, logger: any ControlCoreLogger) async {
     for attachment in attachments {
       guard let filename = attachment.unwrappedString("filename", logger: logger) else { continue }
       guard filename.hasPrefix("Screenshot_"),
@@ -491,7 +491,7 @@ enum XCTestResultBundleParser {
     }
   }
 
-  private static func savePerformanceMetrics(_ performanceMetrics: [ResultRecord], toTestResultBundle resultBundlePath: String, forTestTarget testTarget: String, testClass: String, testMethod: String, logger: ControlCoreLogger) {
+  private static func savePerformanceMetrics(_ performanceMetrics: [ResultRecord], toTestResultBundle resultBundlePath: String, forTestTarget testTarget: String, testClass: String, testMethod: String, logger: any ControlCoreLogger) {
     let metrics: [[String: Any]] = performanceMetrics.map { performanceMetric in
       [
         "name": performanceMetric.unwrappedString("displayName", logger: logger) ?? "",
@@ -518,7 +518,7 @@ enum XCTestResultBundleParser {
     }
   }
 
-  private static func buildErrorMessage(_ failureSummaries: [Any]?, logger: ControlCoreLogger) -> String {
+  private static func buildErrorMessage(_ failureSummaries: [Any]?, logger: any ControlCoreLogger) -> String {
     guard let failureSummaries = failureSummaries as? [[String: Any]] else { return "" }
     return failureSummaries.compactMap { ResultRecord($0).unwrappedString("message", logger: logger) }.joined(separator: "\n")
   }

@@ -36,7 +36,7 @@ public enum XcodeBuildOperation {
 
   // MARK: - Initializers
 
-  public static func operation(withUDID udid: String, configuration: TestLaunchConfiguration, xcodeBuildPath: String, testRunFilePath: String, simDeviceSet simDeviceSetPath: String?, macOSTestShimPath: String?, logger: ControlCoreLogger?) async throws -> RunningSubprocess {
+  public static func operation(withUDID udid: String, configuration: TestLaunchConfiguration, xcodeBuildPath: String, testRunFilePath: String, simDeviceSet simDeviceSetPath: String?, macOSTestShimPath: String?, logger: (any ControlCoreLogger)?) async throws -> RunningSubprocess {
     var arguments = [
       "test-without-building",
       "-xctestrun", testRunFilePath,
@@ -123,7 +123,7 @@ public enum XcodeBuildOperation {
     return path
   }
 
-  public static func terminateAbandonedXcodebuildProcesses(forUDID udid: String, processFetcher: ProcessFetcher, queue: DispatchQueue, logger: ControlCoreLogger) async throws -> [RunningProcessInfo] {
+  public static func terminateAbandonedXcodebuildProcesses(forUDID udid: String, processFetcher: ProcessFetcher, queue: DispatchQueue, logger: any ControlCoreLogger) async throws -> [RunningProcessInfo] {
     let processes = XcodeBuildOperation.activeXcodebuildProcesses(forUDID: udid, processFetcher: processFetcher)
     if processes.isEmpty {
       logger.log("No processes for \(udid) to terminate")
@@ -202,7 +202,7 @@ public enum XcodeBuildOperation {
     return updated
   }
 
-  public static func confirmExit(ofXcodebuildOperation running: RunningSubprocess, configuration: TestLaunchConfiguration, reporter: XCTestReporter, logger: ControlCoreLogger) async throws {
+  public static func confirmExit(ofXcodebuildOperation running: RunningSubprocess, configuration: TestLaunchConfiguration, reporter: any XCTestReporter, logger: any ControlCoreLogger) async throws {
     let status = try await withTaskCancellationHandler {
       try await running.terminationStatus
     } onCancel: {
