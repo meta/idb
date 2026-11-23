@@ -104,14 +104,14 @@ struct Comparison {
     }
     let throughputAllowance = allowance(base.throughput, head.throughput)
     if head.throughput.median < base.throughput.median * (1 - throughputAllowance) {
-      verdicts.append(String(format: "throughput -%.1f%% (allowed %.1f%%)", (1 - head.throughput.median / base.throughput.median) * 100, throughputAllowance * 100))
+      unsafe verdicts.append(String(format: "throughput -%.1f%% (allowed %.1f%%)", (1 - head.throughput.median / base.throughput.median) * 100, throughputAllowance * 100))
     }
     let cpuAllowance = allowance(base.cpu, head.cpu)
     if head.cpu.median > base.cpu.median * (1 + cpuAllowance) {
-      verdicts.append(String(format: "CPU +%.1f%% (allowed %.1f%%)", (head.cpu.median / base.cpu.median - 1) * 100, cpuAllowance * 100))
+      unsafe verdicts.append(String(format: "CPU +%.1f%% (allowed %.1f%%)", (head.cpu.median / base.cpu.median - 1) * 100, cpuAllowance * 100))
     }
     if head.peakRSS.median > base.peakRSS.median * (1 + peakRSSRegression) {
-      verdicts.append(String(format: "peak memory +%.1f%%", (head.peakRSS.median / base.peakRSS.median - 1) * 100))
+      unsafe verdicts.append(String(format: "peak memory +%.1f%%", (head.peakRSS.median / base.peakRSS.median - 1) * 100))
     }
     return verdicts
   }
@@ -128,7 +128,7 @@ struct Comparison {
   var table: String {
     let header = "| case | base MB/s | head MB/s | base CPU s | head CPU s | base peak MB | head peak MB | verdict |\n|---|---|---|---|---|---|---|---|"
     let lines = rows.map { row in
-      String(
+      unsafe String(
         format: "| %@ | %.0f ±%.0f | %.0f ±%.0f | %.2f | %.2f | %.0f | %.0f | %@ |", row.benchCase.name, row.base.throughput.median, row.base.throughput.mad,
         row.head.throughput.median, row.head.throughput.mad, row.base.cpu.median, row.head.cpu.median, row.base.peakRSS.median / 1_048_576,
         row.head.peakRSS.median / 1_048_576, row.regressed ? "REGRESSED: " + row.verdicts.joined(separator: "; ") : "ok")

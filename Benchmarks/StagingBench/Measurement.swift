@@ -61,7 +61,7 @@ struct Measurement: Codable {
   var megabytesPerSecond: Double { Double(benchCase.shape.megabytes) / wallSeconds }
 
   var summary: String {
-    let outcome = failure.map { "FAILED \($0)" } ?? String(format: "%.0f MB/s, %.2fs CPU, %d MB peak", megabytesPerSecond, cpuSeconds, peakRSSBytes >> 20)
+    let outcome = failure.map { "FAILED \($0)" } ?? (unsafe String(format: "%.0f MB/s, %.2fs CPU, %d MB peak", megabytesPerSecond, cpuSeconds, peakRSSBytes >> 20))
     return "[\(label)] \(benchCase.name): \(outcome) \(routes)"
   }
 
@@ -227,7 +227,7 @@ final class PreparedSource: Sendable {
   /// A write that fails, which happens once staging stops reading, ends the archive there.
   private static func pipe(of archive: URL) throws -> Int32 {
     var descriptors: [Int32] = [0, 0]
-    guard Darwin.pipe(&descriptors) == 0 else {
+    guard unsafe Darwin.pipe(&descriptors) == 0 else {
       throw POSIXError(POSIXErrorCode(rawValue: errno) ?? .EIO)
     }
     let (readEnd, writeEnd) = (descriptors[0], descriptors[1])
@@ -242,13 +242,13 @@ final class PreparedSource: Sendable {
   }
 
   private static func writeAll(_ chunk: Data, to descriptor: Int32) -> Bool {
-    chunk.withUnsafeBytes { bytes in
+    unsafe chunk.withUnsafeBytes { bytes in
       guard let base = bytes.baseAddress else {
         return true
       }
       var offset = 0
       while offset < bytes.count {
-        let written = write(descriptor, base + offset, bytes.count - offset)
+        let written = unsafe write(descriptor, base + offset, bytes.count - offset)
         if written < 0 && errno == EINTR {
           continue
         }
@@ -270,8 +270,8 @@ struct ResourceUsage {
   static func now() -> ResourceUsage {
     var own = rusage()
     var children = rusage()
-    getrusage(RUSAGE_SELF, &own)
-    getrusage(RUSAGE_CHILDREN, &children)
+    unsafe getrusage(RUSAGE_SELF, &own)
+    unsafe getrusage(RUSAGE_CHILDREN, &children)
     func seconds(_ time: timeval) -> Double { Double(time.tv_sec) + Double(time.tv_usec) / 1e6 }
     let cpu = seconds(own.ru_utime) + seconds(own.ru_stime) + seconds(children.ru_utime) + seconds(children.ru_stime)
     // Bytes on macOS.
