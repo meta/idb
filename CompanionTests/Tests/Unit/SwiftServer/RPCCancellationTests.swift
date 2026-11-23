@@ -23,7 +23,7 @@ struct RPCCancellationTests {
     let cancellation = ServerContext.RPCCancellationHandle()
     cancellation.cancel()
     do {
-      try await withRPCCancellation(cancellation) {
+      _ = try await withRPCCancellation(cancellation) {
         Issue.record("Cancelled RPC must not begin the operation")
       }
       Issue.record("Expected cancellation")

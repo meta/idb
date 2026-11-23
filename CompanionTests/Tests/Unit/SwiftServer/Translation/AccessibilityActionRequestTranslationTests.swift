@@ -60,7 +60,7 @@ final class AccessibilityActionRequestTranslationTests: XCTestCase {
         return XCTFail("expected a RPCError, got \(error)", file: file, line: line)
       }
       XCTAssertEqual(status.code, .invalidArgument, file: file, line: line)
-      let message = status.message ?? ""
+      let message = status.message
       XCTAssertTrue(
         message.contains(fragment), "\"\(message)\" does not mention \(fragment)", file: file, line: line)
     }
