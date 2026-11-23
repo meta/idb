@@ -171,7 +171,7 @@ struct CompanionServerReconnectTests {
     }
     let logger = IDBLogger(loggers: [])
     try await withCompanionTestSession(
-      "reconnect-udid", makingTargetSets: [{ try notifications.makeSet(logger: logger) }],
+      "reconnect-udid", makingTargetSets: [{ @MainActor in try notifications.makeSet(logger: logger) }],
       logger: logger
     ) { server in
       let request = ClientRequest(message: Idb_ListAppsRequest.with { $0.suppressProcessState = true })

@@ -47,7 +47,7 @@ struct CompanionServerShutdownTests {
     try await withCompanionTestSession(
       "shutdown-target",
       makingTargetSets: [
-        {
+        { @MainActor in
           let set = TargetSetDouble(targets: ["shutdown-target": MacDevice(logger: logger)]) {
             released.happen(events.serverClosed.hasHappened)
           }

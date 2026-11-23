@@ -119,7 +119,7 @@ struct IDBLoggerTests {
     IDBLogger.systemLogger(withUserDefaults: userDefaults()).log(line)
 
     #expect(await eventually { String(decoding: consumer.data(), as: UTF8.self).contains(line) })
-    _ = try? await cancelledWait(operation)
+    _ = try? await cancelledWait(operation).value
     try await Task.sleep(nanoseconds: 200_000_000)
   }
 
@@ -135,7 +135,7 @@ struct IDBLoggerTests {
     #expect(await eventually { String(decoding: consumer.data(), as: UTF8.self).contains(line) })
     let deliveries = String(decoding: consumer.data(), as: UTF8.self).components(separatedBy: line).count - 1
     #expect(deliveries == 1)
-    _ = try? await cancelledWait(operation)
+    _ = try? await cancelledWait(operation).value
     try await Task.sleep(nanoseconds: 200_000_000)
   }
 
@@ -144,7 +144,8 @@ struct IDBLoggerTests {
     let consumer = AccumulatingBuffer()
     let operation = try await IDBLogger.systemLogger(withUserDefaults: userDefaults()).tailToConsumer(consumer)
 
-    await #expect(throws: CancellationError.self) { try await cancelledWait(operation) }
+    let waiting = cancelledWait(operation)
+    await #expect(throws: CancellationError.self) { try await waiting.value }
     try await Task.sleep(nanoseconds: 200_000_000)
     let line = "after-cancel-\(UUID().uuidString)"
     IDBLogger.systemLogger(withUserDefaults: userDefaults()).log(line)
@@ -153,10 +154,10 @@ struct IDBLoggerTests {
     #expect(!String(decoding: consumer.data(), as: UTF8.self).contains(line))
   }
 
-  private func cancelledWait(_ operation: any LogOperation) async throws {
+  private func cancelledWait(_ operation: sending any LogOperation) -> Task<Void, Error> {
     let waiting = Task { try await operation.waitUntilCompleted() }
     waiting.cancel()
-    try await waiting.value
+    return waiting
   }
 
   private func eventually(timeout: TimeInterval = 5, _ condition: () -> Bool) async -> Bool {

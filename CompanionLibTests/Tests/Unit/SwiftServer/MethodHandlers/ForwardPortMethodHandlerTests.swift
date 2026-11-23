@@ -227,6 +227,7 @@ struct ForwardPortMethodHandlerTests {
       switch termination {
       case .cancelled: inputEnded.happen(true)
       case .finished: inputEnded.happen(false)
+      @unknown default: inputEnded.happen(false)
       }
     }
     defer { input.finish() }

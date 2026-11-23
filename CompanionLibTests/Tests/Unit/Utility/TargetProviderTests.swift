@@ -24,9 +24,7 @@ private final class MakerLog: @unchecked Sendable {
 
   func maker(_ name: String, targets: [String: any TargetInfo] = [:]) -> TargetSetMaker {
     { [self] in
-      lock.lock()
-      made.append(name)
-      lock.unlock()
+      lock.withLock { made.append(name) }
       return TargetSetDouble(targets: targets)
     }
   }

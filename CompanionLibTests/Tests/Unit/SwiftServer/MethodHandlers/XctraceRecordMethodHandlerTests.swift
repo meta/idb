@@ -38,9 +38,7 @@ private final class FakeRecording: XCTraceRecording, @unchecked Sendable {
   }
 
   func stop(withTimeout timeout: TimeInterval) async throws -> URL {
-    lock.lock()
-    timeouts.append(timeout)
-    lock.unlock()
+    lock.withLock { timeouts.append(timeout) }
     return URL(fileURLWithPath: "/tmp/fake.trace")
   }
 }

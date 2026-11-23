@@ -23,7 +23,7 @@ struct LaunchMethodHandlerCompletionTests {
     let started = AsyncEvent<Void>()
     let launchCancelled = AsyncEvent<Void>()
     let session = Task {
-      try await LaunchMethodHandler.launch(cancellation: cancellation) {
+      _ = try await LaunchMethodHandler.launch(cancellation: cancellation) {
         started.happen()
         do {
           try await Task.sleep(nanoseconds: 600_000_000_000)
@@ -39,7 +39,7 @@ struct LaunchMethodHandlerCompletionTests {
     cancellation.cancel()
 
     await #expect(throws: CancellationError.self) {
-      _ = try await session.value
+      try await session.value
     }
     #expect(launchCancelled.hasHappened)
   }

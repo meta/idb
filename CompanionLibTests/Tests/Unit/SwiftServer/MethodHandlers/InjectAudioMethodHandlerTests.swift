@@ -135,8 +135,10 @@ final class InjectAudioMethodHandlerTests {
     let cancellation = ServerContext.RPCCancellationHandle()
     let (started, startContinuation) = AsyncStream<URL>.makeStream()
     let (finished, finishContinuation) = AsyncStream<Bool>.makeStream()
+    let requests = requestStream([.data(Data([0, 1, 2, 3]))])
+    let temporaryDirectory = temporaryDirectory
     async let result: Void = InjectAudioMethodHandler.withAudioInjection(
-      from: requestStream([.data(Data([0, 1, 2, 3]))]),
+      from: requests,
       temporaryDirectory: temporaryDirectory, cancellation: cancellation
     ) { url in
       defer {

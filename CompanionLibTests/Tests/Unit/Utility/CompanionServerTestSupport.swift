@@ -39,28 +39,15 @@ struct CompanionTestSession {
 @MainActor
 func withCompanionTestSession(
   _ udid: String,
-  makingTargetSets makers: [TargetSetMaker],
+  makingTargetSets makers: sending [TargetSetMaker],
   logger: IDBLogger,
   idleShutdownTime: TimeInterval? = nil,
   _ body: (CompanionTestSession) async throws -> Void
 ) async throws {
-  let defaults = try #require(UserDefaults(suiteName: "CompanionTestSession.\(UUID().uuidString)"))
-  defaults.set("0", forKey: "-grpc-port")
-  if let idleShutdownTime { defaults.set(String(idleShutdownTime), forKey: "-idle-shutdown-time") }
   let started = AsyncEvent<Int>()
   let stopped = AsyncEvent<Bool>()
-  let task = Task { @MainActor in
-    defer { stopped.happen(true) }
-    do {
-      try await CompanionServerSession.run(
-        udid, userDefaults: defaults, makingTargetSets: makers,
-        logger: logger, reporter: EmptyEventReporter.shared,
-        onStarted: { started.happen($0["grpc_port"] as? Int ?? -1) })
-    } catch {
-      started.fail(error)
-      throw error
-    }
-  }
+  let task = try startCompanionServer(
+    udid, makingTargetSets: makers, logger: logger, idleShutdownTime: idleShutdownTime, started: started, stopped: stopped)
   defer { task.cancel() }
   let port = try await started.wait(timeout: 10, waitingFor: "companion server startup")
   try #require(port > 0)
@@ -86,4 +73,30 @@ func withCompanionTestSession(
   _ = await task.result
   try result.get()
   try connectionResult.get()
+}
+
+/// The server runs off the main actor, so the makers and user defaults are handed to it, not shared.
+private func startCompanionServer(
+  _ udid: String,
+  makingTargetSets makers: sending [TargetSetMaker],
+  logger: IDBLogger,
+  idleShutdownTime: TimeInterval?,
+  started: AsyncEvent<Int>,
+  stopped: AsyncEvent<Bool>
+) throws -> Task<Void, Error> {
+  let defaults = try #require(UserDefaults(suiteName: "CompanionTestSession.\(UUID().uuidString)"))
+  defaults.set("0", forKey: "-grpc-port")
+  if let idleShutdownTime { defaults.set(String(idleShutdownTime), forKey: "-idle-shutdown-time") }
+  return Task {
+    defer { stopped.happen(true) }
+    do {
+      try await CompanionServerSession.run(
+        udid, userDefaults: defaults, makingTargetSets: makers,
+        logger: logger, reporter: EmptyEventReporter.shared,
+        onStarted: { started.happen($0["grpc_port"] as? Int ?? -1) })
+    } catch {
+      started.fail(error)
+      throw error
+    }
+  }
 }

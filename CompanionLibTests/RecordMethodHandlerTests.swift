@@ -38,9 +38,7 @@ private final class CountingRecording: VideoRecording, @unchecked Sendable {
   }
 
   func stop() async throws -> URL {
-    lock.lock()
-    count += 1
-    lock.unlock()
+    lock.withLock { count += 1 }
     return URL(fileURLWithPath: "/dev/null")
   }
 }

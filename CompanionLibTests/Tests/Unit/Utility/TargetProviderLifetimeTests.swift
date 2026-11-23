@@ -23,14 +23,14 @@ private final class LifetimeProbe {
   let firstReleased = AsyncEvent<Void>()
   let matchingReleased = AsyncEvent<Void>()
 
-  func makers(target: any TargetInfo) -> [TargetSetMaker] {
+  func makers(target: sending any TargetInfo) -> sending [TargetSetMaker] {
     [
-      {
+      { @MainActor in
         let set = TargetSetDouble(targets: [:], onRelease: self.firstReleased.happen)
         self.first = set
         return set
       },
-      {
+      { @MainActor in
         let set = TargetSetDouble(targets: ["device": target], onRelease: self.matchingReleased.happen)
         self.matching = set
         return set
@@ -65,19 +65,20 @@ struct TargetProviderLifetimeTests {
 
   @Test("D128054638: discovery spans suspension and cleanup", arguments: Exit.allCases) @MainActor
   func releasesDiscoveryAfterOperationAndCleanup(exit: Exit) async throws {
-    let target = MacDevice(logger: logger)
     let probe = LifetimeProbe()
     let entered = AsyncEvent<Void>()
     let resume = AsyncEvent<Void>()
     let cleanupEntered = AsyncEvent<Void>()
     let finishCleanup = AsyncEvent<Void>()
     let operation = Task { @MainActor in
+      let target = MacDevice(logger: logger)
+      let targetID = ObjectIdentifier(target)
       do {
         try await TargetProvider.withTarget(
           withUDID: "device", makingTargetSets: probe.makers(target: target),
           warmUp: false, logger: logger
-        ) { resolved in
-          #expect(resolved === target)
+        ) { @Sendable @MainActor resolved in
+          #expect(ObjectIdentifier(resolved) == targetID)
           probe.expectAlive()
           entered.happen()
           defer { probe.expectAlive() }
@@ -129,33 +130,31 @@ struct TargetProviderLifetimeTests {
 
   @Test @MainActor
   func failedLookupReleasesDiscoveryWithoutStartingOperation() async {
-    let target = MacDevice(logger: logger)
     let probe = LifetimeProbe()
     await #expect(throws: TargetProviderError.self) {
       try await TargetProvider.withTarget(
-        withUDID: "unknown", makingTargetSets: probe.makers(target: target),
+        withUDID: "unknown", makingTargetSets: probe.makers(target: MacDevice(logger: logger)),
         warmUp: false, appearanceTimeout: 0, logger: logger
-      ) { _ in Issue.record("Operation started after failed lookup") }
+      ) { @Sendable _ in Issue.record("Operation started after failed lookup") }
     }
     probe.expectReleased()
   }
 
   @Test @MainActor
   func failedDiscoveryReleasesPreviouslyCreatedSet() async {
-    let target = MacDevice(logger: logger)
     let probe = LifetimeProbe()
-    let makers: [TargetSetMaker] = [
-      probe.makers(target: target)[0],
-      {
-        #expect(probe.first != nil)
-        #expect(!probe.firstReleased.hasHappened)
-        throw LifetimeTestError.discoveryFailed
-      },
-    ]
     await #expect(throws: LifetimeTestError.discoveryFailed) {
+      let makers: [TargetSetMaker] = [
+        probe.makers(target: MacDevice(logger: logger))[0],
+        { @MainActor in
+          #expect(probe.first != nil)
+          #expect(!probe.firstReleased.hasHappened)
+          throw LifetimeTestError.discoveryFailed
+        },
+      ]
       try await TargetProvider.withTarget(
         withUDID: "device", makingTargetSets: makers, warmUp: false, logger: logger
-      ) { _ in Issue.record("Operation started after failed discovery") }
+      ) { @Sendable _ in Issue.record("Operation started after failed discovery") }
     }
     #expect(probe.first == nil)
     #expect(probe.firstReleased.hasHappened)
