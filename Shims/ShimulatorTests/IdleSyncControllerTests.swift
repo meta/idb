@@ -6,8 +6,8 @@
  */
 
 import Foundation
-@_implementationOnly import ShimulatorIdleSyncCore
-@_implementationOnly import ShimulatorProtocol
+import ShimulatorIdleSyncCore
+import ShimulatorProtocol
 import Synchronization
 import Testing
 

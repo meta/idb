@@ -7,9 +7,9 @@
 
 import CoreAudio
 import Foundation
-@_implementationOnly import ShimulatorAudioInjectionCore
-@_implementationOnly import ShimulatorAudioInjectionHAL
-@_implementationOnly import ShimulatorAudioInjectionPrivate
+import ShimulatorAudioInjectionCore
+import ShimulatorAudioInjectionHAL
+import ShimulatorAudioInjectionPrivate
 import Synchronization
 import Testing
 

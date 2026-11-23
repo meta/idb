@@ -7,8 +7,8 @@
 
 import Darwin
 import Foundation
-@_implementationOnly import ShimulatorAudioInjectionCore
-@_implementationOnly import ShimulatorProtocol
+import ShimulatorAudioInjectionCore
+import ShimulatorProtocol
 import Testing
 
 private final class FakeCaptureEngine: AudioCaptureEngine {

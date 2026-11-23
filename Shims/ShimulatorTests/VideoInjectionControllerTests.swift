@@ -6,8 +6,8 @@
  */
 
 import Foundation
-@_implementationOnly import ShimulatorProtocol
-@_implementationOnly import ShimulatorVideoInjectionCore
+import ShimulatorProtocol
+import ShimulatorVideoInjectionCore
 import Synchronization
 import XCTest
 

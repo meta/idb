@@ -6,8 +6,8 @@
  */
 
 import Foundation
-@_implementationOnly import ShimulatorAudioInjectionCore
-@_implementationOnly import ShimulatorProtocol
+import ShimulatorAudioInjectionCore
+import ShimulatorProtocol
 import XCTest
 
 final class AudioInjectionControllerTests: XCTestCase {
