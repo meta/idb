@@ -5,7 +5,7 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-@preconcurrency import FBControlCore
+import FBControlCore
 import Foundation
 import IOSurface
 
@@ -47,11 +47,11 @@ final class FramebufferStatsRecorder: Sendable {
       let intervalRate = intervalSeconds > 0 ? Double(intervalCallbacks) / intervalSeconds : 0
       let totalRate = totalSeconds > 0 ? Double(current.frameRenderedCount) / totalSeconds : 0
 
-      logger.info().log(
+      unsafe logger.info().log(
         String(
           format: "Framebuffer stats (interval): %lu frames in %.1fs (%.1f/s) — %lu IOSurface changes",
           intervalCallbacks, intervalSeconds, intervalRate, intervalIOSurface))
-      logger.info().log(
+      unsafe logger.info().log(
         String(
           format: "Framebuffer stats (total): %lu frames in %.1fs (%.1f/s) — %lu IOSurface changes",
           current.frameRenderedCount, totalSeconds, totalRate, current.ioSurfaceChangeCount))

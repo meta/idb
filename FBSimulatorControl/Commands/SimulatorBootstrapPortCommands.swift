@@ -5,7 +5,7 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-@preconcurrency import CoreSimulator
+import CoreSimulator
 import Foundation
 
 /// Resolves names in the simulated device's bootstrap namespace.
@@ -29,7 +29,7 @@ public struct SimulatorBootstrapPortCommands {
   ///   the daemon reported no port without reporting an error.
   public func lookup(named name: String) throws -> mach_port_t {
     var error: NSError?
-    let port = simulator.device.lookup(name, error: &error)
+    let port = unsafe simulator.device.lookup(name, error: &error)
     // The port is checked before the error: CoreSimulator is unannotated private API, and a
     // populated error alongside a valid port is a success.
     guard port != mach_port_t(MACH_PORT_NULL) else {

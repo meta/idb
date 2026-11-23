@@ -5,9 +5,9 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-@preconcurrency import CoreSimulator
+@unsafe @preconcurrency import CoreSimulator
 import Darwin
-@preconcurrency import FBControlCore
+import FBControlCore
 import Foundation
 import XPC
 
@@ -82,7 +82,7 @@ private struct SimDeviceNamespace: SimulatorXPCNamespace {
   func lookup(_ service: String) throws -> xpc_connection_t {
     try SimulatorXPCConnection.connect(service: service) { service in
       var error: NSError?
-      let port = device.lookup(service, error: &error)
+      let port = unsafe device.lookup(service, error: &error)
       return (port, error)
     }
   }
@@ -108,27 +108,27 @@ enum SimulatorXPCConnection {
   private typealias EnableSim2Host = @convention(c) (xpc_connection_t) -> Void
 
   static func connect(service: String, lookup: ServiceLookup) throws -> xpc_connection_t {
-    guard let handle = dlopen(nil, RTLD_NOW) else { throw SimulatorXPCConnectionError.symbolsUnavailable }
-    defer { dlclose(handle) }
+    guard let handle = unsafe dlopen(nil, RTLD_NOW) else { throw SimulatorXPCConnectionError.symbolsUnavailable }
+    defer { unsafe dlclose(handle) }
     guard
-      let endpointFromPort = symbol(handle, "xpc_endpoint_create_mach_port_4sim", as: EndpointFromPort.self),
-      let connectionFromEndpoint = symbol(handle, "xpc_connection_create_from_endpoint", as: ConnectionFromEndpoint.self),
-      let enableSim2Host = symbol(handle, "xpc_connection_enable_sim2host_4sim", as: EnableSim2Host.self)
+      let endpointFromPort = unsafe symbol(handle, "xpc_endpoint_create_mach_port_4sim", as: EndpointFromPort.self),
+      let connectionFromEndpoint = unsafe symbol(handle, "xpc_connection_create_from_endpoint", as: ConnectionFromEndpoint.self),
+      let enableSim2Host = unsafe symbol(handle, "xpc_connection_enable_sim2host_4sim", as: EnableSim2Host.self)
     else { throw SimulatorXPCConnectionError.symbolsUnavailable }
     let looked = lookup(service)
     guard looked.port != MACH_PORT_NULL else {
       throw SimulatorXPCConnectionError.lookupFailed(service: service, underlying: looked.error)
     }
     // Both Create functions return +1. The endpoint consumes the lookup's send right.
-    guard let endpoint = endpointFromPort(looked.port, 0, 0)?.takeRetainedValue() as? xpc_object_t,
-      let connection = connectionFromEndpoint(endpoint)?.takeRetainedValue() as? xpc_connection_t
+    guard let endpoint = unsafe endpointFromPort(looked.port, 0, 0)?.takeRetainedValue() as? xpc_object_t,
+      let connection = unsafe connectionFromEndpoint(endpoint)?.takeRetainedValue() as? xpc_connection_t
     else { throw SimulatorXPCConnectionError.connectionFailed }
     enableSim2Host(connection)
     return connection
   }
 
   private static func symbol<T>(_ handle: UnsafeMutableRawPointer, _ name: String, as type: T.Type) -> T? {
-    guard let pointer = dlsym(handle, name) else { return nil }
-    return unsafeBitCast(pointer, to: type)
+    guard let pointer = unsafe dlsym(handle, name) else { return nil }
+    return unsafe unsafeBitCast(pointer, to: type)
   }
 }

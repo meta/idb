@@ -5,9 +5,9 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-@preconcurrency import CoreSimulator
-@preconcurrency import FBControlCore
-@preconcurrency import Foundation
+import CoreSimulator
+import FBControlCore
+import Foundation
 
 /// Reads and overrides what the simulated device draws in its status bar.
 public struct SimulatorStatusBarCommands {
@@ -33,7 +33,7 @@ public struct SimulatorStatusBarCommands {
     var batteryState: NSNumber?
     var batteryLevel: NSNumber?
     var showNotCharging: NSNumber?
-    try simulator.device.currentStatusBarOverrides(
+    unsafe try simulator.device.currentStatusBarOverrides(
       forTime: &timeString,
       dataNetworkType: &dataNetworkType,
       wiFiMode: &wiFiMode,

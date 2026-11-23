@@ -5,9 +5,9 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-@preconcurrency import CoreSimulator
+import CoreSimulator
 import Darwin
-@preconcurrency import FBControlCore
+import FBControlCore
 import FBControlCoreObjC
 import Foundation
 
@@ -81,7 +81,7 @@ final class SimulatorIndigoHIDClient: @unchecked Sendable {
     let client: AnyObject
     do {
       client = try clientClass.instantiate(as: (any SimDeviceLegacyHIDClientMessaging).self) {
-        $0.initWithDevice(device, error: &clientError)
+        unsafe $0.initWithDevice(device, error: &clientError)
       }
     } catch {
       // `clientError` first: when the client declines by contract it says why, and that is more
@@ -114,15 +114,15 @@ final class SimulatorIndigoHIDClient: @unchecked Sendable {
         // The event is delivered asynchronously. Copy the message and let the client manage its lifecycle:
         // the free of the buffer is performed by the client (freeWhenDone) and the Data frees when out of scope.
         let size = data.count
-        guard let raw = malloc(size) else {
+        guard let raw = unsafe malloc(size) else {
           fatalError("Failed to allocate \(size) bytes for an Indigo message")
         }
-        data.withUnsafeBytes { (buffer: UnsafeRawBufferPointer) in
+        unsafe data.withUnsafeBytes { (buffer: UnsafeRawBufferPointer) in
           guard let base = buffer.baseAddress else { return }
-          raw.copyMemory(from: base, byteCount: size)
+          unsafe raw.copyMemory(from: base, byteCount: size)
         }
         guard let client else {
-          free(raw)
+          unsafe free(raw)
           continuation.resume(throwing: SimulatorHIDError.clientDisposed)
           return
         }
@@ -130,7 +130,7 @@ final class SimulatorIndigoHIDClient: @unchecked Sendable {
         pendingAcknowledgements += 1
         do {
           try FBObjCExceptionGuard.run {
-            unsafeBitCast(client, to: (any SimDeviceLegacyHIDClientMessaging).self)
+            unsafe unsafeBitCast(client, to: (any SimDeviceLegacyHIDClientMessaging).self)
               .send(withMessage: raw, freeWhenDone: true, completionQueue: queue) { [self] error in
                 settleAcknowledgement(error)
               }

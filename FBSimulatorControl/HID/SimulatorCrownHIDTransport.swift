@@ -5,7 +5,7 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-@preconcurrency import FBControlCore
+import FBControlCore
 import Foundation
 
 /// Maps a stream of crown samples onto the `dtuhidd` `began` / `changed` / `ended` phases, as

@@ -68,7 +68,7 @@ public enum AXBridgeError: LocalizedError, Sendable {
     case let .guestFailure(message):
       return "The axbridge guest failed: \(message)"
     case let .guestNotAnswering(after):
-      return String(format: "The axbridge guest did not answer within %.1fs", after)
+      return unsafe String(format: "The axbridge guest did not answer within %.1fs", after)
     }
   }
 

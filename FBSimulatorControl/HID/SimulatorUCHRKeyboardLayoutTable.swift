@@ -128,19 +128,19 @@ struct SimulatorUCHRKeyMap: Sendable {
     var state = deadKeyState
     var length = 0
     var characters = [UniChar](repeating: 0, count: 8)
-    let status = uchr.withUnsafeBytes { bytes -> OSStatus in
-      guard let layout = bytes.baseAddress?.assumingMemoryBound(to: UCKeyboardLayout.self) else {
+    let status = unsafe uchr.withUnsafeBytes { bytes -> OSStatus in
+      guard let layout = unsafe bytes.baseAddress?.assumingMemoryBound(to: UCKeyboardLayout.self) else {
         return OSStatus(paramErr)
       }
       // A runtime's uchr data is indexed by HID usage, where macOS's is by virtual key code.
-      return UCKeyTranslate(
+      return unsafe UCKeyTranslate(
         layout, UInt16(truncatingIfNeeded: stroke.usage), UInt16(kUCKeyActionDown), modifierState, 0, 0, &state,
         characters.count, &length, &characters)
     }
     guard status == noErr else {
       return ("", 0)
     }
-    return (String(utf16CodeUnits: characters, count: min(length, characters.count)), state)
+    return unsafe (String(utf16CodeUnits: characters, count: min(length, characters.count)), state)
   }
 
   // MARK: - Validation
@@ -369,6 +369,6 @@ final class SimulatorUCHRKeyboardLayoutTable: SimulatorKeyboardLayoutTable {
     guard let data = try? Data(contentsOf: url) else {
       return nil
     }
-    return (try? PropertyListSerialization.propertyList(from: data, format: nil)) as? [String: Any]
+    return unsafe (try? PropertyListSerialization.propertyList(from: data, format: nil)) as? [String: Any]
   }
 }

@@ -6,7 +6,7 @@
  */
 
 import Foundation
-@preconcurrency import XPC
+@unsafe @preconcurrency import XPC
 
 /// One CoreDevice request over one channel, bounded by a deadline and by task cancellation.
 ///
@@ -99,7 +99,7 @@ final class CoreDeviceSession<Response: Sendable>: @unchecked Sendable {
       if let value = try element(event) {
         continuation.yield(value)
       }
-      channel.reply(to: event) { xpc_dictionary_set_bool($0, SimulatorCoreDevice.cancellationKey, false) }
+      channel.reply(to: event) { unsafe xpc_dictionary_set_bool($0, SimulatorCoreDevice.cancellationKey, false) }
     } catch {
       finished = true
       continuation.finish(throwing: error)
@@ -130,7 +130,7 @@ final class CoreDeviceSession<Response: Sendable>: @unchecked Sendable {
         held = try sample(event)
       }
       let cancelling = held != nil
-      channel.reply(to: event) { xpc_dictionary_set_bool($0, SimulatorCoreDevice.cancellationKey, cancelling) }
+      channel.reply(to: event) { unsafe xpc_dictionary_set_bool($0, SimulatorCoreDevice.cancellationKey, cancelling) }
     } catch {
       finish(.failure(error), answer)
     }

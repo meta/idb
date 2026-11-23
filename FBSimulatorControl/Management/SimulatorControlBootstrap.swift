@@ -5,8 +5,8 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-@preconcurrency import CoreSimulator
-@preconcurrency import FBControlCore
+import CoreSimulator
+import FBControlCore
 import Foundation
 
 /// The entry point to a simulator device set: loads the private frameworks, opens the service

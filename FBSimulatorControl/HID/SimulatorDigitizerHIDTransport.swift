@@ -6,8 +6,8 @@
  */
 
 import CoreGraphics
-@preconcurrency import CoreSimulator
-@preconcurrency import FBControlCore
+import CoreSimulator
+import FBControlCore
 import Foundation
 
 /// Tracks the per-contact phase so that a stream of Indigo `.down`/`.up` events maps onto the

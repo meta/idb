@@ -5,8 +5,8 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-@preconcurrency import CoreSimulator
-@preconcurrency import FBControlCore
+import CoreSimulator
+import FBControlCore
 import Foundation
 
 /// Errors thrown while resolving the CoreSimulator `SimServiceContext` and its device sets.
@@ -74,11 +74,11 @@ public final class SimulatorServiceContext {
   public static func sharedServiceContext(withLogger logger: (any ControlCoreLogger)?) throws -> SimulatorServiceContext {
     sharedLock.lock()
     defer { sharedLock.unlock() }
-    if let instance = _sharedInstance {
+    if let instance = unsafe _sharedInstance {
       return instance
     }
     let instance = try createServiceContext(withLogger: logger)
-    _sharedInstance = instance
+    unsafe _sharedInstance = instance
     return instance
   }
 
@@ -101,7 +101,7 @@ public final class SimulatorServiceContext {
 
     var innerError: AnyObject?
     let serviceContext =
-      serviceContextClass
+      unsafe serviceContextClass
       .sharedServiceContext(forDeveloperDir: developerDirectory, error: &innerError)
     guard let serviceContext = serviceContext as? SimServiceContext else {
       throw SimulatorServiceContextError.serviceContextUnavailable(
@@ -127,14 +127,14 @@ public final class SimulatorServiceContext {
     guard let deviceSetPath = configuration.deviceSetPath else {
       // defaultDeviceSetWithError: takes (id *) not (NSError **), so use the raw API
       var error: AnyObject?
-      guard let deviceSet = serviceContext.defaultDeviceSetWithError(&error) as? SimDeviceSet else {
+      guard let deviceSet = unsafe serviceContext.defaultDeviceSetWithError(&error) as? SimDeviceSet else {
         throw SimulatorServiceContextError.defaultDeviceSetUnavailable(reason: (error as? NSError)?.localizedDescription)
       }
       return deviceSet
     }
     let resolvedPath = try SimulatorServiceContext.fullyQualifiedDeviceSetPath(deviceSetPath)
     var innerError: AnyObject?
-    guard let deviceSet = serviceContext.deviceSet(withPath: resolvedPath, error: &innerError) as? SimDeviceSet else {
+    guard let deviceSet = unsafe serviceContext.deviceSet(withPath: resolvedPath, error: &innerError) as? SimDeviceSet else {
       throw SimulatorServiceContextError.deviceSetUnavailable(
         configuration: "\(configuration)",
         reason: (innerError as? NSError)?.localizedDescription)
@@ -154,11 +154,11 @@ public final class SimulatorServiceContext {
     // -[NSString stringByResolvingSymlinksInPath] doesn't resolve /var to /private/var.
     // This is important for -[SimServiceContext deviceSetWithPath:error:], which internally caches based on a fully resolved path.
     var pathBuffer = [CChar](repeating: 0, count: Int(PATH_MAX) + 1)
-    guard let result = realpath(deviceSetPath, &pathBuffer) else {
-      throw SimulatorServiceContextError.deviceSetPathResolutionFailed(
+    guard let result = unsafe realpath(deviceSetPath, &pathBuffer) else {
+      throw unsafe SimulatorServiceContextError.deviceSetPathResolutionFailed(
         path: deviceSetPath,
         reason: String(cString: strerror(errno)))
     }
-    return String(cString: result)
+    return unsafe String(cString: result)
   }
 }

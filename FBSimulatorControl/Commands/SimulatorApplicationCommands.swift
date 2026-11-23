@@ -5,9 +5,9 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-@preconcurrency import CoreSimulator
-@preconcurrency import FBControlCore
-@preconcurrency import Foundation
+import CoreSimulator
+import FBControlCore
+import Foundation
 
 public enum SimulatorApplicationInstallError: Error, LocalizedError {
   case installFailed(bundleDescription: String, options: String)
@@ -234,7 +234,7 @@ public struct SimulatorApplicationCommands: ApplicationCommands {
   private func fetchInstalledApplication(bundleID: String) throws -> InstalledApplication {
     let device = simulator.device
     var applicationType: NSString?
-    try device.applicationIsInstalled(bundleID, type: &applicationType)
+    unsafe try device.applicationIsInstalled(bundleID, type: &applicationType)
     let appInfo = try device.properties(ofApplication: bundleID)
     return try SimulatorApplicationCommands.installedApplication(fromInfo: appInfo)
   }

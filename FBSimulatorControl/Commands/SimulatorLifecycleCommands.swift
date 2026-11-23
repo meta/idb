@@ -6,9 +6,9 @@
  */
 
 import AppKit
-@preconcurrency import CoreSimulator
-@preconcurrency import FBControlCore
-@preconcurrency import Foundation
+import CoreSimulator
+import FBControlCore
+import Foundation
 
 private let openURLRetries = 2
 

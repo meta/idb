@@ -6,7 +6,7 @@
  */
 
 import Foundation
-@preconcurrency import XPC
+import XPC
 
 /// A simulator's CoreDevice features, reached one request at a time.
 ///

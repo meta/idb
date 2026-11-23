@@ -48,7 +48,7 @@ public struct SimulatorBootConfiguration: Equatable, Hashable, Sendable, CustomS
   }
 
   public var description: String {
-    String(
+    unsafe String(
       format: "Boot Environment %@ | Options %@",
       CollectionInformation.oneLineDescription(from: environment as [String: Any]),
       CollectionInformation.oneLineDescription(from: Self.stringsFromBootOptions(options) as [Any])

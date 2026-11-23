@@ -7,7 +7,7 @@
 
 import FBControlCore
 import Foundation
-@preconcurrency import XPC
+@unsafe @preconcurrency import XPC
 import os
 
 /// What arrives on a channel other than a reply.
@@ -21,7 +21,7 @@ package enum SimulatorXPCEvent {
   case invalidated
 
   init(_ object: xpc_object_t) {
-    if xpc_get_type(object) != XPC_TYPE_ERROR {
+    if unsafe xpc_get_type(object) != XPC_TYPE_ERROR {
       self = .message(object)
     } else if object === XPC_ERROR_CONNECTION_INTERRUPTED {
       self = .interrupted
@@ -41,8 +41,8 @@ package enum SimulatorXPCError: Error, Equatable, CustomStringConvertible {
   case invalidated
 
   init(errorReply reply: xpc_object_t) {
-    self = .peerUnavailable(
-      xpc_dictionary_get_string(reply, XPC_ERROR_KEY_DESCRIPTION).map { String(cString: $0) } ?? "unknown XPC error")
+    self = unsafe .peerUnavailable(
+      xpc_dictionary_get_string(reply, XPC_ERROR_KEY_DESCRIPTION).map { unsafe String(cString: $0) } ?? "unknown XPC error")
   }
 
   package var description: String {
@@ -76,7 +76,7 @@ package final class SimulatorXPCChannel: Sendable {
 
   /// Takes an unresumed connection, as `SimulatorXPCConnector` returns it.
   package init(connection: xpc_connection_t, queue: DispatchQueue) {
-    self.connection = connection
+    unsafe self.connection = connection
     self.queue = queue
     xpc_connection_set_target_queue(connection, queue)
   }
@@ -90,19 +90,19 @@ package final class SimulatorXPCChannel: Sendable {
         return true
       })
     else { return }
-    xpc_connection_set_event_handler(connection) { [weak self] object in
+    unsafe xpc_connection_set_event_handler(connection) { [weak self] object in
       let event = SimulatorXPCEvent(object)
       if case .invalidated = event { self?.invalidate() }
       events(event)
     }
-    xpc_connection_resume(connection)
+    unsafe xpc_connection_resume(connection)
   }
 
   /// Sends a message that expects no reply. XPC accepts sends on a finished connection and drops
   /// them, so this throws `SimulatorXPCError.invalidated` once the channel knows it is finished.
   func send(_ message: xpc_object_t) throws {
     guard !isInvalidated else { throw SimulatorXPCError.invalidated }
-    xpc_connection_send_message(connection, message)
+    unsafe xpc_connection_send_message(connection, message)
   }
 
   private var isInvalidated: Bool {
@@ -117,15 +117,15 @@ package final class SimulatorXPCChannel: Sendable {
   /// having read it.
   func sendBarrier() async {
     await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
-      xpc_connection_send_barrier(connection) { continuation.resume() }
+      unsafe xpc_connection_send_barrier(connection) { continuation.resume() }
     }
   }
 
   /// Sends `message` and hands its reply to `reply` on `queue`, or the `SimulatorXPCError` XPC
   /// answered with instead of the peer.
   package func request(_ message: xpc_object_t, reply: @escaping @Sendable (sending Result<xpc_object_t, SimulatorXPCError>) -> Void) {
-    xpc_connection_send_message_with_reply(connection, message, queue) { [weak self] object in
-      guard xpc_get_type(object) == XPC_TYPE_ERROR else { return reply(.success(object)) }
+    unsafe xpc_connection_send_message_with_reply(connection, message, queue) { [weak self] object in
+      guard unsafe xpc_get_type(object) == XPC_TYPE_ERROR else { return reply(.success(object)) }
       // The reply can arrive ahead of the invalidation event, and the caller may send next.
       if object === XPC_ERROR_CONNECTION_INVALID { self?.invalidate() }
       reply(.failure(SimulatorXPCError(errorReply: object)))
@@ -158,9 +158,9 @@ package final class SimulatorXPCChannel: Sendable {
   /// Answers a message the peer sent with a reply, filled in by `fill`. Does nothing for a message
   /// that expects no reply.
   func reply(to message: xpc_object_t, _ fill: (xpc_object_t) -> Void) {
-    guard xpc_get_type(message) == XPC_TYPE_DICTIONARY, let reply = xpc_dictionary_create_reply(message) else { return }
+    guard unsafe xpc_get_type(message) == XPC_TYPE_DICTIONARY, let reply = xpc_dictionary_create_reply(message) else { return }
     fill(reply)
-    xpc_connection_send_message(connection, reply)
+    unsafe xpc_connection_send_message(connection, reply)
   }
 
   /// Cancels the connection. XPC will not release a suspended connection, so one never activated is
@@ -168,7 +168,7 @@ package final class SimulatorXPCChannel: Sendable {
   package func cancel() {
     activate { _ in }
     invalidate()
-    xpc_connection_cancel(connection)
+    unsafe xpc_connection_cancel(connection)
   }
 }
 

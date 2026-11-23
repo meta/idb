@@ -6,9 +6,9 @@
  */
 
 import CoreImage
-@preconcurrency import FBControlCore
+import FBControlCore
 import Foundation
-@preconcurrency import IOSurface
+import IOSurface
 
 public actor SimulatorImage {
 

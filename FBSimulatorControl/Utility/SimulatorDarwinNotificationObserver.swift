@@ -5,8 +5,8 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-@preconcurrency import CoreSimulator
-@preconcurrency import FBControlCore
+@unsafe @preconcurrency import CoreSimulator
+import FBControlCore
 import Foundation
 
 package enum SimulatorDarwinNotificationObserver {
@@ -33,7 +33,7 @@ package enum SimulatorDarwinNotificationObserver {
           failed(SimulatorNotificationObservationError.notBooted)
         }
       }
-      let unregisterState: Cancel = { _ = notifier.unregisterNotificationHandler(handle, error: nil) }
+      let unregisterState: Cancel = { _ = unsafe notifier.unregisterNotificationHandler(handle, error: nil) }
       simulator.device.observeDarwinNotification(name, on: queue, handler: { _ in changed() }) { token, error in
         if let error {
           token?.invalidate()
@@ -103,7 +103,7 @@ package enum SimulatorDarwinNotificationObserver {
       throw SimulatorNotificationObservationError.unsupported
     }
     var value: UInt64 = 0
-    try simulator.device.darwinNotificationGetState(&value, name: name)
+    unsafe try simulator.device.darwinNotificationGetState(&value, name: name)
     return value
   }
 }

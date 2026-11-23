@@ -5,8 +5,8 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-@preconcurrency import CoreSimulator
-@preconcurrency import FBControlCore
+import CoreSimulator
+import FBControlCore
 import Foundation
 
 /// Errors thrown while modifying simulator defaults/preferences. String-representable so the message

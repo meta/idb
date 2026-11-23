@@ -5,9 +5,9 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-@preconcurrency import CoreSimulator
+import CoreSimulator
 import Darwin
-@preconcurrency import FBControlCore
+import FBControlCore
 import Foundation
 
 /**

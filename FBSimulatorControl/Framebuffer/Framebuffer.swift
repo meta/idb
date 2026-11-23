@@ -5,9 +5,9 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-@preconcurrency import FBControlCore
+import FBControlCore
 import Foundation
-@preconcurrency import IOSurface
+import IOSurface
 
 /// Counters for framebuffer surface-change and frame-rendered callbacks, sampled for periodic
 /// logging. There is no rect geometry: the underlying CoreSimulator callback is a per-frame change

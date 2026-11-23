@@ -6,7 +6,7 @@
  */
 
 import CoreGraphics
-@preconcurrency import FBControlCore
+import FBControlCore
 import Foundation
 
 /// Selects which transport a `SimulatorHID` uses for the touch / button / keyboard primitives.

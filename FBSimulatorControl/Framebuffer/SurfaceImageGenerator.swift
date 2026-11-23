@@ -59,7 +59,7 @@ public final class SurfaceImageGenerator {
       throw ScreenshotRenderError.colorSpaceCreationFailed
     }
     // CoreSimulator screenshots interpret framebuffer samples as sRGB, even when the surface is tagged P3.
-    var source = CIImage(ioSurface: unsafeBitCast(surface, to: IOSurfaceRef.self), options: [.colorSpace: colorSpace])
+    var source = unsafe CIImage(ioSurface: unsafeBitCast(surface, to: IOSurfaceRef.self), options: [.colorSpace: colorSpace])
     if let display {
       guard source.extent == display.bounds else { throw SimulatorDisplayError.changed }
       source = source.oriented(forExifOrientation: display.rotation.exifOrientation)

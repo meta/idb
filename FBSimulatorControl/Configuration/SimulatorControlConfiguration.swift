@@ -63,16 +63,16 @@ public struct SimulatorControlConfiguration: Equatable, Hashable, CustomStringCo
   /// when they cannot be loaded or the path cannot be resolved.
   public static func defaultDeviceSetPath() throws -> String {
     try SimulatorControlFrameworkLoader.essentialFrameworks.loadPrivateFrameworks(nil)
-    guard let deviceSetClass = objc_lookUpClass("SimDeviceSet") else {
+    guard let deviceSetClass = unsafe objc_lookUpClass("SimDeviceSet") else {
       throw SimulatorDeviceSetError.simDeviceSetUnavailable
     }
     let cls = deviceSetClass as AnyObject
-    if let result = cls.perform(NSSelectorFromString("defaultSetPath"))?.takeUnretainedValue() as? String {
+    if let result = unsafe cls.perform(NSSelectorFromString("defaultSetPath"))?.takeUnretainedValue() as? String {
       return result
     }
     guard
-      let defaultSet = cls.perform(NSSelectorFromString("defaultSet"))?.takeUnretainedValue(),
-      let setPath = (defaultSet as AnyObject).perform(NSSelectorFromString("setPath"))?.takeUnretainedValue() as? String
+      let defaultSet = unsafe cls.perform(NSSelectorFromString("defaultSet"))?.takeUnretainedValue(),
+      let setPath = unsafe (defaultSet as AnyObject).perform(NSSelectorFromString("setPath"))?.takeUnretainedValue() as? String
     else {
       throw SimulatorDeviceSetError.defaultPathUnavailable
     }

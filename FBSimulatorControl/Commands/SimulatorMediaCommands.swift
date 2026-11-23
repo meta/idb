@@ -6,7 +6,7 @@
  */
 
 import AppKit
-@preconcurrency import CoreSimulator
+import CoreSimulator
 import FBControlCore
 import FBControlCoreObjC
 import Foundation

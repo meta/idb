@@ -5,9 +5,9 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-@preconcurrency import CoreSimulator
+import CoreSimulator
 import Darwin
-@preconcurrency import FBControlCore
+import FBControlCore
 import Foundation
 
 /**
@@ -78,17 +78,17 @@ final class SimulatorPurpleHIDTransport: @unchecked Sendable {
     }
 
     var lookupError: NSError?
-    let purplePort = simulator.device.lookup("PurpleWorkspacePort", error: &lookupError)
+    let purplePort = unsafe simulator.device.lookup("PurpleWorkspacePort", error: &lookupError)
     if purplePort == 0 {
       throw SimulatorHIDError.purpleWorkspacePortUnavailable(underlying: lookupError)
     }
 
     var mutableData = data
-    let kr: kern_return_t = mutableData.withUnsafeMutableBytes { (buffer: UnsafeMutableRawBufferPointer) -> kern_return_t in
+    let kr: kern_return_t = unsafe mutableData.withUnsafeMutableBytes { (buffer: UnsafeMutableRawBufferPointer) -> kern_return_t in
       guard let base = buffer.baseAddress else { return KERN_FAILURE }
-      let header = base.assumingMemoryBound(to: mach_msg_header_t.self)
-      header.pointee.msgh_remote_port = purplePort
-      return mach_msg(
+      let header = unsafe base.assumingMemoryBound(to: mach_msg_header_t.self)
+      unsafe header.pointee.msgh_remote_port = purplePort
+      return unsafe mach_msg(
         header,
         MACH_SEND_MSG | MACH_SEND_TIMEOUT,
         header.pointee.msgh_size,
@@ -102,10 +102,10 @@ final class SimulatorPurpleHIDTransport: @unchecked Sendable {
       return
     }
     if kr == MACH_SEND_TIMED_OUT {
-      throw SimulatorHIDError.machSendTimedOut(
+      throw unsafe SimulatorHIDError.machSendTimedOut(
         port: purplePort, timeoutMs: timeoutMs, detail: String(cString: mach_error_string(kr)))
     }
-    throw SimulatorHIDError.machSendFailed(
+    throw unsafe SimulatorHIDError.machSendFailed(
       port: purplePort, detail: String(cString: mach_error_string(kr)), code: kr)
   }
 }

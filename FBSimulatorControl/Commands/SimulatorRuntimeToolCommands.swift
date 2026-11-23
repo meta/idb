@@ -5,8 +5,8 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-@preconcurrency import CoreSimulator
-@preconcurrency import FBControlCore
+import CoreSimulator
+import FBControlCore
 import Foundation
 
 /// The captured result of running a tool inside the simulator runtime.

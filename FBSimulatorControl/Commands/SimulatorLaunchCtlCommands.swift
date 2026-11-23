@@ -5,9 +5,9 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-@preconcurrency import CoreSimulator
-@preconcurrency import FBControlCore
-@preconcurrency import Foundation
+import CoreSimulator
+import FBControlCore
+import Foundation
 
 public enum SimulatorLaunchCtlError: Error {
   case searchPatternConstructionFailed(processIdentifier: pid_t)

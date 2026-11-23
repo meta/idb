@@ -47,7 +47,7 @@ public struct ObjCRuntimeClass {
   /// registered. Loading whatever vends the class is the caller's responsibility — a lookup only
   /// sees classes belonging to images that are already in the process.
   public init?(name: String) {
-    guard let cls = objc_lookUpClass(name) else {
+    guard let cls = unsafe objc_lookUpClass(name) else {
       return nil
     }
     self.name = name
@@ -79,7 +79,7 @@ public struct ObjCRuntimeClass {
     guard let instance = class_createInstance(cls, 0) else {
       throw ObjCRuntimeClassError.allocationFailed(className: name)
     }
-    let allocated = unsafeBitCast(instance as AnyObject, to: Messaging.self)
+    let allocated = unsafe unsafeBitCast(instance as AnyObject, to: Messaging.self)
     let initialized: AnyObject?
     do {
       initialized = try FBObjCExceptionGuard.guarded { initialize(allocated) }

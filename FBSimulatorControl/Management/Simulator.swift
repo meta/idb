@@ -5,8 +5,8 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-@preconcurrency import CoreSimulator
-@preconcurrency import FBControlCore
+import CoreSimulator
+import FBControlCore
 import Foundation
 
 private let DefaultDeviceSet = "~/Library/Developer/CoreSimulator/Devices"
@@ -180,7 +180,7 @@ public final class Simulator: Target, Hashable, CustomStringConvertible, @unchec
   package var dataDirectory: String? { device.dataPath() }
 
   public var customDeviceSetPath: String? {
-    let setPath = device.deviceSet?.setPath
+    let setPath = unsafe device.deviceSet?.setPath
     return setPath == (DefaultDeviceSet as NSString).expandingTildeInPath ? nil : setPath
   }
 

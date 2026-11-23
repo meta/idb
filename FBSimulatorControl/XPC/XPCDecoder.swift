@@ -48,21 +48,21 @@ indirect enum XPCValue: Equatable, Sendable, Decodable {
   case other(String)
 
   init(_ object: xpc_object_t) {
-    switch xpc_get_type(object) {
-    case XPC_TYPE_BOOL: self = .bool(xpc_bool_get_value(object))
-    case XPC_TYPE_STRING: self = .string(xpc_string_get_string_ptr(object).map { String(cString: $0) } ?? "")
-    case XPC_TYPE_INT64: self = .int64(xpc_int64_get_value(object))
-    case XPC_TYPE_UINT64: self = .uint64(xpc_uint64_get_value(object))
-    case XPC_TYPE_DOUBLE: self = .double(xpc_double_get_value(object))
-    case XPC_TYPE_DATA: self = .data(XPCScalar.data(object))
-    case XPC_TYPE_UUID: self = .uuid(XPCScalar.uuid(object))
-    case XPC_TYPE_NULL: self = .null
-    case XPC_TYPE_ARRAY:
+    switch unsafe xpc_get_type(object) {
+    case unsafe XPC_TYPE_BOOL: self = .bool(xpc_bool_get_value(object))
+    case unsafe XPC_TYPE_STRING: self = unsafe .string(xpc_string_get_string_ptr(object).map { unsafe String(cString: $0) } ?? "")
+    case unsafe XPC_TYPE_INT64: self = .int64(xpc_int64_get_value(object))
+    case unsafe XPC_TYPE_UINT64: self = .uint64(xpc_uint64_get_value(object))
+    case unsafe XPC_TYPE_DOUBLE: self = .double(xpc_double_get_value(object))
+    case unsafe XPC_TYPE_DATA: self = .data(XPCScalar.data(object))
+    case unsafe XPC_TYPE_UUID: self = .uuid(XPCScalar.uuid(object))
+    case unsafe XPC_TYPE_NULL: self = .null
+    case unsafe XPC_TYPE_ARRAY:
       self = .array((0..<xpc_array_get_count(object)).map { XPCValue(xpc_array_get_value(object, $0)) })
-    case XPC_TYPE_DICTIONARY:
+    case unsafe XPC_TYPE_DICTIONARY:
       var values: [String: XPCValue] = [:]
-      xpc_dictionary_apply(object) { key, value in
-        values[String(cString: key)] = XPCValue(value)
+      unsafe xpc_dictionary_apply(object) { key, value in
+        unsafe values[String(cString: key)] = XPCValue(value)
         return true
       }
       self = .dictionary(values)
@@ -82,11 +82,11 @@ indirect enum XPCValue: Equatable, Sendable, Decodable {
 /// The strict scalar reads every container shares.
 private enum XPCScalar {
   static func typeName(_ object: xpc_object_t) -> String {
-    String(cString: xpc_type_get_name(xpc_get_type(object)))
+    unsafe String(cString: xpc_type_get_name(xpc_get_type(object)))
   }
 
   static func require(_ object: xpc_object_t, _ type: xpc_type_t, _ name: String, _ expected: Any.Type, _ codingPath: [any CodingKey]) throws {
-    guard xpc_get_type(object) == type else {
+    guard unsafe xpc_get_type(object) == type else {
       throw DecodingError.typeMismatch(
         expected,
         DecodingError.Context(codingPath: codingPath, debugDescription: "Expected \(name), found \(typeName(object))"))
@@ -94,19 +94,19 @@ private enum XPCScalar {
   }
 
   static func bool(_ object: xpc_object_t, _ codingPath: [any CodingKey]) throws -> Bool {
-    try require(object, XPC_TYPE_BOOL, "bool", Bool.self, codingPath)
+    unsafe try require(object, XPC_TYPE_BOOL, "bool", Bool.self, codingPath)
     return xpc_bool_get_value(object)
   }
 
   static func double(_ object: xpc_object_t, _ codingPath: [any CodingKey]) throws -> Double {
-    try require(object, XPC_TYPE_DOUBLE, "double", Double.self, codingPath)
+    unsafe try require(object, XPC_TYPE_DOUBLE, "double", Double.self, codingPath)
     return xpc_double_get_value(object)
   }
 
   static func string(_ object: xpc_object_t, _ codingPath: [any CodingKey]) throws -> String {
-    try require(object, XPC_TYPE_STRING, "string", String.self, codingPath)
-    guard let pointer = xpc_string_get_string_ptr(object),
-      let string = String(data: Data(bytes: pointer, count: xpc_string_get_length(object)), encoding: .utf8)
+    unsafe try require(object, XPC_TYPE_STRING, "string", String.self, codingPath)
+    guard let pointer = unsafe xpc_string_get_string_ptr(object),
+      let string = unsafe String(data: Data(bytes: pointer, count: xpc_string_get_length(object)), encoding: .utf8)
     else {
       throw DecodingError.dataCorrupted(
         DecodingError.Context(codingPath: codingPath, debugDescription: "String is not valid UTF-8"))
@@ -115,12 +115,12 @@ private enum XPCScalar {
   }
 
   static func signed<T: FixedWidthInteger & SignedInteger>(_ type: T.Type, _ object: xpc_object_t, _ codingPath: [any CodingKey]) throws -> T {
-    try require(object, XPC_TYPE_INT64, "int64", type, codingPath)
+    unsafe try require(object, XPC_TYPE_INT64, "int64", type, codingPath)
     return try exactly(type, xpc_int64_get_value(object), codingPath)
   }
 
   static func unsigned<T: FixedWidthInteger & UnsignedInteger>(_ type: T.Type, _ object: xpc_object_t, _ codingPath: [any CodingKey]) throws -> T {
-    try require(object, XPC_TYPE_UINT64, "uint64", type, codingPath)
+    unsafe try require(object, XPC_TYPE_UINT64, "uint64", type, codingPath)
     return try exactly(type, xpc_uint64_get_value(object), codingPath)
   }
 
@@ -133,23 +133,23 @@ private enum XPCScalar {
   }
 
   static func data(_ object: xpc_object_t, _ codingPath: [any CodingKey]) throws -> Data {
-    try require(object, XPC_TYPE_DATA, "data", Data.self, codingPath)
+    unsafe try require(object, XPC_TYPE_DATA, "data", Data.self, codingPath)
     return data(object)
   }
 
   static func data(_ object: xpc_object_t) -> Data {
-    guard let bytes = xpc_data_get_bytes_ptr(object) else { return Data() }
-    return Data(bytes: bytes, count: xpc_data_get_length(object))
+    guard let bytes = unsafe xpc_data_get_bytes_ptr(object) else { return Data() }
+    return unsafe Data(bytes: bytes, count: xpc_data_get_length(object))
   }
 
   static func uuid(_ object: xpc_object_t, _ codingPath: [any CodingKey]) throws -> UUID {
-    try require(object, XPC_TYPE_UUID, "uuid", UUID.self, codingPath)
+    unsafe try require(object, XPC_TYPE_UUID, "uuid", UUID.self, codingPath)
     return uuid(object)
   }
 
   static func uuid(_ object: xpc_object_t) -> UUID {
-    guard let bytes = xpc_uuid_get_bytes(object) else { return UUID(uuid: UUID_NULL) }
-    return UUID(uuid: UnsafeRawPointer(bytes).load(as: uuid_t.self))
+    guard let bytes = unsafe xpc_uuid_get_bytes(object) else { return UUID(uuid: UUID_NULL) }
+    return unsafe UUID(uuid: UnsafeRawPointer(bytes).load(as: uuid_t.self))
   }
 }
 
@@ -176,12 +176,12 @@ private struct XPCDecoderImpl: Decoder {
   }
 
   func container<Key: CodingKey>(keyedBy type: Key.Type) throws -> KeyedDecodingContainer<Key> {
-    try XPCScalar.require(object, XPC_TYPE_DICTIONARY, "dictionary", [String: Any].self, codingPath)
+    unsafe try XPCScalar.require(object, XPC_TYPE_DICTIONARY, "dictionary", [String: Any].self, codingPath)
     return KeyedDecodingContainer(XPCKeyedDecodingContainer<Key>(dictionary: object, codingPath: codingPath))
   }
 
   func unkeyedContainer() throws -> any UnkeyedDecodingContainer {
-    try XPCScalar.require(object, XPC_TYPE_ARRAY, "array", [Any].self, codingPath)
+    unsafe try XPCScalar.require(object, XPC_TYPE_ARRAY, "array", [Any].self, codingPath)
     return XPCUnkeyedDecodingContainer(array: object, codingPath: codingPath)
   }
 
@@ -196,19 +196,19 @@ private struct XPCKeyedDecodingContainer<Key: CodingKey>: KeyedDecodingContainer
 
   var allKeys: [Key] {
     var keys: [Key] = []
-    xpc_dictionary_apply(dictionary) { key, _ in
-      if let key = Key(stringValue: String(cString: key)) { keys.append(key) }
+    unsafe xpc_dictionary_apply(dictionary) { key, _ in
+      if let key = unsafe Key(stringValue: String(cString: key)) { keys.append(key) }
       return true
     }
     return keys
   }
 
   func contains(_ key: Key) -> Bool {
-    xpc_dictionary_get_value(dictionary, key.stringValue) != nil
+    unsafe xpc_dictionary_get_value(dictionary, key.stringValue) != nil
   }
 
   private func value(_ key: Key) throws -> xpc_object_t {
-    guard let value = xpc_dictionary_get_value(dictionary, key.stringValue) else {
+    guard let value = unsafe xpc_dictionary_get_value(dictionary, key.stringValue) else {
       throw DecodingError.keyNotFound(
         key, DecodingError.Context(codingPath: codingPath, debugDescription: "Missing key \(key.stringValue)"))
     }
@@ -285,7 +285,7 @@ private struct XPCUnkeyedDecodingContainer: UnkeyedDecodingContainer {
       throw DecodingError.valueNotFound(
         Any?.self, DecodingError.Context(codingPath: currentPath, debugDescription: "Array has no element at index \(currentIndex)"))
     }
-    guard xpc_get_type(xpc_array_get_value(array, currentIndex)) == XPC_TYPE_NULL else { return false }
+    guard unsafe xpc_get_type(xpc_array_get_value(array, currentIndex)) == XPC_TYPE_NULL else { return false }
     currentIndex += 1
     return true
   }
@@ -372,7 +372,7 @@ private struct XPCSingleValueDecodingContainer: SingleValueDecodingContainer {
   let object: xpc_object_t
   var codingPath: [any CodingKey]
 
-  func decodeNil() -> Bool { xpc_get_type(object) == XPC_TYPE_NULL }
+  func decodeNil() -> Bool { unsafe xpc_get_type(object) == XPC_TYPE_NULL }
 
   func decode(_ type: Bool.Type) throws -> Bool { try XPCScalar.bool(object, codingPath) }
   func decode(_ type: String.Type) throws -> String { try XPCScalar.string(object, codingPath) }

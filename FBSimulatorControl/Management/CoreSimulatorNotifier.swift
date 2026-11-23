@@ -5,8 +5,8 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-@preconcurrency import CoreSimulator
-@preconcurrency import FBControlCore
+import CoreSimulator
+import FBControlCore
 import Foundation
 
 /// Arbitrates the single hand-off between the notification block, task cancellation and the
@@ -109,7 +109,7 @@ public final class CoreSimulatorNotifier {
   }
 
   public func terminate() {
-    notifier?.unregisterNotificationHandler(handle, error: nil)
+    unsafe notifier?.unregisterNotificationHandler(handle, error: nil)
   }
 
   /// Calls `block` on `queue` with each notification `set`'s device set posts, until terminated.

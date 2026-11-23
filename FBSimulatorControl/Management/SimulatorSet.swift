@@ -5,8 +5,8 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-@preconcurrency import CoreSimulator
-@preconcurrency import FBControlCore
+@unsafe @preconcurrency import CoreSimulator
+import FBControlCore
 import Foundation
 
 /// Queries, creates and deletes the simulators in a `SimDeviceSet`, and reports their changes to its `delegate`.
@@ -97,7 +97,7 @@ public final class SimulatorSet: TargetSet {
     // Capture the Log Directory ahead of time as the Simulator will disappear on deletion.
     let coreSimulatorLogsDirectory = simulator.coreSimulatorLogsDirectory
     let udid = simulator.udid
-    guard let deviceSet = simulator.device.deviceSet else {
+    guard let deviceSet = unsafe simulator.device.deviceSet else {
       throw SimulatorSetError.simulatorHasNoSet(udid: simulator.udid)
     }
     let logger = simulator.logger
@@ -161,7 +161,7 @@ public final class SimulatorSet: TargetSet {
   // Unchecked because unit tests stand in doubles that respond to `SimDevice`'s selectors without
   // being instances of it, which a checked cast rejects. A real `SimDeviceSet` vends only `SimDevice`s.
   private static func simDevice(_ item: Any) -> SimDevice {
-    unsafeBitCast(item as AnyObject, to: SimDevice.self)
+    unsafe unsafeBitCast(item as AnyObject, to: SimDevice.self)
   }
 
   private func vend(_ device: SimDevice) -> Simulator {

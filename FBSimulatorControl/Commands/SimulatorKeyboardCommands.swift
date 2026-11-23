@@ -5,8 +5,8 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-@preconcurrency import CoreSimulator
-@preconcurrency import FBControlCore
+import CoreSimulator
+import FBControlCore
 import Foundation
 
 /// Typing on the simulator's hardware keyboard, whatever layout it is set to.
@@ -116,6 +116,6 @@ public struct SimulatorKeyboardCommands: Sendable {
   }
 
   private static func preferences(_ exported: Data) throws -> [String: Any] {
-    try PropertyListSerialization.propertyList(from: exported, format: nil) as? [String: Any] ?? [:]
+    unsafe try PropertyListSerialization.propertyList(from: exported, format: nil) as? [String: Any] ?? [:]
   }
 }

@@ -38,7 +38,7 @@ private final class XPCBox {
 private func xpcUUID(_ uuid: UUID) -> xpc_object_t {
   var bytes = uuid.uuid
   return withUnsafePointer(to: &bytes) {
-    $0.withMemoryRebound(to: UInt8.self, capacity: MemoryLayout<uuid_t>.size) { xpc_uuid_create($0) }
+    unsafe $0.withMemoryRebound(to: UInt8.self, capacity: MemoryLayout<uuid_t>.size) { unsafe xpc_uuid_create($0) }
   }
 }
 
@@ -57,7 +57,7 @@ private struct XPCEncoderImpl: Encoder {
   func encode(_ value: some Encodable) throws {
     switch value {
     case let data as Data:
-      storage.object = data.withUnsafeBytes { xpc_data_create($0.baseAddress, $0.count) }
+      storage.object = unsafe data.withUnsafeBytes { unsafe xpc_data_create($0.baseAddress, $0.count) }
     case let uuid as UUID:
       storage.object = xpcUUID(uuid)
     default:
@@ -99,36 +99,36 @@ private struct XPCKeyedContainer<Key: CodingKey>: KeyedEncodingContainerProtocol
 
   func encodeNil(forKey key: Key) throws {} // omit the key entirely
 
-  func encode(_ value: Bool, forKey key: Key) throws { xpc_dictionary_set_bool(dictionary, key.stringValue, value) }
-  func encode(_ value: String, forKey key: Key) throws { xpc_dictionary_set_string(dictionary, key.stringValue, value) }
-  func encode(_ value: Double, forKey key: Key) throws { xpc_dictionary_set_double(dictionary, key.stringValue, value) }
-  func encode(_ value: Float, forKey key: Key) throws { xpc_dictionary_set_double(dictionary, key.stringValue, Double(value)) }
-  func encode(_ value: Int, forKey key: Key) throws { xpc_dictionary_set_int64(dictionary, key.stringValue, Int64(value)) }
-  func encode(_ value: Int8, forKey key: Key) throws { xpc_dictionary_set_int64(dictionary, key.stringValue, Int64(value)) }
-  func encode(_ value: Int16, forKey key: Key) throws { xpc_dictionary_set_int64(dictionary, key.stringValue, Int64(value)) }
-  func encode(_ value: Int32, forKey key: Key) throws { xpc_dictionary_set_int64(dictionary, key.stringValue, Int64(value)) }
-  func encode(_ value: Int64, forKey key: Key) throws { xpc_dictionary_set_int64(dictionary, key.stringValue, value) }
-  func encode(_ value: UInt, forKey key: Key) throws { xpc_dictionary_set_uint64(dictionary, key.stringValue, UInt64(value)) }
-  func encode(_ value: UInt8, forKey key: Key) throws { xpc_dictionary_set_uint64(dictionary, key.stringValue, UInt64(value)) }
-  func encode(_ value: UInt16, forKey key: Key) throws { xpc_dictionary_set_uint64(dictionary, key.stringValue, UInt64(value)) }
-  func encode(_ value: UInt32, forKey key: Key) throws { xpc_dictionary_set_uint64(dictionary, key.stringValue, UInt64(value)) }
-  func encode(_ value: UInt64, forKey key: Key) throws { xpc_dictionary_set_uint64(dictionary, key.stringValue, value) }
+  func encode(_ value: Bool, forKey key: Key) throws { unsafe xpc_dictionary_set_bool(dictionary, key.stringValue, value) }
+  func encode(_ value: String, forKey key: Key) throws { unsafe xpc_dictionary_set_string(dictionary, key.stringValue, value) }
+  func encode(_ value: Double, forKey key: Key) throws { unsafe xpc_dictionary_set_double(dictionary, key.stringValue, value) }
+  func encode(_ value: Float, forKey key: Key) throws { unsafe xpc_dictionary_set_double(dictionary, key.stringValue, Double(value)) }
+  func encode(_ value: Int, forKey key: Key) throws { unsafe xpc_dictionary_set_int64(dictionary, key.stringValue, Int64(value)) }
+  func encode(_ value: Int8, forKey key: Key) throws { unsafe xpc_dictionary_set_int64(dictionary, key.stringValue, Int64(value)) }
+  func encode(_ value: Int16, forKey key: Key) throws { unsafe xpc_dictionary_set_int64(dictionary, key.stringValue, Int64(value)) }
+  func encode(_ value: Int32, forKey key: Key) throws { unsafe xpc_dictionary_set_int64(dictionary, key.stringValue, Int64(value)) }
+  func encode(_ value: Int64, forKey key: Key) throws { unsafe xpc_dictionary_set_int64(dictionary, key.stringValue, value) }
+  func encode(_ value: UInt, forKey key: Key) throws { unsafe xpc_dictionary_set_uint64(dictionary, key.stringValue, UInt64(value)) }
+  func encode(_ value: UInt8, forKey key: Key) throws { unsafe xpc_dictionary_set_uint64(dictionary, key.stringValue, UInt64(value)) }
+  func encode(_ value: UInt16, forKey key: Key) throws { unsafe xpc_dictionary_set_uint64(dictionary, key.stringValue, UInt64(value)) }
+  func encode(_ value: UInt32, forKey key: Key) throws { unsafe xpc_dictionary_set_uint64(dictionary, key.stringValue, UInt64(value)) }
+  func encode(_ value: UInt64, forKey key: Key) throws { unsafe xpc_dictionary_set_uint64(dictionary, key.stringValue, value) }
 
   func encode<T: Encodable>(_ value: T, forKey key: Key) throws {
-    xpc_dictionary_set_value(dictionary, key.stringValue, try encodeNested(value, codingPath: codingPath + [key]))
+    unsafe xpc_dictionary_set_value(dictionary, key.stringValue, try encodeNested(value, codingPath: codingPath + [key]))
   }
 
   func nestedContainer<NestedKey: CodingKey>(
     keyedBy keyType: NestedKey.Type, forKey key: Key
   ) -> KeyedEncodingContainer<NestedKey> {
     let nested = xpc_dictionary_create(nil, nil, 0)
-    xpc_dictionary_set_value(dictionary, key.stringValue, nested)
+    unsafe xpc_dictionary_set_value(dictionary, key.stringValue, nested)
     return KeyedEncodingContainer(XPCKeyedContainer<NestedKey>(dictionary: nested, codingPath: codingPath + [key]))
   }
 
   func nestedUnkeyedContainer(forKey key: Key) -> any UnkeyedEncodingContainer {
     let nested = xpc_array_create(nil, 0)
-    xpc_dictionary_set_value(dictionary, key.stringValue, nested)
+    unsafe xpc_dictionary_set_value(dictionary, key.stringValue, nested)
     return XPCUnkeyedContainer(array: nested, codingPath: codingPath + [key])
   }
 
@@ -147,7 +147,7 @@ private struct XPCUnkeyedContainer: UnkeyedEncodingContainer {
   mutating func encodeNil() throws { xpc_array_append_value(array, xpc_null_create()) }
 
   mutating func encode(_ value: Bool) throws { xpc_array_append_value(array, xpc_bool_create(value)) }
-  mutating func encode(_ value: String) throws { xpc_array_append_value(array, value.withCString { xpc_string_create($0) }) }
+  mutating func encode(_ value: String) throws { xpc_array_append_value(array, value.withCString { unsafe xpc_string_create($0) }) }
   mutating func encode(_ value: Double) throws { xpc_array_append_value(array, xpc_double_create(value)) }
   mutating func encode(_ value: Float) throws { xpc_array_append_value(array, xpc_double_create(Double(value))) }
   mutating func encode(_ value: Int) throws { xpc_array_append_value(array, xpc_int64_create(Int64(value))) }
@@ -192,7 +192,7 @@ private struct XPCSingleValueContainer: SingleValueEncodingContainer {
   func encodeNil() throws {} // leaves the slot empty
 
   mutating func encode(_ value: Bool) throws { storage.object = xpc_bool_create(value) }
-  mutating func encode(_ value: String) throws { storage.object = value.withCString { xpc_string_create($0) } }
+  mutating func encode(_ value: String) throws { storage.object = value.withCString { unsafe xpc_string_create($0) } }
   mutating func encode(_ value: Double) throws { storage.object = xpc_double_create(value) }
   mutating func encode(_ value: Float) throws { storage.object = xpc_double_create(Double(value)) }
   mutating func encode(_ value: Int) throws { storage.object = xpc_int64_create(Int64(value)) }

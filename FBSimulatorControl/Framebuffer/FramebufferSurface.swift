@@ -5,9 +5,9 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-@preconcurrency internal import CoreSimDeviceIO
-@preconcurrency import CoreSimulator
-@preconcurrency import FBControlCore
+internal import CoreSimDeviceIO
+import CoreSimulator
+import FBControlCore
 import FBControlCoreObjC
 import Foundation
 import IOSurface
@@ -207,7 +207,7 @@ enum FramebufferSurfaceLocator {
           // up; only the awaiting task reads them afterwards.
           // patternlint-disable-next-line swift-nonisolated-unsafe
           nonisolated(unsafe) let values = values
-          pending.withLock { $0.take() }?.resume(returning: values)
+          pending.withLock { $0.take() }?.resume(returning: unsafe values)
         }
       } catch {
         pending.withLock { $0.take() }?.resume(throwing: error)
@@ -262,7 +262,7 @@ enum FramebufferSurfaceLocator {
         logger.log("SimDisplay \(descriptor) does not have a state, cannot determine if it is the main display")
         continue
       }
-      guard let descriptorState = descriptor.perform(NSSelectorFromString("state"))?.takeUnretainedValue() as? any SimDisplayDescriptorState else {
+      guard let descriptorState = unsafe descriptor.perform(NSSelectorFromString("state"))?.takeUnretainedValue() as? any SimDisplayDescriptorState else {
         logger.log("SimDisplay \(descriptor) state is not a SimDisplayDescriptorState")
         continue
       }

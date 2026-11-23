@@ -6,7 +6,7 @@
  */
 
 import Darwin
-@preconcurrency import FBControlCore
+import FBControlCore
 import Foundation
 
 /// The failure cases of the HID layer.

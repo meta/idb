@@ -5,7 +5,7 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-@preconcurrency import CoreSimulator
+import CoreSimulator
 import Foundation
 
 /**
@@ -88,7 +88,7 @@ public struct SimulatorAudioSettings: Equatable, Sendable {
     } catch {
       throw SimulatorAudioError.unreadable(path: path, underlying: error)
     }
-    let deserialized = try? PropertyListSerialization.propertyList(from: data, format: nil)
+    let deserialized = unsafe try? PropertyListSerialization.propertyList(from: data, format: nil)
     guard let plist = deserialized as? [String: Any] else {
       throw SimulatorAudioError.malformed(path: path)
     }

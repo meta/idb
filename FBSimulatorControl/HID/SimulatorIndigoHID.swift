@@ -7,12 +7,13 @@
 
 import CoreGraphics
 import Darwin
-@preconcurrency import FBControlCore
+import FBControlCore
 import Foundation
 internal import SimulatorApp
 
 /// Translates SimulatorHID events into Indigo structs.
-final class SimulatorIndigoHID {
+// @safe: Holds only SimulatorKit's message builders; each call through them is marked `unsafe` where it is made.
+@safe final class SimulatorIndigoHID {
 
   // The SimulatorKit `IndigoHIDMessageFor*` functions, resolved at runtime via dlsym.
   private typealias MessageForButtonFn = @convention(c) (Int32, Int32, Int32) -> UnsafeMutablePointer<IndigoMessage>
@@ -49,10 +50,10 @@ final class SimulatorIndigoHID {
   /// `IndigoHIDMessageFor*` symbols from the SimulatorKit dylib.
   public convenience init() throws {
     try SimulatorControlFrameworkLoader.xcodeFrameworks.loadPrivateFrameworks(nil)
-    guard let handle = Bundle(identifier: "com.apple.SimulatorKit")?.dlopenExecutablePath() else {
+    guard let handle = unsafe Bundle(identifier: "com.apple.SimulatorKit")?.dlopenExecutablePath() else {
       throw SimulatorHIDError.simulatorKitUnavailable
     }
-    self.init(
+    unsafe self.init(
       messageForButton: unsafeBitCast(symbolFromHandle(handle, "IndigoHIDMessageForButton"), to: MessageForButtonFn.self),
       messageForKeyboardArbitrary: unsafeBitCast(
         symbolFromHandle(handle, "IndigoHIDMessageForKeyboardArbitrary"), to: MessageForKeyboardArbitraryFn.self),
@@ -71,19 +72,19 @@ final class SimulatorIndigoHID {
     messageForMouseNSEvent: @escaping MessageForMouseNSEventFn,
     messageForTrackpadMoveEvent: @escaping MessageForTrackpadMoveEventFn
   ) {
-    self.messageForButton = messageForButton
-    self.messageForKeyboardArbitrary = messageForKeyboardArbitrary
-    self.messageForHIDArbitrary = messageForHIDArbitrary
-    self.messageForMouseNSEvent = messageForMouseNSEvent
-    self.messageForTrackpadMoveEvent = messageForTrackpadMoveEvent
+    unsafe self.messageForButton = unsafe messageForButton
+    unsafe self.messageForKeyboardArbitrary = unsafe messageForKeyboardArbitrary
+    unsafe self.messageForHIDArbitrary = unsafe messageForHIDArbitrary
+    unsafe self.messageForMouseNSEvent = unsafe messageForMouseNSEvent
+    unsafe self.messageForTrackpadMoveEvent = unsafe messageForTrackpadMoveEvent
   }
 
   // MARK: - Public
 
   /// A keyboard event. The keycodes are 'Hardware Independent' as described in `<HIToolbox/Events.h>`.
   func keyboard(with direction: SimulatorHIDDirection, keyCode: UInt32) -> Data {
-    let message = messageForKeyboardArbitrary(Int32(bitPattern: keyCode), direction.rawValue)
-    return SimulatorIndigoHID.data(fromMallocedMessage: message)
+    let message = unsafe messageForKeyboardArbitrary(Int32(bitPattern: keyCode), direction.rawValue)
+    return unsafe SimulatorIndigoHID.data(fromMallocedMessage: message)
   }
 
   /// A button event. A button with a dedicated legacy `ButtonEventSource` goes through the sourced
@@ -92,8 +93,8 @@ final class SimulatorIndigoHID {
   func button(with direction: SimulatorHIDDirection, button: SimulatorHIDButton) -> Data {
     switch button.identity {
     case let .indigoSource(source), let .indigoSourceAndConsumerUsage(source, _, _):
-      let message = messageForButton(source, direction.rawValue, Int32(ButtonEventTargetHardware))
-      return SimulatorIndigoHID.data(fromMallocedMessage: message)
+      let message = unsafe messageForButton(source, direction.rawValue, Int32(ButtonEventTargetHardware))
+      return unsafe SimulatorIndigoHID.data(fromMallocedMessage: message)
     case let .consumerUsage(page, code):
       return hidArbitrary(page: page, usage: code, direction: direction)
     }
@@ -107,9 +108,9 @@ final class SimulatorIndigoHID {
   /// `ButtonEventSourceHIDArbitrary`. Same envelope as a sourced button, so it is interchangeable
   /// with one everywhere downstream.
   func hidArbitrary(page: UInt16, usage: UInt16, direction: SimulatorHIDDirection) -> Data {
-    let message = messageForHIDArbitrary(
+    let message = unsafe messageForHIDArbitrary(
       Int32(ButtonEventTargetDigitizer), UInt32(page), UInt32(usage), direction.rawValue)
-    return SimulatorIndigoHID.data(fromMallocedMessage: message)
+    return unsafe SimulatorIndigoHID.data(fromMallocedMessage: message)
   }
 
   /// The HID service target the mouse/touch builder addresses.
@@ -148,23 +149,23 @@ final class SimulatorIndigoHID {
   /// (IOHIDDigitizerEventMask: Range 0x1 | Touch 0x2 | Position 0x4 | Identity 0x20), `range`, and
   /// `touch`; the builder defaults to a Position/touch-down "changed" contact.
   func trackpad(point: CGPoint, phase: SimulatorTrackpadPhase) throws -> Data {
-    let message = messageForTrackpadMoveEvent(point, SimulatorIndigoHID.trackpadTarget)
-    let secondary = SimulatorIndigoHID.payload(at: SimulatorIndigoHID.secondPayloadWireOffset, of: message)
+    let message = unsafe messageForTrackpadMoveEvent(point, SimulatorIndigoHID.trackpadTarget)
+    let secondary = unsafe SimulatorIndigoHID.payload(at: SimulatorIndigoHID.secondPayloadWireOffset, of: message)
     switch phase {
     case .began:
-      message.pointee.payload.event.touch.eventMask = 0x23 // Range|Touch|Identity
-      secondary.pointee.event.touch.eventMask = 3
+      unsafe message.pointee.payload.event.touch.eventMask = 0x23 // Range|Touch|Identity
+      unsafe secondary.pointee.event.touch.eventMask = 3
     case .changed:
       break // builder default: Position mask, touch down
     case .ended:
-      message.pointee.payload.event.touch.eventMask = 0x21 // Range|Identity, Touch cleared
-      message.pointee.payload.event.touch.range = 0 // out of range
-      message.pointee.payload.event.touch.touch = 0 // contact up
-      secondary.pointee.event.touch.eventMask = 1
-      secondary.pointee.event.touch.range = 0
-      secondary.pointee.event.touch.touch = 0
+      unsafe message.pointee.payload.event.touch.eventMask = 0x21 // Range|Identity, Touch cleared
+      unsafe message.pointee.payload.event.touch.range = 0 // out of range
+      unsafe message.pointee.payload.event.touch.touch = 0 // contact up
+      unsafe secondary.pointee.event.touch.eventMask = 1
+      unsafe secondary.pointee.event.touch.range = 0
+      unsafe secondary.pointee.event.touch.touch = 0
     }
-    return SimulatorIndigoHID.data(fromMallocedMessage: message)
+    return unsafe SimulatorIndigoHID.data(fromMallocedMessage: message)
   }
 
   /// A single-finger touch event. `x`/`y` are in points; `screenSize` is in pixels. `edge` tags the
@@ -186,23 +187,23 @@ final class SimulatorIndigoHID {
 
     // Passing a non-NULL second point makes IndigoHIDMessageForMouseNSEvent produce a 3-payload message
     // with eventType=0x03 (multi-touch) instead of 0x02 (single-touch).
-    let message = messageForMouseNSEvent(
+    let message = unsafe messageForMouseNSEvent(
       &ratio1, &ratio2, SimulatorIndigoHID.mouseTarget, UInt(direction.indigoEventType),
       SimulatorIndigoHID.unitScreenSize, SimulatorIndigoHID.noEdge)
 
     // Patch each contact's xRatio/yRatio rather than trusting the builder's own normalization to reach
     // all three. Finger 1 is the primary contact, the digitizer summary (payload 2) mirrors it, and
     // finger 2 is payload 3.
-    message.pointee.payload.event.touch.xRatio = ratio1.x
-    message.pointee.payload.event.touch.yRatio = ratio1.y
-    let digitizer = SimulatorIndigoHID.payload(at: SimulatorIndigoHID.secondPayloadWireOffset, of: message)
-    digitizer.pointee.event.touch.xRatio = ratio1.x
-    digitizer.pointee.event.touch.yRatio = ratio1.y
-    let finger2Payload = SimulatorIndigoHID.payload(at: SimulatorIndigoHID.thirdPayloadWireOffset, of: message)
-    finger2Payload.pointee.event.touch.xRatio = ratio2.x
-    finger2Payload.pointee.event.touch.yRatio = ratio2.y
+    unsafe message.pointee.payload.event.touch.xRatio = ratio1.x
+    unsafe message.pointee.payload.event.touch.yRatio = ratio1.y
+    let digitizer = unsafe SimulatorIndigoHID.payload(at: SimulatorIndigoHID.secondPayloadWireOffset, of: message)
+    unsafe digitizer.pointee.event.touch.xRatio = ratio1.x
+    unsafe digitizer.pointee.event.touch.yRatio = ratio1.y
+    let finger2Payload = unsafe SimulatorIndigoHID.payload(at: SimulatorIndigoHID.thirdPayloadWireOffset, of: message)
+    unsafe finger2Payload.pointee.event.touch.xRatio = ratio2.x
+    unsafe finger2Payload.pointee.event.touch.yRatio = ratio2.y
 
-    return SimulatorIndigoHID.data(fromMallocedMessage: message)
+    return unsafe SimulatorIndigoHID.data(fromMallocedMessage: message)
   }
 
   // MARK: - Event Generation
@@ -212,39 +213,39 @@ final class SimulatorIndigoHID {
     // SimulatorKit has no single-touch builder: IndigoHIDMessageForMouseNSEvent always emits a
     // multi-touch (eventType 0x03) message. So source a valid touch-down IndigoTouch from it, then
     // hand-envelope it as a single-touch (eventType 0x02) two-payload message.
-    let source = messageForMouseNSEvent(
+    let source = unsafe messageForMouseNSEvent(
       &point, nil, SimulatorIndigoHID.mouseTarget, UInt(direction.indigoEventType),
       SimulatorIndigoHID.unitScreenSize, edge.rawValue)
-    source.pointee.payload.event.touch.xRatio = point.x
-    source.pointee.payload.event.touch.yRatio = point.y
+    unsafe source.pointee.payload.event.touch.xRatio = point.x
+    unsafe source.pointee.payload.event.touch.yRatio = point.y
     let sourceBytes = UnsafeMutableRawPointer(source)
 
     // Build a fresh single-touch message (320 / 0x140 bytes) and copy the Digitizer payload in.
     let messageSize = MemoryLayout<IndigoMessage>.size + MemoryLayout<IndigoPayload>.size
     let stride = MemoryLayout<IndigoPayload>.size // 0x90
-    guard let destination = calloc(1, messageSize) else {
+    guard let destination = unsafe calloc(1, messageSize) else {
       fatalError("Failed to allocate \(messageSize) bytes for an Indigo touch message")
     }
-    let message = destination.assumingMemoryBound(to: IndigoMessage.self)
-    message.pointee.innerSize = UInt32(MemoryLayout<IndigoPayload>.size)
-    message.pointee.eventType = UInt8(IndigoEventTypeTouch)
-    message.pointee.payload.eventKind = 0x0000_000B
-    message.pointee.payload.timestamp = mach_absolute_time()
+    let message = unsafe destination.assumingMemoryBound(to: IndigoMessage.self)
+    unsafe message.pointee.innerSize = UInt32(MemoryLayout<IndigoPayload>.size)
+    unsafe message.pointee.eventType = UInt8(IndigoEventTypeTouch)
+    unsafe message.pointee.payload.eventKind = 0x0000_000B
+    unsafe message.pointee.payload.timestamp = mach_absolute_time()
 
     // Copy in the Digitizer (IndigoTouch) payload from the source, at event offset 0x30.
-    memcpy(destination.advanced(by: 0x30), sourceBytes.advanced(by: 0x30), MemoryLayout<IndigoTouch>.size)
-    free(source)
+    unsafe memcpy(destination.advanced(by: 0x30), sourceBytes.advanced(by: 0x30), MemoryLayout<IndigoTouch>.size)
+    unsafe free(source)
 
     // Duplicate the first IndigoPayload (at 0x20) into the second slot, then mark the copied contact
     // (touch.field1 = 1, field2 = 2). NB: this self-allocated message uses the Swift `IndigoPayload`
     // stride (0x90), so the second payload sits at 0xB0 — not the 0xC0 wire offset of the
     // SimulatorKit-built messages.
-    memcpy(destination.advanced(by: 0x20 + stride), destination.advanced(by: 0x20), stride)
-    let secondPayload = SimulatorIndigoHID.payload(at: 0x20 + stride, of: message)
-    secondPayload.pointee.event.touch.field1 = 1
-    secondPayload.pointee.event.touch.field2 = 2
+    unsafe memcpy(destination.advanced(by: 0x20 + stride), destination.advanced(by: 0x20), stride)
+    let secondPayload = unsafe SimulatorIndigoHID.payload(at: 0x20 + stride, of: message)
+    unsafe secondPayload.pointee.event.touch.field1 = 1
+    unsafe secondPayload.pointee.event.touch.field2 = 2
 
-    return Data(bytesNoCopy: destination, count: messageSize, deallocator: .free)
+    return unsafe Data(bytesNoCopy: destination, count: messageSize, deallocator: .free)
   }
 
   // MARK: - Helpers
@@ -252,7 +253,7 @@ final class SimulatorIndigoHID {
   /// Wraps a `malloc`'d `IndigoMessage` as `Data` that frees the buffer when deallocated.
   private static func data(fromMallocedMessage message: UnsafeMutablePointer<IndigoMessage>) -> Data {
     let raw = UnsafeMutableRawPointer(message)
-    return Data(bytesNoCopy: raw, count: malloc_size(raw), deallocator: .free)
+    return unsafe Data(bytesNoCopy: raw, count: malloc_size(raw), deallocator: .free)
   }
 
   /// A typed view of the `IndigoPayload` at a wire offset the Swift `IndigoMessage.payload` field cannot
@@ -261,7 +262,7 @@ final class SimulatorIndigoHID {
   private static func payload(
     at wireOffset: Int, of message: UnsafeMutablePointer<IndigoMessage>
   ) -> UnsafeMutablePointer<IndigoPayload> {
-    UnsafeMutableRawPointer(message).advanced(by: wireOffset).assumingMemoryBound(to: IndigoPayload.self)
+    unsafe UnsafeMutableRawPointer(message).advanced(by: wireOffset).assumingMemoryBound(to: IndigoPayload.self)
   }
 
   static func screenRatio(from point: CGPoint, screenSize: CGSize, screenScale: Float) -> CGPoint {
