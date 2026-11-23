@@ -60,13 +60,13 @@ func installSwizzles() {
   ]
   for (cls, name, replacement): (AnyClass?, String, Selector) in swizzles {
     let original = NSSelectorFromString(name)
-    guard let cls, let originalMethod = class_getInstanceMethod(cls, original), let replacementMethod = class_getInstanceMethod(cls, replacement) else {
+    guard let cls, let originalMethod = unsafe class_getInstanceMethod(cls, original), let replacementMethod = unsafe class_getInstanceMethod(cls, replacement) else {
       debug("no method to swizzle: \(name) on \(String(describing: cls))")
       continue
     }
     // An inherited method is copied onto `cls` first, so the exchange never reaches the superclass.
-    class_addMethod(cls, original, method_getImplementation(originalMethod), method_getTypeEncoding(originalMethod))
-    class_getInstanceMethod(cls, original).map { method_exchangeImplementations($0, replacementMethod) }
+    unsafe class_addMethod(cls, original, method_getImplementation(originalMethod), method_getTypeEncoding(originalMethod))
+    unsafe class_getInstanceMethod(cls, original).map { unsafe method_exchangeImplementations($0, replacementMethod) }
   }
 }
 
@@ -182,13 +182,13 @@ extension AVCaptureSession {
       }
       for output in outputs {
         synchronized(output) {
-          associate(output, &Key.pending, nil)
-          associate(output, &Key.connection, nil)
+          unsafe associate(output, &Key.pending, nil)
+          unsafe associate(output, &Key.connection, nil)
         }
       }
       synchronized(state) { state.outputs.removeAll() }
-      associate(self, &Key.state, nil)
-      associate(self, &Key.nativeRunning, NSNumber(value: running ?? wasRunning))
+      unsafe associate(self, &Key.state, nil)
+      unsafe associate(self, &Key.nativeRunning, NSNumber(value: running ?? wasRunning))
       transferred = true
       return true
     }
@@ -214,7 +214,7 @@ extension AVCaptureSession {
 
   private func resumeNativeRunningIfReady() {
     guard synchronized(self, { configurations.count == 0 }) else { return }
-    if let state: SessionState = associated(self, &Key.state),
+    if let state: SessionState = unsafe associated(self, &Key.state),
       synchronized(
         state,
         {
@@ -227,11 +227,11 @@ extension AVCaptureSession {
         shimulator_startRunning()
       }
     }
-    guard let running: NSNumber = associated(self, &Key.nativeRunning),
-      !running.boolValue || (associated(self, &Key.state) as SessionState?) == nil
+    guard let running: NSNumber = unsafe associated(self, &Key.nativeRunning),
+      unsafe !running.boolValue || (associated(self, &Key.state) as SessionState?) == nil
     else { return }
     withNativeView(self) {
-      associate(self, &Key.nativeRunning, nil)
+      unsafe associate(self, &Key.nativeRunning, nil)
       if running.boolValue != shimulator_isRunning {
         running.boolValue ? shimulator_startRunning() : shimulator_stopRunning()
       }
@@ -254,11 +254,11 @@ extension AVCaptureSession {
     }
     let camera = VirtualCamera.shared
     let adopting = sessionState(self) == nil
-    let pendingRunning: NSNumber? = associated(self, &Key.nativeRunning)
+    let pendingRunning: NSNumber? = unsafe associated(self, &Key.nativeRunning)
     let (adopted, preset, wasRunning) =
       adopting
       ? withNativeView(self) { (shimulator_outputs, shimulator_sessionPreset, pendingRunning?.boolValue ?? shimulator_isRunning) } : ([], nil, false)
-    associate(self, &Key.nativeRunning, pendingRunning?.boolValue == false ? pendingRunning : nil)
+    unsafe associate(self, &Key.nativeRunning, pendingRunning?.boolValue == false ? pendingRunning : nil)
     guard let state = sessionState(self, create: true) else { return }
     let (retained, resume) = synchronized(state) { () -> ([AVCaptureOutput], Bool) in
       state.input = input
@@ -315,11 +315,11 @@ extension AVCaptureSession {
     guard let state = sessionState(self), synchronized(state, { state.outputs.contains(output) }) else {
       return withNativeView(self) { shimulator_removeOutput(output) }
     }
-    synchronized(output) { associate(output, &Key.pending, nil) }
+    synchronized(output) { unsafe associate(output, &Key.pending, nil) }
     // Stopped while the output still reports its connection to the recording delegate.
     (output as? AVCaptureMovieFileOutput).map(VirtualCamera.shared.stopRecording)
     synchronized(state) { state.outputs.removeAll { $0 == output } }
-    associate(output, &Key.connection, nil)
+    unsafe associate(output, &Key.connection, nil)
   }
 
   @objc dynamic var shimulator_outputs: [AVCaptureOutput] {
@@ -350,13 +350,13 @@ extension AVCaptureSession {
       return resumeNativeRunningIfReady()
     }
     if let state = sessionState(self) {
-      associate(self, &Key.nativeRunning, nil)
+      unsafe associate(self, &Key.nativeRunning, nil)
       synchronized(state) { state.nativeAudioStartPending = true }
       VirtualCamera.shared.start(self)
       return resumeNativeRunningIfReady()
     }
-    if associated(self, &Key.nativeRunning) as NSNumber? != nil {
-      associate(self, &Key.nativeRunning, true)
+    if unsafe associated(self, &Key.nativeRunning) as NSNumber? != nil {
+      unsafe associate(self, &Key.nativeRunning, true)
       return resumeNativeRunningIfReady()
     }
     shimulator_startRunning()
@@ -366,12 +366,12 @@ extension AVCaptureSession {
     if isNativeHandoff(self) { return shimulator_stopRunning() }
     if let state = sessionState(self) {
       synchronized(state) { state.nativeAudioStartPending = false }
-      if associated(self, &Key.nativeRunning) as NSNumber? != nil { associate(self, &Key.nativeRunning, false) }
+      if unsafe associated(self, &Key.nativeRunning) as NSNumber? != nil { unsafe associate(self, &Key.nativeRunning, false) }
       stopNativeRunning()
       return VirtualCamera.shared.stop(self)
     }
-    if associated(self, &Key.nativeRunning) as NSNumber? != nil {
-      associate(self, &Key.nativeRunning, false)
+    if unsafe associated(self, &Key.nativeRunning) as NSNumber? != nil {
+      unsafe associate(self, &Key.nativeRunning, false)
       stopNativeRunning()
       return resumeNativeRunningIfReady()
     }
@@ -381,13 +381,13 @@ extension AVCaptureSession {
   @objc dynamic var shimulator_isRunning: Bool {
     if isNativeHandoff(self) { return self.shimulator_isRunning }
     if let state = sessionState(self) { return synchronized(state) { state.running } }
-    return (associated(self, &Key.nativeRunning) as NSNumber?)?.boolValue ?? self.shimulator_isRunning
+    return unsafe (associated(self, &Key.nativeRunning) as NSNumber?)?.boolValue ?? self.shimulator_isRunning
   }
 
   private var configurations: NSMutableArray {
-    if let stack: NSMutableArray = associated(self, &Key.configurations) { return stack }
+    if let stack: NSMutableArray = unsafe associated(self, &Key.configurations) { return stack }
     let stack = NSMutableArray()
-    associate(self, &Key.configurations, stack)
+    unsafe associate(self, &Key.configurations, stack)
     return stack
   }
 
@@ -411,9 +411,9 @@ extension AVCaptureSession {
 
 extension AVCaptureMovieFileOutput {
   private var isVirtualTarget: Bool {
-    let connection: ShimulatorCaptureConnection? = associated(self, &Key.connection)
+    let connection: ShimulatorCaptureConnection? = unsafe associated(self, &Key.connection)
     guard !isNativeHandoff(connection?.virtualSession) else { return false }
-    return virtualConnection(self) != nil
+    return unsafe virtualConnection(self) != nil
       || ((associated(self, &Key.recording) as MovieRecording?) != nil && VirtualCamera.shared.isRecording(self))
   }
 
@@ -444,14 +444,14 @@ extension AVCapturePhotoOutput {
 
 extension AVCaptureVideoPreviewLayer {
   @objc dynamic var shimulator_session: AVCaptureSession? {
-    associated(self, &Key.previewSession) ?? self.shimulator_session
+    unsafe associated(self, &Key.previewSession) ?? self.shimulator_session
   }
 
   @objc dynamic var shimulator_connection: AVCaptureConnection? {
-    let session: AVCaptureSession? = associated(self, &Key.previewSession)
+    let session: AVCaptureSession? = unsafe associated(self, &Key.previewSession)
     guard let state = sessionState(session) else { return self.shimulator_connection }
     return synchronized(self) {
-      let current: ShimulatorCaptureConnection? = associated(self, &Key.previewConnection)
+      let current: ShimulatorCaptureConnection? = unsafe associated(self, &Key.previewConnection)
       let connection = synchronized(state) { () -> ShimulatorCaptureConnection? in
         guard let ports = state.input?.ports else { return nil }
         if let current, current.virtualPorts == ports { return current }
@@ -462,7 +462,7 @@ extension AVCaptureVideoPreviewLayer {
         replacement.storedMirrored = current?.storedMirrored ?? false
         return replacement
       }
-      associate(self, &Key.previewConnection, connection)
+      unsafe associate(self, &Key.previewConnection, connection)
       return connection
     }
   }

@@ -29,11 +29,11 @@ enum Key {
 }
 
 func associated<T>(_ object: AnyObject, _ key: UnsafeRawPointer) -> T? {
-  objc_getAssociatedObject(object, key) as? T
+  unsafe objc_getAssociatedObject(object, key) as? T
 }
 
 func associate(_ object: AnyObject, _ key: UnsafeRawPointer, _ value: Any?) {
-  objc_setAssociatedObject(object, key, value, .OBJC_ASSOCIATION_RETAIN)
+  unsafe objc_setAssociatedObject(object, key, value, .OBJC_ASSOCIATION_RETAIN)
 }
 
 func synchronized<T>(_ object: AnyObject, _ body: () throws -> T) rethrows -> T {
@@ -189,23 +189,23 @@ final class FrameSource {
     if idleBackground == nil { idleBackground = renderIdleBackground() }
     guard let background = idleBackground, let pool = pixelPool() else { return nil }
     var buffer: CVPixelBuffer?
-    guard CVPixelBufferPoolCreatePixelBuffer(nil, pool, &buffer) == kCVReturnSuccess, let buffer,
+    guard unsafe CVPixelBufferPoolCreatePixelBuffer(nil, pool, &buffer) == kCVReturnSuccess, let buffer,
       CVPixelBufferLockBaseAddress(buffer, []) == kCVReturnSuccess
     else { return nil }
     defer { CVPixelBufferUnlockBaseAddress(buffer, []) }
-    guard let base = CVPixelBufferGetBaseAddress(buffer) else { return nil }
+    guard let base = unsafe CVPixelBufferGetBaseAddress(buffer) else { return nil }
     let stride = CVPixelBufferGetBytesPerRow(buffer)
-    background.withUnsafeBytes { bytes in
-      if let source = bytes.baseAddress { memcpy(base, source, min(bytes.count, stride * Int(height))) }
+    unsafe background.withUnsafeBytes { bytes in
+      if let source = bytes.baseAddress { unsafe memcpy(base, source, min(bytes.count, stride * Int(height))) }
     }
     let size = Int(width) / 12
     let travel = Int(width) - size
     let step = Int(frameIndex % UInt64(2 * travel / 12)) * 12
     let x = step <= travel ? step : 2 * travel - step
-    var dot = vImage_Buffer(
+    var dot = unsafe vImage_Buffer(
       data: base + (Int(height) * 2 / 3) * stride + x * 4, height: vImagePixelCount(size), width: vImagePixelCount(size), rowBytes: stride)
     let orange: [UInt8] = [0x30, 0xA0, 0xFF, 0xFF] // filled in memory order, so B G R A
-    vImageBufferFill_ARGB8888(&dot, orange, vImage_Flags(kvImageNoFlags))
+    unsafe vImageBufferFill_ARGB8888(&dot, orange, vImage_Flags(kvImageNoFlags))
     return buffer
   }
 
@@ -213,7 +213,7 @@ final class FrameSource {
 
   private func pixelPool() -> CVPixelBufferPool? {
     if pool == nil {
-      CVPixelBufferPoolCreate(nil, nil, bufferAttributes(kCVPixelFormatType_32BGRA, Int(width), Int(height)) as CFDictionary, &pool)
+      unsafe CVPixelBufferPoolCreate(nil, nil, bufferAttributes(kCVPixelFormatType_32BGRA, Int(width), Int(height)) as CFDictionary, &pool)
     }
     return pool
   }
@@ -224,7 +224,7 @@ final class FrameSource {
     let height = Int(image.extent.height)
     guard width > 0, height > 0 else { return nil }
     var pixels = [UInt8](repeating: 0, count: width * height * 4)
-    context.render(image, toBitmap: &pixels, rowBytes: width * 4, bounds: image.extent, format: .RGBA8, colorSpace: nil)
+    unsafe context.render(image, toBitmap: &pixels, rowBytes: width * 4, bounds: image.extent, format: .RGBA8, colorSpace: nil)
     let columns = (0..<width).filter { x in (0..<height).contains { pixels[($0 * width + x) * 4 + 3] > 0 } }
     guard let first = columns.first, let last = columns.last else { return nil }
     return (image.extent.minX + CGFloat(first), image.extent.minX + CGFloat(last + 1))
@@ -235,7 +235,7 @@ final class FrameSource {
     let context = CIContext()
     guard let pool = pixelPool() else { return nil }
     var buffer: CVPixelBuffer?
-    guard CVPixelBufferPoolCreatePixelBuffer(nil, pool, &buffer) == kCVReturnSuccess, let buffer else { return nil }
+    guard unsafe CVPixelBufferPoolCreatePixelBuffer(nil, pool, &buffer) == kCVReturnSuccess, let buffer else { return nil }
     let frame = CGRect(x: 0, y: 0, width: Int(width), height: Int(height))
     var image = CIImage(color: CIColor(red: 0.13, green: 0.13, blue: 0.14)).cropped(to: frame)
     if let label = CIFilter(
@@ -251,8 +251,8 @@ final class FrameSource {
     context.render(image, to: buffer)
     guard CVPixelBufferLockBaseAddress(buffer, .readOnly) == kCVReturnSuccess else { return nil }
     defer { CVPixelBufferUnlockBaseAddress(buffer, .readOnly) }
-    guard let base = CVPixelBufferGetBaseAddress(buffer) else { return nil }
-    return Data(bytes: base, count: CVPixelBufferGetBytesPerRow(buffer) * Int(height))
+    guard let base = unsafe CVPixelBufferGetBaseAddress(buffer) else { return nil }
+    return unsafe Data(bytes: base, count: CVPixelBufferGetBytesPerRow(buffer) * Int(height))
   }
 }
 
@@ -291,39 +291,39 @@ final class SessionState {
 
 func isNativeHandoff(_ session: AVCaptureSession?) -> Bool {
   guard let session else { return false }
-  return (associated(session, &Key.nativeHandoff) as NSNumber?)?.boolValue ?? false
+  return unsafe (associated(session, &Key.nativeHandoff) as NSNumber?)?.boolValue ?? false
 }
 
 func withNativeView<T>(_ session: AVCaptureSession?, _ body: () -> T) -> T {
   guard let session,
-    (associated(session, &Key.state) as SessionState?) != nil
+    unsafe (associated(session, &Key.state) as SessionState?) != nil
       || (associated(session, &Key.nativeRunning) as NSNumber?) != nil || isNativeHandoff(session)
   else { return body() }
   synchronized(session) {
-    let depth = (associated(session, &Key.nativeHandoff) as NSNumber?)?.intValue ?? 0
-    associate(session, &Key.nativeHandoff, NSNumber(value: depth + 1))
+    let depth = unsafe (associated(session, &Key.nativeHandoff) as NSNumber?)?.intValue ?? 0
+    unsafe associate(session, &Key.nativeHandoff, NSNumber(value: depth + 1))
   }
   defer {
     synchronized(session) {
-      let depth = (associated(session, &Key.nativeHandoff) as NSNumber?)?.intValue ?? 1
-      associate(session, &Key.nativeHandoff, depth > 1 ? NSNumber(value: depth - 1) : nil)
+      let depth = unsafe (associated(session, &Key.nativeHandoff) as NSNumber?)?.intValue ?? 1
+      unsafe associate(session, &Key.nativeHandoff, depth > 1 ? NSNumber(value: depth - 1) : nil)
     }
   }
   return body()
 }
 
 func connectionSession(_ output: AVCaptureOutput) -> AVCaptureSession? {
-  (associated(output, &Key.connection) as ShimulatorCaptureConnection?)?.virtualSession
+  unsafe (associated(output, &Key.connection) as ShimulatorCaptureConnection?)?.virtualSession
 }
 
 func sessionState(_ session: AVCaptureSession?, create: Bool = false) -> SessionState? {
   guard let session, !isNativeHandoff(session) else { return nil }
   return synchronized(session) {
     guard !isNativeHandoff(session) else { return nil }
-    if let state: SessionState = associated(session, &Key.state) { return state }
+    if let state: SessionState = unsafe associated(session, &Key.state) { return state }
     guard create else { return nil }
     let state = SessionState()
-    associate(session, &Key.state, state)
+    unsafe associate(session, &Key.state, state)
     return state
   }
 }
@@ -331,7 +331,7 @@ func sessionState(_ session: AVCaptureSession?, create: Bool = false) -> Session
 /// Held by the output: an app reaches its connection through the output, and AVCaptureOutput does
 /// not expose its session.
 func virtualConnection(_ output: AVCaptureOutput) -> ShimulatorCaptureConnection? {
-  guard let connection: ShimulatorCaptureConnection = associated(output, &Key.connection),
+  guard let connection: ShimulatorCaptureConnection = unsafe associated(output, &Key.connection),
     !isNativeHandoff(connection.virtualSession)
   else { return nil }
   return connection
@@ -422,7 +422,7 @@ final class VirtualCamera: NSObject {
   private func format(for source: FrameSource) -> ShimulatorCaptureDeviceFormat {
     let format = ShimulatorCaptureDeviceFormat()
     var description: CMVideoFormatDescription?
-    CMVideoFormatDescriptionCreate(allocator: nil, codecType: kCVPixelFormatType_32BGRA, width: Int32(nativeSize.width), height: Int32(nativeSize.height), extensions: nil, formatDescriptionOut: &description)
+    unsafe CMVideoFormatDescriptionCreate(allocator: nil, codecType: kCVPixelFormatType_32BGRA, width: Int32(nativeSize.width), height: Int32(nativeSize.height), extensions: nil, formatDescriptionOut: &description)
     format.formatDescriptionRef = description
     format.range.rate = source.frameRate
     return format
@@ -477,7 +477,7 @@ final class VirtualCamera: NSObject {
       if !state.outputs.contains(output) { state.outputs.append(output) }
       let connection = virtualConnection(output) ?? makeConnection([], nil)
       connection.virtualOutput = output
-      associate(output, &Key.connection, connection)
+      unsafe associate(output, &Key.connection, connection)
       connection.virtualSession = session
       connection.virtualPorts = state.input?.ports ?? []
     }
@@ -508,7 +508,7 @@ final class VirtualCamera: NSObject {
   func stop(_ session: AVCaptureSession) {
     guard set(session, running: false), let state = sessionState(session) else { return }
     for output in synchronized(state, { state.outputs }) {
-      synchronized(output) { associate(output, &Key.pending, nil) }
+      synchronized(output) { unsafe associate(output, &Key.pending, nil) }
       (output as? AVCaptureMovieFileOutput).map(stopRecording)
     }
     reconcileTimer(resetRate: false)
@@ -562,11 +562,11 @@ final class VirtualCamera: NSObject {
     let key = "\(format)-\(width)-\(height)"
     if pools[key] == nil {
       var pool: CVPixelBufferPool?
-      CVPixelBufferPoolCreate(nil, nil, bufferAttributes(format, width, height) as CFDictionary, &pool)
+      unsafe CVPixelBufferPoolCreate(nil, nil, bufferAttributes(format, width, height) as CFDictionary, &pool)
       pools[key] = pool
     }
     var destination: CVPixelBuffer?
-    guard let pool = pools[key], CVPixelBufferPoolCreatePixelBuffer(nil, pool, &destination) == kCVReturnSuccess,
+    guard let pool = pools[key], unsafe CVPixelBufferPoolCreatePixelBuffer(nil, pool, &destination) == kCVReturnSuccess,
       let destination
     else { return nil }
     var image = CIImage(cvPixelBuffer: frame).oriented(source.orientation).oriented(rotation)
@@ -637,7 +637,7 @@ final class VirtualCamera: NSObject {
     let format = (output.videoSettings?[kCVPixelBufferPixelFormatTypeKey as String] as? NSNumber)?.uint32Value ?? kCVPixelFormatType_32BGRA
     guard let delegate = output.sampleBufferDelegate, let queue = output.sampleBufferCallbackQueue,
       delegate.responds(to: #selector((any AVCaptureVideoDataOutputSampleBufferDelegate).captureOutput(_:didOutput:from:))),
-      !discardsLate || (associated(output, &Key.pending) as NSObject?) == nil,
+      unsafe !discardsLate || (associated(output, &Key.pending) as NSObject?) == nil,
       let converted = shaped(frame, source, format, frameSize(connection), connection.frameRotationAngle, connection.isVideoMirrored),
       let description = try? CMVideoFormatDescription(imageBuffer: converted),
       let sample = try? CMSampleBuffer(
@@ -646,20 +646,20 @@ final class VirtualCamera: NSObject {
           duration: CMTime(seconds: 1 / source.frameRate, preferredTimescale: 600_000), presentationTimeStamp: time, decodeTimeStamp: .invalid))
     else { return false }
     let pending = discardsLate ? NSObject() : nil
-    if let pending { synchronized(output) { associate(output, &Key.pending, pending) } }
+    if let pending { synchronized(output) { unsafe associate(output, &Key.pending, pending) } }
     queue.async {
       if virtualConnection(output) === connection, Self.isActive(connection) {
         delegate.captureOutput?(output, didOutput: sample, from: connection)
       }
       if let pending {
-        synchronized(output) { if associated(output, &Key.pending) === pending { associate(output, &Key.pending, nil) } }
+        synchronized(output) { if unsafe associated(output, &Key.pending) === pending { unsafe associate(output, &Key.pending, nil) } }
       }
     }
     return true
   }
 
   private func deliver(_ frame: CVPixelBuffer, _ source: FrameSource, to output: AVCaptureMovieFileOutput, at time: CMTime) -> Bool {
-    guard let recording: MovieRecording = associated(output, &Key.recording),
+    guard let recording: MovieRecording = unsafe associated(output, &Key.recording),
       let converted = shaped(frame, source, kCVPixelFormatType_32BGRA, recording.frameSize, recording.rotationAngle, recording.mirrored)
     else { return false }
     // Under the lock, so a concurrent stop cannot mark the input finished between check and append.
@@ -682,13 +682,13 @@ final class VirtualCamera: NSObject {
     for layer in layers {
       // Only this queue sets the pending flag, as for the video data output.
       guard let connection = layer.connection as? ShimulatorCaptureConnection, Self.isActive(connection),
-        (associated(layer, &Key.previewPending) as NSObject?) == nil, let (image, source) = frame(connection),
+        unsafe (associated(layer, &Key.previewPending) as NSObject?) == nil, let (image, source) = frame(connection),
         let shaped = shaped(image, source, kCVPixelFormatType_32BGRA, frameSize(connection), connection.frameRotationAngle, connection.isVideoMirrored)
       else { continue }
       let ciImage = CIImage(cvPixelBuffer: shaped)
       guard let image = context.createCGImage(ciImage, from: ciImage.extent) else { continue }
       let pending = NSObject()
-      synchronized(layer) { associate(layer, &Key.previewPending, pending) }
+      synchronized(layer) { unsafe associate(layer, &Key.previewPending, pending) }
       delivered = true
       DispatchQueue.main.async {
         if layer.connection === connection, Self.isActive(connection) {
@@ -697,7 +697,7 @@ final class VirtualCamera: NSObject {
           layer.masksToBounds = true
           layer.contents = image
         }
-        synchronized(layer) { if associated(layer, &Key.previewPending) === pending { associate(layer, &Key.previewPending, nil) } }
+        synchronized(layer) { if unsafe associated(layer, &Key.previewPending) === pending { unsafe associate(layer, &Key.previewPending, nil) } }
       }
     }
     return delivered
@@ -707,12 +707,12 @@ final class VirtualCamera: NSObject {
     let layers = locked { previewLayers.allObjects }
     DispatchQueue.main.async {
       for layer in layers {
-        guard associated(layer, &Key.previewSession) === session,
-          (associated(session, &Key.state) as SessionState?) == nil
+        guard unsafe associated(layer, &Key.previewSession) === session,
+          unsafe (associated(session, &Key.state) as SessionState?) == nil
         else { continue }
         synchronized(layer) {
-          associate(layer, &Key.previewConnection, nil)
-          associate(layer, &Key.previewPending, nil)
+          unsafe associate(layer, &Key.previewConnection, nil)
+          unsafe associate(layer, &Key.previewPending, nil)
         }
         layer.contents = nil
         layer.shimulator_setSession(session)
@@ -723,10 +723,10 @@ final class VirtualCamera: NSObject {
   /// Registered whatever the session's state: apps routinely bind the preview layer before adding
   /// the camera input. Which layers are live is decided per frame, from the session each one holds.
   func track(_ layer: AVCaptureVideoPreviewLayer, session: AVCaptureSession?) {
-    associate(layer, &Key.previewSession, session)
+    unsafe associate(layer, &Key.previewSession, session)
     let state = sessionState(session)
     let connection = state.flatMap { state in synchronized(state) { state.input.map { makeConnection($0.ports, session, rotationAngle: 90) } } }
-    associate(layer, &Key.previewConnection, connection)
+    unsafe associate(layer, &Key.previewConnection, connection)
     locked { previewLayers.add(layer) }
   }
 
@@ -742,7 +742,7 @@ final class VirtualCamera: NSObject {
     let connection = virtualConnection(output)
     let error: (any Error)? = locked {
       guard let connection, Self.isActive(connection) else { return videoError(6, "The movie output has no active video connection") }
-      guard associated(output, &Key.recording) as MovieRecording? == nil else { return videoError(7, "Recording is already in progress") }
+      guard unsafe associated(output, &Key.recording) as MovieRecording? == nil else { return videoError(7, "Recording is already in progress") }
       // Checked first so a failed recording never deletes a file it did not create.
       guard !FileManager.default.fileExists(atPath: url.path) else { return videoError(9, "The recording destination already exists") }
       let size = frameSize(connection)
@@ -759,7 +759,7 @@ final class VirtualCamera: NSObject {
           try? FileManager.default.removeItem(at: url)
           return writer.error ?? videoError(3, "Could not start the movie writer")
         }
-        associate(output, &Key.recording, MovieRecording(writer, adaptor, delegate, url, connection, size))
+        unsafe associate(output, &Key.recording, MovieRecording(writer, adaptor, delegate, url, connection, size))
         return nil
       } catch {
         return error
@@ -778,7 +778,7 @@ final class VirtualCamera: NSObject {
 
   private func stopRecording(_ output: AVCaptureMovieFileOutput, expected: MovieRecording?) {
     let state: (MovieRecording, Bool)? = locked {
-      guard let recording: MovieRecording = associated(output, &Key.recording), !recording.finalizing,
+      guard let recording: MovieRecording = unsafe associated(output, &Key.recording), !recording.finalizing,
         expected == nil || recording === expected
       else { return nil }
       recording.finalizing = true
@@ -793,13 +793,13 @@ final class VirtualCamera: NSObject {
       let appendError = appendFailed ? writer.error ?? videoError(10, "Could not append the movie frame") : nil
       let error: (any Error)? = appendError ?? (writer.status == .completed ? nil : writer.error ?? videoError(8, "The movie writer did not complete"))
       if error != nil { try? FileManager.default.removeItem(at: recording.url) }
-      locked { if associated(output, &Key.recording) === recording { associate(output, &Key.recording, nil) } }
+      locked { if unsafe associated(output, &Key.recording) === recording { unsafe associate(output, &Key.recording, nil) } }
       finish(output, recording.url, recording.delegate, connections, error)
     }
   }
 
   func isRecording(_ output: AVCaptureMovieFileOutput) -> Bool {
-    locked { (associated(output, &Key.recording) as MovieRecording?).map { !$0.finalizing } ?? false }
+    locked { unsafe (associated(output, &Key.recording) as MovieRecording?).map { !$0.finalizing } ?? false }
   }
 
   // MARK: - Photo capture
