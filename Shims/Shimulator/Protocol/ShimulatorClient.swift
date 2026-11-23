@@ -145,10 +145,10 @@ public final class ShimulatorClient<Handler: ShimulatorMethodHandler> {
   private func waitForDisconnect(_ connection: Int32, timeoutMilliseconds: Int32) -> Bool {
     while true {
       var descriptor = pollfd(fd: connection, events: Int16(POLLIN), revents: 0)
-      let ready = poll(&descriptor, 1, timeoutMilliseconds)
+      let ready = unsafe poll(&descriptor, 1, timeoutMilliseconds)
       if ready >= 0 { return ready > 0 }
       if errno == EINTR { continue }
-      log("Could not wait on \(socketPath), so the operation ends: \(String(cString: strerror(errno)))")
+      log(unsafe "Could not wait on \(socketPath), so the operation ends: \(String(cString: strerror(errno)))")
       return true
     }
   }

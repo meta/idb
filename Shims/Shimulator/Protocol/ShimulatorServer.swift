@@ -73,7 +73,7 @@ public final class ShimulatorServer {
       descriptors.append(pollfd(fd: listener.fileDescriptor, events: Int16(POLLIN), revents: 0))
     }
     descriptors += connections.map { pollfd(fd: $0.fileDescriptor, events: Int16(POLLIN), revents: 0) }
-    _ = Darwin.poll(&descriptors, nfds_t(descriptors.count), timeoutMilliseconds)
+    _ = unsafe Darwin.poll(&descriptors, nfds_t(descriptors.count), timeoutMilliseconds)
   }
 
   private func admit() {
@@ -82,7 +82,7 @@ public final class ShimulatorServer {
       let connection = accept(listener.fileDescriptor, nil, nil)
       guard connection >= 0 else { return }
       var noSigPipe: Int32 = 1
-      setsockopt(connection, SOL_SOCKET, SO_NOSIGPIPE, &noSigPipe, socklen_t(MemoryLayout<Int32>.size))
+      unsafe setsockopt(connection, SOL_SOCKET, SO_NOSIGPIPE, &noSigPipe, socklen_t(MemoryLayout<Int32>.size))
       IPCSocket.setTimeout(connection, seconds: 1)
       do {
         try IPCSocket.writeFrame(connection, request)
@@ -114,6 +114,6 @@ public final class ShimulatorServer {
 
   private static func isReadable(_ fileDescriptor: Int32) -> Bool {
     var descriptor = pollfd(fd: fileDescriptor, events: Int16(POLLIN), revents: 0)
-    return Darwin.poll(&descriptor, 1, 0) > 0
+    return unsafe Darwin.poll(&descriptor, 1, 0) > 0
   }
 }
