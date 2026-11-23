@@ -349,10 +349,10 @@ func makeConnection(_ ports: [AVCaptureInput.Port], _ session: AVCaptureSession?
 
 final class MovieRecording {
   let writer: AVAssetWriter, adaptor: AVAssetWriterInputPixelBufferAdaptor
-  let delegate: AVCaptureFileOutputRecordingDelegate, url: URL, frameSize: CGSize, rotationAngle: CGFloat, mirrored: Bool
+  let delegate: any AVCaptureFileOutputRecordingDelegate, url: URL, frameSize: CGSize, rotationAngle: CGFloat, mirrored: Bool
   var start = CMTime.zero, started = false, finalizing = false, appendFailed = false
 
-  init(_ writer: AVAssetWriter, _ adaptor: AVAssetWriterInputPixelBufferAdaptor, _ delegate: AVCaptureFileOutputRecordingDelegate, _ url: URL, _ connection: ShimulatorCaptureConnection, _ frameSize: CGSize) {
+  init(_ writer: AVAssetWriter, _ adaptor: AVAssetWriterInputPixelBufferAdaptor, _ delegate: any AVCaptureFileOutputRecordingDelegate, _ url: URL, _ connection: ShimulatorCaptureConnection, _ frameSize: CGSize) {
     (self.writer, self.adaptor, self.delegate, self.url) = (writer, adaptor, delegate, url)
     (self.frameSize, rotationAngle, mirrored) = (frameSize, connection.frameRotationAngle, connection.isVideoMirrored)
   }
@@ -381,7 +381,7 @@ final class VirtualCamera: NSObject {
   // A CPU CoreImage context cannot keep up with per-output crop and scale at frame rate.
   private let context = MTLCreateSystemDefaultDevice().map { CIContext(mtlDevice: $0) } ?? CIContext()
   private var sources = CameraSources(back: FrameSource(url: nil, loops: true))
-  private var timer: DispatchSourceTimer?
+  private var timer: (any DispatchSourceTimer)?
   private var pools: [String: CVPixelBufferPool] = [:], tickCache: [String: CVPixelBuffer] = [:]
   private var generation: Int64 = -1, delivered = false
   /// The sources' terminal state, copied under `lock` from `queue`, which is the only thread the
@@ -522,8 +522,8 @@ final class VirtualCamera: NSObject {
   }
 
   private func reconcileTimer(resetRate: Bool) {
-    var cancelled: DispatchSourceTimer?
-    var started: DispatchSourceTimer?
+    var cancelled: (any DispatchSourceTimer)?
+    var started: (any DispatchSourceTimer)?
     let rate: Double = locked {
       let shouldRun = runningSessions.count > 0
       if resetRate || !shouldRun { (cancelled, timer) = (timer, nil) }
@@ -636,7 +636,7 @@ final class VirtualCamera: NSObject {
     let discardsLate = output.alwaysDiscardsLateVideoFrames
     let format = (output.videoSettings?[kCVPixelBufferPixelFormatTypeKey as String] as? NSNumber)?.uint32Value ?? kCVPixelFormatType_32BGRA
     guard let delegate = output.sampleBufferDelegate, let queue = output.sampleBufferCallbackQueue,
-      delegate.responds(to: #selector(AVCaptureVideoDataOutputSampleBufferDelegate.captureOutput(_:didOutput:from:))),
+      delegate.responds(to: #selector((any AVCaptureVideoDataOutputSampleBufferDelegate).captureOutput(_:didOutput:from:))),
       !discardsLate || (associated(output, &Key.pending) as NSObject?) == nil,
       let converted = shaped(frame, source, format, frameSize(connection), connection.frameRotationAngle, connection.isVideoMirrored),
       let description = try? CMVideoFormatDescription(imageBuffer: converted),
@@ -732,15 +732,15 @@ final class VirtualCamera: NSObject {
 
   // MARK: - Recording
 
-  private func finish(_ output: AVCaptureMovieFileOutput, _ url: URL, _ delegate: AVCaptureFileOutputRecordingDelegate, _ connections: [AVCaptureConnection], _ error: Error?) {
+  private func finish(_ output: AVCaptureMovieFileOutput, _ url: URL, _ delegate: any AVCaptureFileOutputRecordingDelegate, _ connections: [AVCaptureConnection], _ error: (any Error)?) {
     callbackQueue.async { delegate.fileOutput(output, didFinishRecordingTo: url, from: connections, error: error) }
   }
 
   /// Records video only, straight to `url`: the frames are the injected file's, whatever audio the session has.
-  func startRecording(_ output: AVCaptureMovieFileOutput, to url: URL, delegate: AVCaptureFileOutputRecordingDelegate) {
+  func startRecording(_ output: AVCaptureMovieFileOutput, to url: URL, delegate: any AVCaptureFileOutputRecordingDelegate) {
     let connections = output.connections
     let connection = virtualConnection(output)
-    let error: Error? = locked {
+    let error: (any Error)? = locked {
       guard let connection, Self.isActive(connection) else { return videoError(6, "The movie output has no active video connection") }
       guard associated(output, &Key.recording) as MovieRecording? == nil else { return videoError(7, "Recording is already in progress") }
       // Checked first so a failed recording never deletes a file it did not create.
@@ -791,7 +791,7 @@ final class VirtualCamera: NSObject {
     recording.writer.finishWriting { [self] in
       let writer = recording.writer
       let appendError = appendFailed ? writer.error ?? videoError(10, "Could not append the movie frame") : nil
-      let error: Error? = appendError ?? (writer.status == .completed ? nil : writer.error ?? videoError(8, "The movie writer did not complete"))
+      let error: (any Error)? = appendError ?? (writer.status == .completed ? nil : writer.error ?? videoError(8, "The movie writer did not complete"))
       if error != nil { try? FileManager.default.removeItem(at: recording.url) }
       locked { if associated(output, &Key.recording) === recording { associate(output, &Key.recording, nil) } }
       finish(output, recording.url, recording.delegate, connections, error)
@@ -805,7 +805,7 @@ final class VirtualCamera: NSObject {
   // MARK: - Photo capture
 
   /// Serialised on `queue` behind frame delivery, so overlapping captures queue as on a real output.
-  func capturePhoto(_ output: AVCapturePhotoOutput, settings: AVCapturePhotoSettings, delegate: AVCapturePhotoCaptureDelegate) {
+  func capturePhoto(_ output: AVCapturePhotoOutput, settings: AVCapturePhotoSettings, delegate: any AVCapturePhotoCaptureDelegate) {
     queue.async { [self] in
       let connection = virtualConnection(output).flatMap { Self.isActive($0) ? $0 : nil }
       let sources = locked { self.sources }
@@ -813,7 +813,7 @@ final class VirtualCamera: NSObject {
       let resolved = ShimulatorCaptureResolvedPhotoSettings()
       resolved.storedUniqueID = settings.uniqueID
       let photo = ShimulatorCapturePhoto()
-      var error: Error?
+      var error: (any Error)?
       if let connection, !source.failed {
         let size = frameSize(connection)
         resolved.storedPhotoDimensions = CMVideoDimensions(width: Int32(size.width.rounded()), height: Int32(size.height.rounded()))

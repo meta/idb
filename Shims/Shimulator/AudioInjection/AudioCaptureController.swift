@@ -40,10 +40,10 @@ public protocol AudioCaptureEngine {
 public final class AudioCaptureController: ShimulatorMethodHandler {
   public typealias Admission = AudioCaptureFileWriter
 
-  private let engine: AudioCaptureEngine
+  private let engine: any AudioCaptureEngine
   private let processIdentifier: Int32
 
-  public init(engine: AudioCaptureEngine, processIdentifier: Int32 = getpid()) {
+  public init(engine: any AudioCaptureEngine, processIdentifier: Int32 = getpid()) {
     self.engine = engine
     self.processIdentifier = processIdentifier
   }

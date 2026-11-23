@@ -43,7 +43,7 @@ public protocol IdleSyncProbe {
 public final class IdleSyncController: ShimulatorMethodHandler {
   public struct Admission: Sendable {}
 
-  private let probe: IdleSyncProbe
+  private let probe: any IdleSyncProbe
   /// The threshold the trackers run with; `nil` is their own.
   private var busyThresholdMs: UInt32?
   /// Work the current threshold counts may have gone unrecorded under the previous one, so no idle period is dated
@@ -51,7 +51,7 @@ public final class IdleSyncController: ShimulatorMethodHandler {
   private var historyStart: UInt64 = 0
   private var thresholdChanged = false
 
-  public init(probe: IdleSyncProbe) {
+  public init(probe: any IdleSyncProbe) {
     self.probe = probe
   }
 

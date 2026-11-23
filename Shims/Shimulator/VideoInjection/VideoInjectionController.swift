@@ -37,11 +37,11 @@ public final class VideoInjectionController: ShimulatorMethodHandler {
     let generation: Int64
   }
 
-  private let engine: VideoInjectionEngine
+  private let engine: any VideoInjectionEngine
   private var nextGeneration: Int64 = 0
   private var activeGeneration: Int64?
 
-  public init(engine: VideoInjectionEngine) {
+  public init(engine: any VideoInjectionEngine) {
     self.engine = engine
   }
 

@@ -417,7 +417,7 @@ extension AVCaptureMovieFileOutput {
       || ((associated(self, &Key.recording) as MovieRecording?) != nil && VirtualCamera.shared.isRecording(self))
   }
 
-  @objc dynamic func shimulator_startRecording(to url: URL, recordingDelegate delegate: AVCaptureFileOutputRecordingDelegate) {
+  @objc dynamic func shimulator_startRecording(to url: URL, recordingDelegate delegate: any AVCaptureFileOutputRecordingDelegate) {
     guard virtualConnection(self) != nil else {
       return withNativeView(connectionSession(self)) { shimulator_startRecording(to: url, recordingDelegate: delegate) }
     }
@@ -434,7 +434,7 @@ extension AVCaptureMovieFileOutput {
 }
 
 extension AVCapturePhotoOutput {
-  @objc dynamic func shimulator_capturePhoto(with settings: AVCapturePhotoSettings, delegate: AVCapturePhotoCaptureDelegate) {
+  @objc dynamic func shimulator_capturePhoto(with settings: AVCapturePhotoSettings, delegate: any AVCapturePhotoCaptureDelegate) {
     guard virtualConnection(self) != nil else {
       return withNativeView(connectionSession(self)) { shimulator_capturePhoto(with: settings, delegate: delegate) }
     }

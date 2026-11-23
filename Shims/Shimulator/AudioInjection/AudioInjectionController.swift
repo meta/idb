@@ -115,10 +115,10 @@ public struct WAVAudio: Equatable, Sendable {
 public final class AudioInjectionController: ShimulatorMethodHandler {
   public typealias Admission = Int64
 
-  private let engine: AudioInjectionEngine
+  private let engine: any AudioInjectionEngine
   private var nextGeneration: Int64 = 0
 
-  public init(engine: AudioInjectionEngine) {
+  public init(engine: any AudioInjectionEngine) {
     self.engine = engine
   }
 

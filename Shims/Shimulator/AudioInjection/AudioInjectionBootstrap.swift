@@ -13,7 +13,7 @@ import Foundation
 import os
 
 /// Prepared off the audio thread and signalled from it: the IO proc may not start a thread itself.
-private let controllerStart: DispatchSourceUserDataOr = {
+private let controllerStart: any DispatchSourceUserDataOr = {
   let source = DispatchSource.makeUserDataOrSource(queue: .global(qos: .utility))
   source.setEventHandler {
     controllerStart.cancel()
@@ -23,7 +23,7 @@ private let controllerStart: DispatchSourceUserDataOr = {
   return source
 }()
 
-private let captureStart: DispatchSourceUserDataOr = {
+private let captureStart: any DispatchSourceUserDataOr = {
   let source = DispatchSource.makeUserDataOrSource(queue: .global(qos: .utility))
   source.setEventHandler {
     captureStart.cancel()
