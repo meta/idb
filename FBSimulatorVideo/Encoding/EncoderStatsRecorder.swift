@@ -132,7 +132,7 @@ final class EncoderStatsRecorder: Sendable {
 
   private static func firstCallbackLine(since firstSubmission: ContinuousClock.Instant?) -> String {
     guard let firstSubmission else { return "First encode callback received" }
-    return String(format: "First encode callback received %.1f ms after its frame was submitted", (ContinuousClock.now - firstSubmission).seconds * 1000)
+    return unsafe String(format: "First encode callback received %.1f ms after its frame was submitted", (ContinuousClock.now - firstSubmission).seconds * 1000)
   }
 
   /// The source surface changed while a frame was being read.
@@ -204,7 +204,7 @@ final class EncoderStatsRecorder: Sendable {
     let intervalAvgEncodeMs = intervalCallbacks > 0 ? (intervalEncodeSubmitSeconds / Double(intervalCallbacks)) * 1000.0 : 0
     let totalAvgEncodeMs = current.callbackCount > 0 ? (current.totalEncodeSubmitSeconds / Double(current.callbackCount)) * 1000.0 : 0
 
-    return [
+    return unsafe [
       .info(
         String(
           format:

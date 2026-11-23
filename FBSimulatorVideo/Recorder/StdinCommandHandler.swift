@@ -232,7 +232,7 @@ public final class StdinCommandHandler {
     // compositor; the renderer serializes its own mutations.
     // patternlint-disable-next-line swift-nonisolated-unsafe
     nonisolated(unsafe) let buffer = buffer
-    await videoStream.updateOverlayBuffer(buffer)
+    unsafe await videoStream.updateOverlayBuffer(buffer)
   }
 
   private func handleScreenshot(index: Int) async {
@@ -266,7 +266,7 @@ public final class StdinCommandHandler {
       logger.log("Screenshot \(index) failed: could not create file at \(tmpPath)")
       return
     }
-    guard rename(tmpPath, finalPath) == 0 else {
+    guard unsafe rename(tmpPath, finalPath) == 0 else {
       logger.log("Screenshot \(index) failed: could not rename \(tmpPath) to \(finalPath) (errno=\(errno))")
       return
     }

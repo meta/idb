@@ -100,7 +100,7 @@ final class OverlayCompositor {
       kCVPixelBufferIOSurfacePropertiesKey as String: [String: Any](),
     ]
     var pool: CVPixelBufferPool?
-    CVPixelBufferPoolCreate(nil, nil, attributes as CFDictionary, &pool)
+    unsafe CVPixelBufferPoolCreate(nil, nil, attributes as CFDictionary, &pool)
     self.pool = pool
   }
 
@@ -117,7 +117,7 @@ final class OverlayCompositor {
       return source
     }
     var output: CVPixelBuffer?
-    guard CVPixelBufferPoolCreatePixelBuffer(nil, pool, &output) == kCVReturnSuccess, let output else {
+    guard unsafe CVPixelBufferPoolCreatePixelBuffer(nil, pool, &output) == kCVReturnSuccess, let output else {
       return source
     }
     context.render(image, to: output)

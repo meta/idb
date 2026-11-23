@@ -60,7 +60,7 @@ enum AudioTrackMuxer {
     do {
       guard let track = try await audioAsset.loadTracks(withMediaType: .audio).first,
         let format = try await track.load(.formatDescriptions).first,
-        let description = CMAudioFormatDescriptionGetStreamBasicDescription(format)?.pointee
+        let description = unsafe CMAudioFormatDescriptionGetStreamBasicDescription(format)?.pointee
       else {
         throw AudioTrackMuxerError.unreadableAudio(path: wavURL.path, reason: "it holds no audio track")
       }
@@ -222,9 +222,9 @@ enum AudioTrackMuxer {
       return sample
     }
     var count: CMItemCount = 0
-    CMSampleBufferGetSampleTimingInfoArray(sample, entryCount: 0, arrayToFill: nil, entriesNeededOut: &count)
+    unsafe CMSampleBufferGetSampleTimingInfoArray(sample, entryCount: 0, arrayToFill: nil, entriesNeededOut: &count)
     var timing = Array(repeating: CMSampleTimingInfo(), count: count)
-    CMSampleBufferGetSampleTimingInfoArray(sample, entryCount: count, arrayToFill: &timing, entriesNeededOut: &count)
+    unsafe CMSampleBufferGetSampleTimingInfoArray(sample, entryCount: count, arrayToFill: &timing, entriesNeededOut: &count)
     for index in timing.indices {
       timing[index].presentationTimeStamp = CMTimeAdd(timing[index].presentationTimeStamp, shift)
       if timing[index].decodeTimeStamp.isValid {
@@ -232,7 +232,7 @@ enum AudioTrackMuxer {
       }
     }
     var copy: CMSampleBuffer?
-    let status = CMSampleBufferCreateCopyWithNewTiming(
+    let status = unsafe CMSampleBufferCreateCopyWithNewTiming(
       allocator: nil, sampleBuffer: sample, sampleTimingEntryCount: count, sampleTimingArray: &timing,
       sampleBufferOut: &copy)
     guard status == noErr, let copy else {

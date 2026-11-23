@@ -37,7 +37,7 @@ struct FrameCadence: AsyncSequence {
     init(framesPerSecond: UInt) {
       let frameIntervalNanos = NSEC_PER_SEC / UInt64(framesPerSecond)
       var timebase = mach_timebase_info_data_t()
-      mach_timebase_info(&timebase)
+      unsafe mach_timebase_info(&timebase)
       self.machNumer = UInt64(timebase.numer)
       self.machDenom = UInt64(timebase.denom)
       self.frameIntervalMach = frameIntervalNanos * UInt64(timebase.denom) / UInt64(timebase.numer)

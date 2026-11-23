@@ -37,7 +37,7 @@ final class PixelBufferConverter {
     self.pixelFormat = pixelFormat
 
     var transferSession: VTPixelTransferSession?
-    let status = VTPixelTransferSessionCreate(allocator: kCFAllocatorDefault, pixelTransferSessionOut: &transferSession)
+    let status = unsafe VTPixelTransferSessionCreate(allocator: kCFAllocatorDefault, pixelTransferSessionOut: &transferSession)
     if status != noErr {
       throw VideoToolboxFramePusherError.failedToCreatePixelTransferSession(status: status)
     }
@@ -60,7 +60,7 @@ final class PixelBufferConverter {
       kCVPixelBufferPoolAllocationThresholdKey as String: 16,
     ]
     var pool: CVPixelBufferPool?
-    CVPixelBufferPoolCreate(nil, poolAttributes as CFDictionary, bufferAttributes as CFDictionary, &pool)
+    unsafe CVPixelBufferPoolCreate(nil, poolAttributes as CFDictionary, bufferAttributes as CFDictionary, &pool)
     self.pool = pool
   }
 
@@ -72,10 +72,10 @@ final class PixelBufferConverter {
     for key in [kVTPixelTransferPropertyKey_DestinationColorPrimaries, kVTPixelTransferPropertyKey_DestinationTransferFunction, kVTPixelTransferPropertyKey_DestinationYCbCrMatrix] {
       var value: UnsafeMutableRawPointer?
       withUnsafeMutablePointer(to: &value) { pointer in
-        _ = VTSessionCopyProperty(transferSession, key: key, allocator: kCFAllocatorDefault, valueOut: pointer)
+        _ = unsafe VTSessionCopyProperty(transferSession, key: key, allocator: kCFAllocatorDefault, valueOut: pointer)
       }
-      if let value {
-        properties[key as String] = Unmanaged<CFString>.fromOpaque(value).takeRetainedValue() as String
+      if let value = unsafe value {
+        properties[key as String] = unsafe Unmanaged<CFString>.fromOpaque(value).takeRetainedValue() as String
       }
     }
     return properties
@@ -103,7 +103,7 @@ final class PixelBufferConverter {
       return .poolExhausted(kCVReturnInvalidArgument)
     }
     var destination: CVPixelBuffer?
-    let poolStatus = CVPixelBufferPoolCreatePixelBuffer(nil, pool, &destination)
+    let poolStatus = unsafe CVPixelBufferPoolCreatePixelBuffer(nil, pool, &destination)
     guard poolStatus == kCVReturnSuccess, let destination else {
       return .poolExhausted(poolStatus)
     }

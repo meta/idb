@@ -25,7 +25,7 @@ struct CadenceStats {
 
   init(frameIntervalNanos: UInt64, logger: any ControlCoreLogger) {
     var timebase = mach_timebase_info_data_t()
-    mach_timebase_info(&timebase)
+    unsafe mach_timebase_info(&timebase)
     self.machToMs = Double(timebase.numer) / Double(timebase.denom) / 1e6
     let statsIntervalSeconds = 5.0
     self.statsIntervalMach = UInt64(statsIntervalSeconds * 1e9) * UInt64(timebase.denom) / UInt64(timebase.numer)
@@ -54,7 +54,7 @@ struct CadenceStats {
     let maxMs = Double(maxPushMach) * machToMs
     let stddevMs = pushCount > 1 ? sqrt(pushM2 / Double(pushCount - 1)) * machToMs : 0
     let intervalSeconds = Double(now - statsStartTime) * machToMs / 1e3
-    logger.info().log(
+    unsafe logger.info().log(
       String(
         format: "Cadence stats (%.1fs): %llu pushes, %llu overruns, push duration avg %.1f ms / max %.1f ms, jitter stddev %.1f ms (budget: %.1f ms)",
         intervalSeconds, pushCount, overrunCount, avgMs, maxMs, stddevMs, Double(frameIntervalNanos) / 1e6))

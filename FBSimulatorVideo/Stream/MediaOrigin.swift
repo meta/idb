@@ -52,7 +52,7 @@ public struct MediaOrigin: Equatable, Sendable {
 
   private static var timebase: (numerator: Double, denominator: Double) {
     var info = mach_timebase_info_data_t()
-    mach_timebase_info(&info)
+    unsafe mach_timebase_info(&info)
     return (Double(info.numer), Double(max(info.denom, 1)))
   }
 }

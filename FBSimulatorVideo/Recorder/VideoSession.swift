@@ -73,7 +73,7 @@ public enum VideoSession {
           prevFbStats = fb
           prevEncStats = encoder
           prevStatsTime = now
-          let text = String(
+          let text = unsafe String(
             format: "fb:%.1f/s enc:%.1ffps %.0fkbps | w:%lu d:%lu e:%lu t:%lu",
             fbRate, encFps, encKbps,
             encoder.writeCount, encoder.dropCount, encoder.encodeErrorCount, encoder.tornFrameCount
@@ -81,7 +81,7 @@ public enum VideoSession {
           renderer.setStatsText(text, position: statsPosition)
           // patternlint-disable-next-line swift-nonisolated-unsafe
           nonisolated(unsafe) let buffer: CVPixelBuffer? = renderer.buffer
-          await videoStream.updateOverlayBuffer(buffer)
+          unsafe await videoStream.updateOverlayBuffer(buffer)
         }
       }
       statsTimers.append(task)

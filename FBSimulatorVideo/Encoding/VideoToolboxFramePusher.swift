@@ -131,7 +131,7 @@ final class VideoToolboxFramePusher: FramePusher, @unchecked Sendable {
     // so the session needs neither an `outputCallback` nor a `refcon`.
     var compressionSession: VTCompressionSession?
     func createCompressionSession(_ specification: [String: Any]) -> OSStatus {
-      VTCompressionSessionCreate(
+      unsafe VTCompressionSessionCreate(
         allocator: nil,
         width: Int32(destinationWidth),
         height: Int32(destinationHeight),

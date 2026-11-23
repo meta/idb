@@ -47,11 +47,11 @@ final class RecordingOutputPaths: Sendable {
     let url = URL(fileURLWithPath: path).standardizedFileURL
     let directory = url.deletingLastPathComponent().path
     var status = stat()
-    guard stat(directory, &status) == 0 else {
+    guard unsafe stat(directory, &status) == 0 else {
       return url.path
     }
     let name = url.lastPathComponent.precomposedStringWithCanonicalMapping
-    let ignoresCase = pathconf(directory, _PC_CASE_SENSITIVE) == 0
+    let ignoresCase = unsafe pathconf(directory, _PC_CASE_SENSITIVE) == 0
     return "\(status.st_dev):\(status.st_ino)/\(ignoresCase ? name.folding(options: .caseInsensitive, locale: nil) : name)"
   }
 

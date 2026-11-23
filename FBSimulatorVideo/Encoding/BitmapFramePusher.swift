@@ -53,14 +53,14 @@ final class BitmapFramePusher: FramePusher {
     CVPixelBufferLockBaseAddress(bufferToWrite, .readOnly)
     defer { CVPixelBufferUnlockBaseAddress(bufferToWrite, .readOnly) }
 
-    guard let baseAddress = CVPixelBufferGetBaseAddress(bufferToWrite) else { return }
+    guard let baseAddress = unsafe CVPixelBufferGetBaseAddress(bufferToWrite) else { return }
     let size = CVPixelBufferGetDataSize(bufferToWrite)
 
     if case .synchronous = consumer.consumption {
-      let data = Data(bytesNoCopy: baseAddress, count: size, deallocator: .none)
+      let data = unsafe Data(bytesNoCopy: baseAddress, count: size, deallocator: .none)
       consumer.consumeData(data)
     } else {
-      let data = Data(bytes: baseAddress, count: size)
+      let data = unsafe Data(bytes: baseAddress, count: size)
       consumer.consumeData(data)
     }
   }

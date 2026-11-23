@@ -21,7 +21,7 @@ public enum TerminalFrameSamplerError: Error, LocalizedError {
     case .noMetalDevice:
       return "No Metal device is available"
     case .unsupportedPixelFormat(let format):
-      return String(format: "Unsupported framebuffer pixel format 0x%08x; expected BGRA", format)
+      return unsafe String(format: "Unsupported framebuffer pixel format 0x%08x; expected BGRA", format)
     case .failedToCreateTexture:
       return "Failed to create a texture over the framebuffer surface"
     case .failedToEncode:
@@ -102,7 +102,7 @@ public final class TerminalFrameSampler {
     encoder.setComputePipelineState(pipeline)
     encoder.setTexture(texture, index: 0)
     encoder.setBuffer(output, offset: 0, index: 0)
-    encoder.setBytes(&parameters, length: MemoryLayout<Parameters>.size, index: 1)
+    unsafe encoder.setBytes(&parameters, length: MemoryLayout<Parameters>.size, index: 1)
     encoder.dispatchThreads(
       MTLSize(width: grid.columns, height: grid.rows, depth: 1),
       threadsPerThreadgroup: MTLSize(width: 16, height: 16, depth: 1))
@@ -113,8 +113,8 @@ public final class TerminalFrameSampler {
       throw error
     }
     lastGPUDuration = commands.gpuEndTime - commands.gpuStartTime
-    let cells = output.contents().bindMemory(to: TerminalCell.self, capacity: grid.cellCount)
-    return Array(UnsafeBufferPointer(start: cells, count: grid.cellCount))
+    let cells = unsafe output.contents().bindMemory(to: TerminalCell.self, capacity: grid.cellCount)
+    return unsafe Array(UnsafeBufferPointer(start: cells, count: grid.cellCount))
   }
 
   /// Matches `Parameters` in the kernel source.

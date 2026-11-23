@@ -229,7 +229,7 @@ enum ChapterTrackMuxer {
     var formatDescription: CMFormatDescription?
     let created: Bool = data.withUnsafeBufferPointer { pointer in
       guard let baseAddress = pointer.baseAddress else { return false }
-      return CMTextFormatDescriptionCreateFromBigEndianTextDescriptionData(
+      return unsafe CMTextFormatDescriptionCreateFromBigEndianTextDescriptionData(
         allocator: kCFAllocatorDefault,
         bigEndianTextDescriptionData: baseAddress,
         size: pointer.count,
@@ -248,7 +248,7 @@ enum ChapterTrackMuxer {
     payload.append(contentsOf: utf8)
 
     var blockBuffer: CMBlockBuffer?
-    let blockStatus = CMBlockBufferCreateWithMemoryBlock(
+    let blockStatus = unsafe CMBlockBufferCreateWithMemoryBlock(
       allocator: kCFAllocatorDefault,
       memoryBlock: nil,
       blockLength: payload.count,
@@ -263,7 +263,7 @@ enum ChapterTrackMuxer {
     }
     let copied: Bool = payload.withUnsafeBytes { pointer in
       guard let baseAddress = pointer.baseAddress else { return false }
-      return CMBlockBufferReplaceDataBytes(with: baseAddress, blockBuffer: blockBuffer, offsetIntoDestination: 0, dataLength: payload.count) == kCMBlockBufferNoErr
+      return unsafe CMBlockBufferReplaceDataBytes(with: baseAddress, blockBuffer: blockBuffer, offsetIntoDestination: 0, dataLength: payload.count) == kCMBlockBufferNoErr
     }
     guard copied else {
       return nil
@@ -272,7 +272,7 @@ enum ChapterTrackMuxer {
     var sampleBuffer: CMSampleBuffer?
     var timing = CMSampleTimingInfo(duration: duration, presentationTimeStamp: time, decodeTimeStamp: .invalid)
     var sampleSize = payload.count
-    let sampleStatus = CMSampleBufferCreateReady(
+    let sampleStatus = unsafe CMSampleBufferCreateReady(
       allocator: kCFAllocatorDefault,
       dataBuffer: blockBuffer,
       formatDescription: formatDescription,

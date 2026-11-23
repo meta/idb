@@ -101,7 +101,7 @@ private func bitmapStreamPixelBufferAttributes(from pixelBuffer: CVPixelBuffer) 
   var columnRight = 0
   var rowsTop = 0
   var rowsBottom = 0
-  CVPixelBufferGetExtendedPixels(pixelBuffer, &columnLeft, &columnRight, &rowsTop, &rowsBottom)
+  unsafe CVPixelBufferGetExtendedPixels(pixelBuffer, &columnLeft, &columnRight, &rowsTop, &rowsBottom)
 
   return [
     "width": width,
@@ -530,11 +530,11 @@ public actor SimulatorVideoStream: VideoStreamOperation {
   func mountSurface(_ surface: IOSurface) throws {
     // CVPixelBufferCreateWithIOSurface returns +1 via an Unmanaged out-param; takeRetainedValue() adopts it.
     var unmanagedBuffer: Unmanaged<CVPixelBuffer>?
-    let status = CVPixelBufferCreateWithIOSurface(nil, surface, nil, &unmanagedBuffer)
+    let status = unsafe CVPixelBufferCreateWithIOSurface(nil, surface, nil, &unmanagedBuffer)
     if status != kCVReturnSuccess {
       throw SimulatorVideoStreamError.failedToCreatePixelBufferFromSurface(status: status)
     }
-    guard let buffer = unmanagedBuffer?.takeRetainedValue() else {
+    guard let buffer = unsafe unmanagedBuffer?.takeRetainedValue() else {
       throw SimulatorVideoStreamError.failedToCreatePixelBufferFromSurfaceNil
     }
 
@@ -555,7 +555,7 @@ public actor SimulatorVideoStream: VideoStreamOperation {
     guard let latestSurface else {
       return
     }
-    if let pixelBuffer, let mountedSource, let mountedSurface = CVPixelBufferGetIOSurface(pixelBuffer)?.takeUnretainedValue(),
+    if let pixelBuffer, let mountedSource, let mountedSurface = unsafe CVPixelBufferGetIOSurface(pixelBuffer)?.takeUnretainedValue(),
       IOSurfaceGetID(mountedSurface) == IOSurfaceGetID(latestSurface),
       compositor.rotation == interfaceRotation(of: pixelBuffer),
       VideoFrameSource(pixelBuffer).rotated(interfaceRotation(of: pixelBuffer)) == mountedSource
@@ -716,7 +716,7 @@ public actor SimulatorVideoStream: VideoStreamOperation {
     // seed is compared across the read to count frames it wrote into anyway. Every read of the
     // source happens inside this window — the overlay composite and the pusher's colour conversion —
     // and nothing after it touches the source.
-    let sourceSurface = CVPixelBufferGetIOSurface(pixelBuffer)?.takeUnretainedValue()
+    let sourceSurface = unsafe CVPixelBufferGetIOSurface(pixelBuffer)?.takeUnretainedValue()
     let seedBefore = sourceSurface.map { IOSurfaceGetSeed($0) }
     CVPixelBufferLockBaseAddress(pixelBuffer, .readOnly)
 
@@ -816,7 +816,7 @@ public actor SimulatorVideoStream: VideoStreamOperation {
   private static func blankPixelBuffer(_ source: VideoFrameSource) throws -> CVPixelBuffer {
     var buffer: CVPixelBuffer?
     let attributes: [String: Any] = [kCVPixelBufferIOSurfacePropertiesKey as String: [String: Any]()]
-    let status = CVPixelBufferCreate(nil, source.width, source.height, source.pixelFormat, attributes as CFDictionary, &buffer)
+    let status = unsafe CVPixelBufferCreate(nil, source.width, source.height, source.pixelFormat, attributes as CFDictionary, &buffer)
     guard status == kCVReturnSuccess, let buffer else {
       throw SimulatorVideoStreamError.failedToCreatePixelBufferFromSurface(status: status)
     }
@@ -1043,6 +1043,6 @@ public actor SimulatorVideoStream: VideoStreamOperation {
 
   /// The mounted surface's modification seed, which moves on whenever anything writes into the surface
   private var mountedSurfaceSeed: UInt32? {
-    pixelBuffer.flatMap { CVPixelBufferGetIOSurface($0)?.takeUnretainedValue() }.map(IOSurfaceGetSeed)
+    pixelBuffer.flatMap { unsafe CVPixelBufferGetIOSurface($0)?.takeUnretainedValue() }.map(IOSurfaceGetSeed)
   }
 }

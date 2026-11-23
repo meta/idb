@@ -51,7 +51,7 @@ final class LazyFrameTriggers: AsyncSequence, Sendable {
 
   init(maximumFramesPerSecond: UInt = LazyFrameTriggers.defaultMaximumFramesPerSecond) {
     var timebase = mach_timebase_info_data_t()
-    mach_timebase_info(&timebase)
+    unsafe mach_timebase_info(&timebase)
     self.minimumIntervalMach = (NSEC_PER_SEC / UInt64(maximumFramesPerSecond)) * UInt64(timebase.denom) / UInt64(timebase.numer)
     // The builder hands back the continuation synchronously, so the IUO is assigned before use.
     // swiftlint:disable:next implicitly_unwrapped_optional
@@ -109,7 +109,7 @@ final class LazyFrameTriggers: AsyncSequence, Sendable {
       let earliest = lastTriggerMach + source.minimumIntervalMach
       if mach_absolute_time() < earliest {
         var timebase = mach_timebase_info_data_t()
-        mach_timebase_info(&timebase)
+        unsafe mach_timebase_info(&timebase)
         guard (try? await StrictTimer.wait(untilUptimeNanoseconds: earliest * UInt64(timebase.numer) / UInt64(timebase.denom))) != nil else {
           return nil // cancelled while pacing
         }

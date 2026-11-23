@@ -32,7 +32,7 @@ func stdinLines(fileDescriptor: Int32 = STDIN_FILENO) -> AsyncStream<String> {
 
     source.setEventHandler {
       var chunk = [UInt8](repeating: 0, count: 4096)
-      let count = read(fileDescriptor, &chunk, chunk.count)
+      let count = unsafe read(fileDescriptor, &chunk, chunk.count)
       if count > 0 {
         buffer.data.append(contentsOf: chunk[0..<count])
         // Emit every complete line currently buffered; keep any trailing partial line.

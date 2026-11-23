@@ -157,7 +157,7 @@ public final class OverlayRenderer: @unchecked Sendable {
       kCVPixelBufferHeightKey as String: height,
       kCVPixelBufferIOSurfacePropertiesKey as String: [:] as [String: Any],
     ]
-    CVPixelBufferCreate(
+    unsafe CVPixelBufferCreate(
       nil, width, height, kCVPixelFormatType_32BGRA,
       attrs as CFDictionary, &pixelBuffer)
     guard let createdBuffer = pixelBuffer else {
@@ -324,9 +324,9 @@ public final class OverlayRenderer: @unchecked Sendable {
   private func clearBuffer() {
     CVPixelBufferLockBaseAddress(storage, [])
     defer { CVPixelBufferUnlockBaseAddress(storage, []) }
-    guard let baseAddress = CVPixelBufferGetBaseAddress(storage) else { return }
+    guard let baseAddress = unsafe CVPixelBufferGetBaseAddress(storage) else { return }
     let size = CVPixelBufferGetBytesPerRow(storage) * height
-    memset(baseAddress, 0, size)
+    unsafe memset(baseAddress, 0, size)
   }
 
   /// Re-render all shapes into the pixel buffer at the current time.
@@ -343,12 +343,12 @@ public final class OverlayRenderer: @unchecked Sendable {
     CVPixelBufferLockBaseAddress(buffer, [])
     defer { CVPixelBufferUnlockBaseAddress(buffer, []) }
 
-    guard let baseAddress = CVPixelBufferGetBaseAddress(buffer) else { return }
+    guard let baseAddress = unsafe CVPixelBufferGetBaseAddress(buffer) else { return }
     let bytesPerRow = CVPixelBufferGetBytesPerRow(buffer)
 
     let bitmapInfo = CGImageAlphaInfo.premultipliedFirst.rawValue | CGBitmapInfo.byteOrder32Little.rawValue
     guard
-      let context = CGContext(
+      let context = unsafe CGContext(
         data: baseAddress,
         width: width,
         height: height,
