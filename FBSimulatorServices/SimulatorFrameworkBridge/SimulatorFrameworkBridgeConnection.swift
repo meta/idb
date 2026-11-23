@@ -39,7 +39,7 @@ final class SimulatorFrameworkBridgeConnection: BridgeConnection, @unchecked Sen
   private let ownership: BridgeGuestOwnership
   private let queue = DispatchQueue(label: "com.facebook.FBSimulatorControl.frameworkbridge.connection")
 
-  private var terminalError: Error?
+  private var terminalError: (any Error)?
 
   /// The per-`recv` silence deadline, rather than a deadline for the whole response.
   static let receiveTimeoutSeconds = 30
@@ -105,7 +105,7 @@ final class SimulatorFrameworkBridgeConnection: BridgeConnection, @unchecked Sen
   ///
   /// A stream may stay silent for as long as nothing happens, so the per-`recv` deadline is lifted.
   /// Ending the iteration shuts the socket down, which is how the guest learns to stop.
-  func stream(_ request: BridgeRequest) -> AsyncThrowingStream<BridgeResult, Error> {
+  func stream(_ request: BridgeRequest) -> AsyncThrowingStream<BridgeResult, any Error> {
     AsyncThrowingStream { continuation in
       continuation.onTermination = { [self] _ in
         shutdown(fileDescriptor, SHUT_RDWR)

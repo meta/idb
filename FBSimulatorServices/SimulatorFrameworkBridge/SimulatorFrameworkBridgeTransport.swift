@@ -45,7 +45,7 @@ extension BridgeConnector {
 /// Owns the lifecycle of a shared or exclusive SimulatorFrameworkBridge guest.
 package actor SimulatorFrameworkBridgePersistentTransport: AXBridgeStreamingTransport {
   private let connector: any BridgeConnector
-  private var connectionTask: Task<any BridgeConnection, Error>?
+  private var connectionTask: Task<any BridgeConnection, any Error>?
   private var connectionGeneration = UUID()
 
   init(simulator: Simulator, scope: BridgeServiceScope) {
@@ -93,7 +93,7 @@ package actor SimulatorFrameworkBridgePersistentTransport: AXBridgeStreamingTran
     }
   }
 
-  package func stream(_ request: AXBridgeRequest) async throws -> AsyncThrowingStream<BridgeAXAnswer, Error> {
+  package func stream(_ request: AXBridgeRequest) async throws -> AsyncThrowingStream<BridgeAXAnswer, any Error> {
     let results = try await connector.streamConnection().stream(BridgeRequest(command: request.command))
     return AsyncThrowingStream { continuation in
       let task = Task {

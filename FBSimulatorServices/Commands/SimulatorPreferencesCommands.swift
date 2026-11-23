@@ -160,7 +160,7 @@ public struct SimulatorPreferencesCommands {
   }
 
   /// Publishes the current appearance and subsequent native changes, keeping only the newest unread value.
-  public func appearanceChanges() async throws -> AsyncThrowingStream<SimulatorAppearance, Error> {
+  public func appearanceChanges() async throws -> AsyncThrowingStream<SimulatorAppearance, any Error> {
     let simulator = self.simulator
     let subscription = try await SimulatorDarwinNotificationObserver.subscribe(
       on: simulator, name: "com.apple.UIKit.SystemUIServiceUserInterfaceStyleNotification")
@@ -170,7 +170,7 @@ public struct SimulatorPreferencesCommands {
   }
 
   /// Publishes the current Dynamic Type category and subsequent native changes.
-  public func contentSizeChanges() async throws -> AsyncThrowingStream<SimulatorContentSizeCategory, Error> {
+  public func contentSizeChanges() async throws -> AsyncThrowingStream<SimulatorContentSizeCategory, any Error> {
     let simulator = self.simulator
     let subscription = try await SimulatorDarwinNotificationObserver.subscribe(
       on: simulator, name: "ApplePreferredContentSizeCategoryChangedNotification")

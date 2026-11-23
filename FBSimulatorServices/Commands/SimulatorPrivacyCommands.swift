@@ -23,7 +23,7 @@ public enum SimulatorPrivacyError: Error {
   case emptyScheme(operation: String)
   case emptyBundleIDs(operation: String)
   case schemeApprovalPlistUnreadable(path: String)
-  case schemeApprovalDirectoryCreationFailed(underlying: Error)
+  case schemeApprovalDirectoryCreationFailed(underlying: any Error)
   case schemeApprovalPlistWriteFailed
   case schemeApprovalUnavailable(state: TargetState)
 }
