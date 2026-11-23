@@ -15,7 +15,7 @@ import UIKit
 // `@_cdecl`, calls them on its own thread with no arguments, and frees the C string they return.
 
 private func returning(_ string: String) -> UnsafeMutablePointer<CChar>? {
-  strdup(string)
+  unsafe strdup(string)
 }
 
 /// The Simulator the process runs in, as the process itself sees it, then its bundle identifier
@@ -24,7 +24,7 @@ private func returning(_ string: String) -> UnsafeMutablePointer<CChar>? {
 @_cdecl("CodeInjectionPayloadDescribeProcess")
 public func describeProcess() -> UnsafeMutablePointer<CChar>? {
   let udid = ProcessInfo.processInfo.environment["SIMULATOR_UDID"] ?? ""
-  return returning("\(udid) \(Bundle.main.bundleIdentifier ?? "")")
+  return unsafe returning("\(udid) \(Bundle.main.bundleIdentifier ?? "")")
 }
 
 /// How many views the app's windows hold right now, read on the main thread as UIKit requires.
@@ -40,7 +40,7 @@ public func countViews() -> UnsafeMutablePointer<CChar>? {
         .reduce(0) { $0 + viewCount(in: $1) }
     }
   }
-  return returning(String(count))
+  return unsafe returning(String(count))
 }
 
 @MainActor
@@ -67,7 +67,7 @@ private let injections = InjectionCounter()
 // patternlint-disable-next-line cdecl-unsupported
 @_cdecl("CodeInjectionPayloadCountInjections")
 public func countInjections() -> UnsafeMutablePointer<CChar>? {
-  returning(String(injections.increment()))
+  unsafe returning(String(injections.increment()))
 }
 
 /// How many times `CodeInjectionPayloadFlashAndClick` flashes and clicks, and how far apart.
@@ -89,11 +89,11 @@ public func flashAndClick() -> UnsafeMutablePointer<CChar>? {
   do {
     clicks = try ClickPlayer()
   } catch {
-    return returning("error: \(error)")
+    return unsafe returning("error: \(error)")
   }
   defer { clicks.stop() }
   guard let overlay = onMain({ Overlay() }) else {
-    return returning("error: the app has no window scene to flash")
+    return unsafe returning("error: the app has no window scene to flash")
   }
   // A new window takes longer to appear than a colour takes to change, so the overlay is up and
   // black before the first flash.
@@ -106,7 +106,7 @@ public func flashAndClick() -> UnsafeMutablePointer<CChar>? {
     Thread.sleep(forTimeInterval: flashInterval - flashLength)
   }
   onMain { overlay.remove() }
-  return returning("\(flashCount) \(clickPeak)")
+  return unsafe returning("\(flashCount) \(clickPeak)")
 }
 
 private func onMain<T: Sendable>(_ body: @MainActor () -> T) -> T {
@@ -153,15 +153,15 @@ private final class ClickPlayer {
       let standard = AVAudioFormat(standardFormatWithSampleRate: format.sampleRate, channels: 2),
       let buffer = AVAudioPCMBuffer(
         pcmFormat: standard, frameCapacity: AVAudioFrameCount(format.sampleRate * 10 / clickFrequency)),
-      let channels = buffer.floatChannelData
+      let channels = unsafe buffer.floatChannelData
     else {
       throw ClickError.noBuffer
     }
     buffer.frameLength = buffer.frameCapacity
     for frame in 0..<Int(buffer.frameLength) {
       let sample = clickPeak * Float(sin(2 * Double.pi * clickFrequency * Double(frame) / format.sampleRate))
-      channels[0][frame] = sample
-      channels[1][frame] = sample
+      unsafe channels[0][frame] = sample
+      unsafe channels[1][frame] = sample
     }
     self.buffer = buffer
     engine.attach(player)
