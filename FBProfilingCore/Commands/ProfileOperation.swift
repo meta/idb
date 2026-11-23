@@ -12,7 +12,7 @@ import Foundation
 public struct ProfileOperation: Sendable {
   /// Every sample a `resources` profiler takes; finishes immediately for every other profiler.
   public let samples: AsyncStream<ResourceSample>
-  private let task: Task<ProfileResult, Error>
+  private let task: Task<ProfileResult, any Error>
   /// Nil for a profiler that only ever runs to completion.
   private let stopRequest: ProfileStopRequest?
 

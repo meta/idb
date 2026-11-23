@@ -57,7 +57,7 @@ public enum TraceValue: Equatable, Sendable {
 }
 
 extension TraceValue: Codable {
-  public init(from decoder: Decoder) throws {
+  public init(from decoder: any Decoder) throws {
     let container = try decoder.singleValueContainer()
     if container.decodeNil() {
       self = .empty
@@ -68,7 +68,7 @@ extension TraceValue: Codable {
     }
   }
 
-  public func encode(to encoder: Encoder) throws {
+  public func encode(to encoder: any Encoder) throws {
     var container = encoder.singleValueContainer()
     switch self {
     case .empty:
