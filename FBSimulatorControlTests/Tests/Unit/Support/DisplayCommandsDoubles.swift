@@ -52,17 +52,17 @@ final class DisplayCommandsDouble: DisplayCommands, @unchecked Sendable {
   }
 
   func touchscreens() async throws -> [SimulatorTouchscreen] {
-    lock.lock()
-    defer { lock.unlock() }
-    touchscreenReadCount += 1
-    return touchscreenResult
+    lock.withLock {
+      touchscreenReadCount += 1
+      return touchscreenResult
+    }
   }
 
   func report() async throws -> SimulatorDisplayReport {
-    lock.lock()
-    defer { lock.unlock() }
-    readCount += 1
-    return try (results.count > 1 ? results.removeFirst() : results[0]).get()
+    try lock.withLock {
+      readCount += 1
+      return try (results.count > 1 ? results.removeFirst() : results[0]).get()
+    }
   }
 
   func reportPushes() throws -> AsyncThrowingStream<SimulatorDisplayReport, any Error> {

@@ -75,6 +75,10 @@ final class FramebufferScreensDouble: FramebufferScreens, @unchecked Sendable {
     screens = Dictionary(uniqueKeysWithValues: uniqueIDs.map { ($0, FakeFramebufferSurface()) })
   }
 
+  init(screens: [String: FakeFramebufferSurface]) {
+    self.screens = screens
+  }
+
   var requested: [String] { lock.withLock { requests } }
 
   func mainScreen() throws -> any FramebufferSurface {

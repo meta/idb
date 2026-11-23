@@ -29,12 +29,13 @@ final class FollowingFramebufferSurfaceTests: XCTestCase {
     failing: Set<String> = []
   ) -> FollowingFramebufferSurface {
     let locations = LockedCount()
+    let located = FramebufferScreensDouble(screens: screens)
     return FollowingFramebufferSurface(
       displayUniqueID: "cover", surface: screens["cover"]!, movement: movement,
       configurations: { configurations },
-      locate: { [screens] uniqueID in
+      locate: { uniqueID in
         locations.increment()
-        guard !failing.contains(uniqueID) || locations.value > 1, let screen = screens[uniqueID] else { throw LocateFailure() }
+        guard !failing.contains(uniqueID) || locations.value > 1, let screen = located.screens[uniqueID] else { throw LocateFailure() }
         return screen
       },
       logger: CapturingLogger())
@@ -91,9 +92,10 @@ final class FollowingFramebufferSurfaceTests: XCTestCase {
     inner.registerError = LocateFailure()
     let logger = CapturingLogger()
     let (configurations, continuation) = AsyncStream.makeStream(of: SimulatorDisplayConfiguration.self)
+    let screens = FramebufferScreensDouble(screens: ["inner": inner])
     let following = FollowingFramebufferSurface(
       displayUniqueID: "cover", surface: cover, movement: .followsActiveDisplay,
-      configurations: { configurations }, locate: { _ in inner }, logger: logger)
+      configurations: { configurations }, locate: { _ in try await screens.screen(uniqueID: "inner") }, logger: logger)
     let frames = LockedCount()
     try following.registerCallbacks(token: UUID(), ioSurfaceChanged: { _ in }, frameRendered: { frames.increment() }, configurationChanged: { _ in })
 
@@ -111,9 +113,10 @@ final class FollowingFramebufferSurfaceTests: XCTestCase {
     inner.registerError = LocateFailure()
     let logger = CapturingLogger()
     let (configurations, continuation) = AsyncStream.makeStream(of: SimulatorDisplayConfiguration.self)
+    let screens = FramebufferScreensDouble(screens: ["inner": inner])
     let following = FollowingFramebufferSurface(
       displayUniqueID: "cover", surface: cover, movement: .followsActiveDisplay,
-      configurations: { configurations }, locate: { _ in inner }, logger: logger)
+      configurations: { configurations }, locate: { _ in try await screens.screen(uniqueID: "inner") }, logger: logger)
     try following.registerCallbacks(token: UUID(), ioSurfaceChanged: { _ in }, frameRendered: {}, configurationChanged: { _ in })
     cover.registerError = LocateFailure()
     let messages = { (logger.messages.copy() as? [String]) ?? [] }

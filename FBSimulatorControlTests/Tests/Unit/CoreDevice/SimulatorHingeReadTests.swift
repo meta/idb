@@ -187,7 +187,7 @@ final class SimulatorHingeReadTests: XCTestCase {
 
   /// A hinge read as `SimulatorHingeCommands` performs it: a stream that samples until a fresh
   /// angle arrives, with the clock pinned so timestamps are deterministic.
-  private func readAngle(
+  private static func readAngle(
     from services: SyntheticXPCServices, channel: UUID = UUID(), timeout: DispatchTimeInterval = .seconds(5)
   ) async throws -> SimulatorHingeAngle {
     let request = try hingeRequest(channel: channel)
@@ -204,7 +204,7 @@ final class SimulatorHingeReadTests: XCTestCase {
       hingeEvent(channel: channel, degrees: 0),
       hingeEvent(channel: channel, degrees: 90),
     ])
-    let angle = try await readAngle(from: provider.services, channel: channel)
+    let angle = try await Self.readAngle(from: provider.services, channel: channel)
     XCTAssertEqual(angle.degrees, 0)
     XCTAssertEqual(provider.acknowledgements, [false, true])
     let closed = await provider.peer.closed(atLeast: 1)
@@ -215,7 +215,7 @@ final class SimulatorHingeReadTests: XCTestCase {
     let channel = UUID()
     let provider = HingeProvider(events: [hingeEvent(channel: channel)], onStop: .ignore)
     do {
-      _ = try await readAngle(from: provider.services, channel: channel, timeout: .milliseconds(500))
+      _ = try await Self.readAngle(from: provider.services, channel: channel, timeout: .milliseconds(500))
       XCTFail("Expected timeout awaiting provider cancellation")
     } catch {
       guard case SimulatorCoreDeviceError.timedOut = error else { return XCTFail("Unexpected error: \(error)") }
@@ -229,7 +229,7 @@ final class SimulatorHingeReadTests: XCTestCase {
     let services = SyntheticXPCServices()
     let peer = services.register(SimulatorHingeProtocol.service, respond: SyntheticXPCPeer.replying(hingeCompletion))
     do {
-      _ = try await readAngle(from: services)
+      _ = try await Self.readAngle(from: services)
       XCTFail("Expected missing sample error")
     } catch {
       guard case SimulatorCoreDeviceError.unavailable = error else { return XCTFail("Unexpected error: \(error)") }
@@ -249,7 +249,7 @@ final class SimulatorHingeReadTests: XCTestCase {
         ]))
     }
     do {
-      _ = try await readAngle(from: services, channel: channel)
+      _ = try await Self.readAngle(from: services, channel: channel)
       XCTFail("Expected provider error")
     } catch {
       guard case let SimulatorCoreDeviceError.unavailable(detail) = error else { return XCTFail("Unexpected error: \(error)") }
@@ -261,7 +261,7 @@ final class SimulatorHingeReadTests: XCTestCase {
     let channel = UUID()
     let provider = HingeProvider(events: [hingeEvent(channel: channel)], onStop: .interrupt)
     do {
-      _ = try await readAngle(from: provider.services, channel: channel)
+      _ = try await Self.readAngle(from: provider.services, channel: channel)
       XCTFail("Expected connection error")
     } catch {
       guard case SimulatorCoreDeviceError.unavailable = error else { return XCTFail("Unexpected error: \(error)") }
@@ -274,7 +274,7 @@ final class SimulatorHingeReadTests: XCTestCase {
     let peer = services.register(SimulatorHingeProtocol.service, respond: SyntheticXPCPeer.silent)
     let task = Task {
       withUnsafeCurrentTask { $0?.cancel() }
-      return try await readAngle(from: services)
+      return try await Self.readAngle(from: services)
     }
     do {
       _ = try await task.value
@@ -286,7 +286,7 @@ final class SimulatorHingeReadTests: XCTestCase {
   func testCancellationClosesAnIdleConnection() async {
     let services = SyntheticXPCServices()
     let peer = services.register(SimulatorHingeProtocol.service, respond: SyntheticXPCPeer.silent)
-    let task = Task { try await readAngle(from: services) }
+    let task = Task { try await Self.readAngle(from: services) }
     _ = await peer.received(atLeast: 1)
     task.cancel()
     do {

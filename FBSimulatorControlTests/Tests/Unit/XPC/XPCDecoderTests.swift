@@ -39,12 +39,14 @@ struct XPCDecoderTests {
 
   private static let uuid = UUID()
 
-  private static let scalars = dictionary([
-    "flag": xpc_bool_create(true), "name": xpc_string_create("display"), "ratio": xpc_double_create(0.5),
-    "signed": xpc_int64_create(-7), "unsigned": xpc_uint64_create(7), "small": xpc_int64_create(-128),
-    "byte": xpc_uint64_create(255), "blob": Data([1, 2, 3]).withUnsafeBytes { xpc_data_create($0.baseAddress, $0.count) },
-    "identity": withUnsafeBytes(of: uuid.uuid) { xpc_uuid_create($0.baseAddress!.assumingMemoryBound(to: UInt8.self)) },
-  ])
+  private static var scalars: xpc_object_t {
+    dictionary([
+      "flag": xpc_bool_create(true), "name": xpc_string_create("display"), "ratio": xpc_double_create(0.5),
+      "signed": xpc_int64_create(-7), "unsigned": xpc_uint64_create(7), "small": xpc_int64_create(-128),
+      "byte": xpc_uint64_create(255), "blob": Data([1, 2, 3]).withUnsafeBytes { xpc_data_create($0.baseAddress, $0.count) },
+      "identity": withUnsafeBytes(of: uuid.uuid) { xpc_uuid_create($0.baseAddress!.assumingMemoryBound(to: UInt8.self)) },
+    ])
+  }
 
   @Test
   func decodesEveryScalarFromItsNativeXPCType() throws {

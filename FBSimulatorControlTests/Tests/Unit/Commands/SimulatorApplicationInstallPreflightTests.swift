@@ -9,6 +9,7 @@ import FBControlCore
 @testable import FBSimulatorControl
 import Foundation
 import XCTest
+import os
 
 final class SimulatorApplicationInstallPreflightTests: XCTestCase {
 
@@ -16,7 +17,7 @@ final class SimulatorApplicationInstallPreflightTests: XCTestCase {
     case conditionNotMet
   }
 
-  private func installFailure() -> SimulatorApplicationInstallError {
+  private static func installFailure() -> SimulatorApplicationInstallError {
     .installFailed(bundleDescription: "an app", options: "no options")
   }
 
@@ -102,7 +103,7 @@ final class SimulatorApplicationInstallPreflightTests: XCTestCase {
             bundleID: "com.example.app", processIdentifier: 42, debuggerAttached: false)
         },
         resolveInstalledApplication: { "installed" },
-        installFailure: installFailure)
+        installFailure: Self.installFailure)
       XCTFail("Expected suspended process error")
     } catch let error as SimulatorApplicationInstallError {
       guard case .processSuspended = error else {
@@ -121,7 +122,7 @@ final class SimulatorApplicationInstallPreflightTests: XCTestCase {
             bundleID: "com.example.app", processIdentifier: 42)
         },
         resolveInstalledApplication: { "installed" },
-        installFailure: installFailure)
+        installFailure: Self.installFailure)
       XCTFail("Expected debugger-attached process error")
     } catch let error as SimulatorApplicationInstallError {
       guard case .processDebuggerAttached = error else {
@@ -149,7 +150,7 @@ final class SimulatorApplicationInstallPreflightTests: XCTestCase {
             userInfo: [NSLocalizedDescriptionKey: "Failed to load Info.plist from bundle at path /tmp/App.app"])
         },
         resolveInstalledApplication: { "installed" },
-        installFailure: installFailure)
+        installFailure: Self.installFailure)
       XCTFail("Expected suspended process error")
     } catch let error as SimulatorApplicationInstallError {
       guard case .processSuspended = error else {
@@ -179,7 +180,7 @@ final class SimulatorApplicationInstallPreflightTests: XCTestCase {
             userInfo: [NSLocalizedDescriptionKey: "Failed to load Info.plist from bundle at path /tmp/App.app"])
         },
         resolveInstalledApplication: { "installed" },
-        installFailure: installFailure)
+        installFailure: Self.installFailure)
       XCTFail("Expected debugger-attached process error")
     } catch let error as SimulatorApplicationInstallError {
       guard case .processDebuggerAttached = error else {
@@ -199,7 +200,7 @@ final class SimulatorApplicationInstallPreflightTests: XCTestCase {
           throw SimulatorApplicationLookupError.applicationInfoUnavailable(path: "/tmp/App.app")
         },
         resolveInstalledApplication: { "installed" },
-        installFailure: installFailure)
+        installFailure: Self.installFailure)
       XCTFail("Expected install failure")
     } catch let error as SimulatorApplicationInstallError {
       guard case .installFailed = error else {
@@ -223,7 +224,7 @@ final class SimulatorApplicationInstallPreflightTests: XCTestCase {
           throw SimulatorApplicationLookupError.applicationInfoUnavailable(path: "/tmp/App.app")
         },
         resolveInstalledApplication: { "installed" },
-        installFailure: installFailure)
+        installFailure: Self.installFailure)
       XCTFail("Expected install failure")
     } catch let error as SimulatorApplicationInstallError {
       guard case .installFailed = error else {
@@ -237,7 +238,7 @@ final class SimulatorApplicationInstallPreflightTests: XCTestCase {
   func testCancellationFromInstallAttemptIsPreserved() async {
     let started = expectation(description: "preflight started")
     let gate = AsyncEvent<Void>()
-    var installCalls = 0
+    let installCalls = OSAllocatedUnfairLock(initialState: 0)
 
     let task = Task {
       let _: String = try await SimulatorApplicationCommands.installAndResolveApplication(
@@ -245,10 +246,10 @@ final class SimulatorApplicationInstallPreflightTests: XCTestCase {
           started.fulfill()
           try? await gate.waitIgnoringCancellation()
           try Task.checkCancellation()
-          installCalls += 1
+          installCalls.withLock { $0 += 1 }
         },
         resolveInstalledApplication: { "installed" },
-        installFailure: installFailure)
+        installFailure: Self.installFailure)
     }
     await fulfillment(of: [started], timeout: 1)
     task.cancel()
@@ -260,13 +261,13 @@ final class SimulatorApplicationInstallPreflightTests: XCTestCase {
     case .success:
       XCTFail("Expected cancellation")
     }
-    XCTAssertEqual(installCalls, 0)
+    XCTAssertEqual(installCalls.withLock { $0 }, 0)
   }
 
   func testCancellationAfterInstallAttemptReturnsIsPreserved() async {
     let started = expectation(description: "install attempt started")
     let gate = AsyncEvent<Void>()
-    var resolveCalls = 0
+    let resolveCalls = OSAllocatedUnfairLock(initialState: 0)
 
     let task = Task {
       let _: String = try await SimulatorApplicationCommands.installAndResolveApplication(
@@ -275,10 +276,10 @@ final class SimulatorApplicationInstallPreflightTests: XCTestCase {
           try? await gate.waitIgnoringCancellation()
         },
         resolveInstalledApplication: {
-          resolveCalls += 1
+          resolveCalls.withLock { $0 += 1 }
           return "installed"
         },
-        installFailure: installFailure)
+        installFailure: Self.installFailure)
     }
     await fulfillment(of: [started], timeout: 1)
     task.cancel()
@@ -290,7 +291,7 @@ final class SimulatorApplicationInstallPreflightTests: XCTestCase {
     case .success:
       XCTFail("Expected cancellation")
     }
-    XCTAssertEqual(resolveCalls, 0)
+    XCTAssertEqual(resolveCalls.withLock { $0 }, 0)
   }
 
   func testCancellationAfterInstallAttemptThrowsIsPreserved() async {
@@ -305,7 +306,7 @@ final class SimulatorApplicationInstallPreflightTests: XCTestCase {
           throw TestError.conditionNotMet
         },
         resolveInstalledApplication: { "installed" },
-        installFailure: installFailure)
+        installFailure: Self.installFailure)
     }
     await fulfillment(of: [started], timeout: 1)
     task.cancel()
@@ -338,7 +339,7 @@ final class SimulatorApplicationInstallPreflightTests: XCTestCase {
       let _: String = try await SimulatorApplicationCommands.installAndResolveApplication(
         install: { _ in throw CancellationError() },
         resolveInstalledApplication: { "installed" },
-        installFailure: installFailure)
+        installFailure: Self.installFailure)
       XCTFail("Expected cancellation")
     } catch is CancellationError {
     } catch {
@@ -403,7 +404,7 @@ final class SimulatorApplicationInstallPreflightTests: XCTestCase {
         let _: String = try await SimulatorApplicationCommands.installAndResolveApplication(
           install: { _ in throw expected },
           resolveInstalledApplication: { "installed" },
-          installFailure: installFailure)
+          installFailure: Self.installFailure)
         XCTFail("Expected readiness error")
       } catch let actual as SimulatorApplicationInstallError {
         XCTAssertEqual(actual.localizedDescription, expected.localizedDescription)
@@ -432,7 +433,7 @@ final class SimulatorApplicationInstallPreflightTests: XCTestCase {
             throw expected
           },
           resolveInstalledApplication: { "installed" },
-          installFailure: installFailure)
+          installFailure: Self.installFailure)
         XCTFail("Expected readiness error")
       } catch let actual as SimulatorApplicationInstallError {
         XCTAssertEqual(actual.localizedDescription, expected.localizedDescription)

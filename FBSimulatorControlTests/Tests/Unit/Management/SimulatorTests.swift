@@ -10,6 +10,7 @@ import FBControlCore
 @testable import FBSimulatorControl
 import Foundation
 import Testing
+import os
 
 // MARK: - Test Doubles
 //
@@ -184,12 +185,12 @@ struct SimulatorTests {
 
   @Test
   func temporaryDirectory_ConcurrentFirstAccess() {
-    let lock = NSLock()
-    var directories: [TemporaryDirectory] = []
+    let collected = OSAllocatedUnfairLock<[TemporaryDirectory]>(initialState: [])
     DispatchQueue.concurrentPerform(iterations: 64) { _ in
       let directory = simulator.temporaryDirectory
-      lock.withLock { directories.append(directory) }
+      collected.withLock { $0.append(directory) }
     }
+    let directories = collected.withLock { $0 }
     #expect(directories.count == 64)
     #expect(directories.allSatisfy { root(of: $0) == root(of: directories[0]) })
   }
