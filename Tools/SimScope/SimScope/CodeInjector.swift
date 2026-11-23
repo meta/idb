@@ -278,7 +278,7 @@ final class SessionREPL {
       session.recordNote(outcome.succeeded ? "→ \(outcome.output)" : "→ it did not compile:\n\(outcome.output)")
       return outcome
     } catch {
-      session.recordNote("→ \((error as? LocalizedError)?.errorDescription ?? error.localizedDescription)")
+      session.recordNote("→ \((error as? any LocalizedError)?.errorDescription ?? error.localizedDescription)")
       throw error
     }
   }

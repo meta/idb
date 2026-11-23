@@ -19,7 +19,7 @@ enum DemoBeat: Decodable {
     case act, x, y, fromX, fromY, toX, toY, text, seconds
   }
 
-  init(from decoder: Decoder) throws {
+  init(from decoder: any Decoder) throws {
     let values = try decoder.container(keyedBy: Key.self)
     let act = try values.decode(String.self, forKey: .act)
     switch act {

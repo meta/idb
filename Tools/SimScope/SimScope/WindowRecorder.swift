@@ -183,7 +183,7 @@ final class WindowRecorder: NSObject, SCStreamOutput, SCStreamDelegate, @uncheck
 
   /// The stream can be torn down under us — the window closing, or the system withdrawing capture. The
   /// take is lost either way; saying so beats an empty file with no explanation.
-  func stream(_ stream: SCStream, didStopWithError error: Error) {
+  func stream(_ stream: SCStream, didStopWithError error: any Error) {
     NSLog("SimScope: window capture stopped — %@", String(describing: error))
   }
 

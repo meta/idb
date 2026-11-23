@@ -54,7 +54,7 @@ final class DeviceWindowController: NSWindowController, NSToolbarDelegate, NSMen
   /// Held for the length of a take. An idle display composites nothing, so a movie recorded while
   /// the machine dozes off is blank from that point on — and a scripted human is, to the system,
   /// exactly as idle as no human at all.
-  private var recordingActivity: NSObjectProtocol?
+  private var recordingActivity: (any NSObjectProtocol)?
   private var deviceSubtitle = ""
   /// Bumped on every agent action; a pending clear only fires if it still matches, so a burst of
   /// agent activity extends the indicator instead of each action scheduling its own expiry.
@@ -644,7 +644,7 @@ final class DeviceWindowController: NSWindowController, NSToolbarDelegate, NSMen
         } catch {
           // Not fatal: a scripted run is still worth playing, and an operator can retry from the menu.
           NSLog("SimScope: could not record the window — %@", String(describing: error))
-          session.recordNote("Window recording unavailable: \((error as? LocalizedError)?.errorDescription ?? error.localizedDescription)")
+          session.recordNote("Window recording unavailable: \((error as? any LocalizedError)?.errorDescription ?? error.localizedDescription)")
         }
       }
       guard let autopilot else { return } // an operator takes it from here; they end the take themselves
@@ -723,7 +723,7 @@ final class DeviceWindowController: NSWindowController, NSToolbarDelegate, NSMen
         session.recordNote("Agent channel open at \(path)")
       } catch {
         NSLog("SimScope: could not open the agent control channel — %@", String(describing: error))
-        session.recordNote("Agent channel unavailable: \((error as? LocalizedError)?.errorDescription ?? error.localizedDescription)")
+        session.recordNote("Agent channel unavailable: \((error as? any LocalizedError)?.errorDescription ?? error.localizedDescription)")
       }
     }
   }
@@ -982,12 +982,12 @@ enum LaunchArguments {
 
 /// Logged as well as shown: a modal alert is invisible to anyone reading the app's output.
 @MainActor
-func presentSimScopeError(_ error: Error, message: String, fatal: Bool = false) {
+func presentSimScopeError(_ error: any Error, message: String, fatal: Bool = false) {
   NSLog("SimScope: %@ — %@", message, String(describing: error))
   let alert = NSAlert()
   alert.alertStyle = fatal ? .critical : .warning
   alert.messageText = message
-  alert.informativeText = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
+  alert.informativeText = (error as? any LocalizedError)?.errorDescription ?? error.localizedDescription
   alert.addButton(withTitle: fatal ? "Quit" : "OK")
   NSApp.activate(ignoringOtherApps: true)
   alert.runModal()

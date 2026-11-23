@@ -299,7 +299,7 @@ final class TreeInspector: NSObject, NSOutlineViewDataSource, NSOutlineViewDeleg
       // Surface the failure rather than freezing silently. The most common cause is the simulator's
       // ApplicationAccessibilityEnabled being off (so the frontmost app's AX server isn't running);
       // the error's own message explains the fix and is shown in full on hover.
-      let detail = (error as? LocalizedError)?.errorDescription ?? "\(error)"
+      let detail = (error as? any LocalizedError)?.errorDescription ?? "\(error)"
       let brief = detail.split(separator: ".").first.map(String.init) ?? detail
       statusLabel.stringValue = "⚠ \(brief)"
       statusLabel.toolTip = detail

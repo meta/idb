@@ -21,7 +21,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
   /// take that must be finalized and a socket that must be unlinked on the way out.
   private var deviceControllers: [DeviceWindowController] = []
   /// Retained for the process's lifetime; a released signal source stops delivering.
-  private var signalSources: [DispatchSourceSignal] = []
+  private var signalSources: [any DispatchSourceSignal] = []
   /// The last still fetched per device, so a reopened menu shows something at once while a fresh
   /// fetch replaces it — a list that appears instantly and fills in beats one that waits to be right.
   private var thumbnails: [String: NSImage] = [:]

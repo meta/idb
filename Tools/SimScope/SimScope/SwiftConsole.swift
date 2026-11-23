@@ -119,7 +119,7 @@ final class SwiftConsole: NSObject {
           intent: nil)
         write(outcome.output.nonEmpty ?? (outcome.succeeded ? "(no value)" : "(no diagnostic)"))
       } catch {
-        write((error as? LocalizedError)?.errorDescription ?? error.localizedDescription)
+        write((error as? any LocalizedError)?.errorDescription ?? error.localizedDescription)
       }
     }
   }
