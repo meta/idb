@@ -137,7 +137,7 @@ public struct CommandLineServices: CommandLineServiceHandling {
 public enum BridgeCommandLine {
   private static let serviceNames = "contacts, dns, dynamic-store, photos, notifications, health, privacy, proxy, accessibility, orientation, repl"
 
-  public static func run(arguments: [String], services: CommandLineServiceHandling = CommandLineServices()) -> Int32 {
+  public static func run(arguments: [String], services: any CommandLineServiceHandling = CommandLineServices()) -> Int32 {
     if let status = BridgeRPC.run(arguments: arguments) { return status }
     guard arguments.count >= 3 else {
       NSLog("Usage: %@ <service> <action> [args...]", arguments.first ?? "SimulatorFrameworkBridge")
@@ -148,7 +148,7 @@ public enum BridgeCommandLine {
     return dispatch(service: arguments[1], action: arguments[2], arguments: Array(arguments.dropFirst(3)), services: services)
   }
 
-  public static func dispatch(service: String, action: String, arguments: [String], services: CommandLineServiceHandling = CommandLineServices()) -> Int32 {
+  public static func dispatch(service: String, action: String, arguments: [String], services: any CommandLineServiceHandling = CommandLineServices()) -> Int32 {
     let selectedService = BridgeService(rawValue: service)
     switch selectedService {
     case .contacts:

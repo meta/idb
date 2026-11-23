@@ -122,19 +122,19 @@ enum LockScreenService {
   static let settleTimeout: TimeInterval = 5
   static let homePressTimeout: TimeInterval = 2
 
-  static func state(runtime: LockScreenRuntime = SpringBoardLockScreen()) -> Result<LockScreenStatus, LockScreenError> {
+  static func state(runtime: any LockScreenRuntime = SpringBoardLockScreen()) -> Result<LockScreenStatus, LockScreenError> {
     runtime.status().map { .success($0) } ?? .failure(.unreadable)
   }
 
-  static func lock(runtime: LockScreenRuntime = SpringBoardLockScreen()) -> Result<LockScreenStatus, LockScreenError> {
+  static func lock(runtime: any LockScreenRuntime = SpringBoardLockScreen()) -> Result<LockScreenStatus, LockScreenError> {
     change(toLocked: true, runtime: runtime)
   }
 
-  static func unlock(runtime: LockScreenRuntime = SpringBoardLockScreen()) -> Result<LockScreenStatus, LockScreenError> {
+  static func unlock(runtime: any LockScreenRuntime = SpringBoardLockScreen()) -> Result<LockScreenStatus, LockScreenError> {
     change(toLocked: false, runtime: runtime)
   }
 
-  private static func change(toLocked wantLocked: Bool, runtime: LockScreenRuntime) -> Result<LockScreenStatus, LockScreenError> {
+  private static func change(toLocked wantLocked: Bool, runtime: any LockScreenRuntime) -> Result<LockScreenStatus, LockScreenError> {
     guard let before = runtime.status() else {
       return .failure(.unreadable)
     }

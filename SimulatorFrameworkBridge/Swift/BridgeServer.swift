@@ -27,7 +27,7 @@ public extension BridgeResponseStream {
 
 public enum BridgeSocketResponse {
   case frame(data: Data, shutdown: Bool)
-  case stream(BridgeResponseStream)
+  case stream(any BridgeResponseStream)
 
   /// The one frame this response writes, or nil when it streams.
   public var frame: (data: Data, shutdown: Bool)? {
@@ -159,7 +159,7 @@ public enum BridgeServer {
   }
 
   /// A peer has nothing to say mid-stream, so anything readable — a byte or end-of-file — ends it.
-  private static func serveStream(_ stream: BridgeResponseStream, on connection: Int32) {
+  private static func serveStream(_ stream: any BridgeResponseStream, on connection: Int32) {
     let watcher = DispatchSource.makeReadSource(fileDescriptor: connection, queue: .global())
     let watcherCancelled = DispatchSemaphore(value: 0)
     watcher.setEventHandler {

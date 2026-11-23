@@ -269,7 +269,7 @@ private enum AccessibilityNodeRead {
     return node
   }
 
-  var error: Error? {
+  var error: (any Error)? {
     guard case let .unread(outcome) = self else { return nil }
     return outcome.error
   }
@@ -384,7 +384,7 @@ private final class AccessibilityRequest {
 
   // An outcome whose status and payload disagree. Unreachable through the factories; reported as a response
   // rather than raised because the guest serves a long-lived connection.
-  fileprivate func FBAXBridgeInvariantError(description: String) -> Error {
+  fileprivate func FBAXBridgeInvariantError(description: String) -> any Error {
     NSError(domain: "FBAXBridgeInvariant", code: 1, userInfo: [NSLocalizedDescriptionKey: description])
   }
 
@@ -971,7 +971,7 @@ private final class AccessibilityRequest {
   fileprivate func FBAXBridgeReadFailureResponse(
     client: FBAXClient,
     status: FBAXReadStatus,
-    readError: Error?,
+    readError: (any Error)?,
     axError: NSNumber?,
     pid: pid_t
   ) throws -> BridgeAXFailure? {

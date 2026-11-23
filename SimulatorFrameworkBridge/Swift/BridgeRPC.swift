@@ -30,7 +30,7 @@ public protocol BridgeResultStream: AnyObject {
 
 /// How a streaming command answers: with its stream, or with the one result that stands in for it when it cannot start.
 public enum BridgeStreamStart {
-  case stream(BridgeResultStream)
+  case stream(any BridgeResultStream)
   case result(BridgeResult)
 }
 
@@ -92,9 +92,9 @@ public enum BridgeRPC {
   /// Every frame answers the one request, so a client validates each exactly as it would a single reply.
   private final class ResponseStream: BridgeResponseStream {
     private let request: BridgeRequest
-    private let results: BridgeResultStream
+    private let results: any BridgeResultStream
 
-    init(request: BridgeRequest, results: BridgeResultStream) {
+    init(request: BridgeRequest, results: any BridgeResultStream) {
       self.request = request
       self.results = results
     }
