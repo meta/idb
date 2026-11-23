@@ -108,15 +108,15 @@ final class FrameObserver: NSObject, AVCaptureVideoDataOutputSampleBufferDelegat
 final class PhotoObserver: NSObject, AVCapturePhotoCaptureDelegate {
   let done = DispatchSemaphore(value: 0)
   private let lock = NSLock()
-  private var photo: AVCapturePhoto?, error: Error?
+  private var photo: AVCapturePhoto?, error: (any Error)?
 
-  var snapshot: (photo: AVCapturePhoto?, error: Error?) { lock.withLock { (photo, error) } }
+  var snapshot: (photo: AVCapturePhoto?, error: (any Error)?) { lock.withLock { (photo, error) } }
 
-  func photoOutput(_ output: AVCapturePhotoOutput, didFinishProcessingPhoto photo: AVCapturePhoto, error: Error?) {
+  func photoOutput(_ output: AVCapturePhotoOutput, didFinishProcessingPhoto photo: AVCapturePhoto, error: (any Error)?) {
     lock.withLock { (self.photo, self.error) = (photo, error) }
   }
 
-  func photoOutput(_ output: AVCapturePhotoOutput, didFinishCaptureFor resolvedSettings: AVCaptureResolvedPhotoSettings, error: Error?) {
+  func photoOutput(_ output: AVCapturePhotoOutput, didFinishCaptureFor resolvedSettings: AVCaptureResolvedPhotoSettings, error: (any Error)?) {
     lock.withLock { self.error = self.error ?? error }
     done.signal()
   }
@@ -125,16 +125,16 @@ final class PhotoObserver: NSObject, AVCapturePhotoCaptureDelegate {
 final class MovieObserver: NSObject, AVCaptureFileOutputRecordingDelegate {
   let started = DispatchSemaphore(value: 0), done = DispatchSemaphore(value: 0)
   private let lock = NSLock()
-  private var error: Error?, startCount = 0, finishCount = 0
+  private var error: (any Error)?, startCount = 0, finishCount = 0
 
-  var snapshot: (error: Error?, startCount: Int, finishCount: Int) { lock.withLock { (error, startCount, finishCount) } }
+  var snapshot: (error: (any Error)?, startCount: Int, finishCount: Int) { lock.withLock { (error, startCount, finishCount) } }
 
   func fileOutput(_ output: AVCaptureFileOutput, didStartRecordingTo fileURL: URL, from connections: [AVCaptureConnection]) {
     lock.withLock { startCount += 1 }
     started.signal()
   }
 
-  func fileOutput(_ output: AVCaptureFileOutput, didFinishRecordingTo outputFileURL: URL, from connections: [AVCaptureConnection], error: Error?) {
+  func fileOutput(_ output: AVCaptureFileOutput, didFinishRecordingTo outputFileURL: URL, from connections: [AVCaptureConnection], error: (any Error)?) {
     let succeeded = error == nil || (error as NSError?)?.userInfo[AVErrorRecordingSuccessfullyFinishedKey] as? Bool == true
     let (starts, recordingError) = lock.withLock {
       finishCount += 1
