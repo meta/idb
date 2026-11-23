@@ -177,7 +177,7 @@ struct IDBConcurrencyTransientTests {
       switch contextError {
       case .emptyContext:
         break
-      @unknown default:
+      case .cleanupAlreadyPerformed:
         Issue.record("Unexpected error case")
       }
     } catch {
