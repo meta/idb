@@ -37,15 +37,15 @@ public enum CompanionConnectivity {
       return false
     }
     withUnsafeMutablePointer(to: &addr.sun_path) { rawPointer in
-      rawPointer.withMemoryRebound(to: CChar.self, capacity: capacity) { destination in
-        _ = strncpy(destination, path, capacity - 1)
+      unsafe rawPointer.withMemoryRebound(to: CChar.self, capacity: capacity) { destination in
+        _ = unsafe strncpy(destination, path, capacity - 1)
       }
     }
 
     let length = socklen_t(MemoryLayout<sockaddr_un>.size)
     let result = withUnsafePointer(to: &addr) { addrPointer in
-      addrPointer.withMemoryRebound(to: sockaddr.self, capacity: 1) { sockaddrPointer in
-        Platform.connect(fd, sockaddrPointer, length)
+      unsafe addrPointer.withMemoryRebound(to: sockaddr.self, capacity: 1) { sockaddrPointer in
+        unsafe Platform.connect(fd, sockaddrPointer, length)
       }
     }
     return result == 0

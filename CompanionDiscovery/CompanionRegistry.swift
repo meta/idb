@@ -123,7 +123,7 @@ public final class CompanionRegistry {
     let deadline = Date().addingTimeInterval(lockTimeout)
     var fd: Int32 = -1
     while true {
-      fd = open(lockPath, O_CREAT | O_EXCL | O_RDWR, 0o644)
+      fd = unsafe open(lockPath, O_CREAT | O_EXCL | O_RDWR, 0o644)
       if fd >= 0 {
         break
       }
@@ -138,7 +138,7 @@ public final class CompanionRegistry {
     }
     defer {
       close(fd)
-      unlink(lockPath)
+      unsafe unlink(lockPath)
     }
     return try body()
   }

@@ -33,7 +33,7 @@ enum Platform {
 
   static func connect(_ fd: Int32, _ address: UnsafePointer<sockaddr>, _ length: socklen_t) -> Int32 {
     #if os(macOS)
-    return Darwin.connect(fd, address, length)
+    return unsafe Darwin.connect(fd, address, length)
     #elseif canImport(Glibc)
     return Glibc.connect(fd, address, length)
     #elseif canImport(Musl)
