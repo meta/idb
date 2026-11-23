@@ -243,7 +243,7 @@ public struct BridgeNetworkConfiguration: Codable, Equatable, Sendable {
 
   /// The contents as one line of JSON, its keys sorted.
   func jsonLine() throws -> String {
-    let contents = try PropertyListSerialization.propertyList(from: propertyList, format: nil)
+    let contents = unsafe try PropertyListSerialization.propertyList(from: propertyList, format: nil)
     return String(decoding: try JSONSerialization.data(withJSONObject: contents, options: [.sortedKeys, .fragmentsAllowed]), as: UTF8.self)
   }
 }
