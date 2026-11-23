@@ -69,11 +69,11 @@ public struct BridgeAXIndirect<Value: Codable & Equatable & Sendable>: Codable, 
     set { storage = .value(newValue) }
   }
 
-  public init(from decoder: Decoder) throws {
+  public init(from decoder: any Decoder) throws {
     self.init(wrappedValue: try Value(from: decoder))
   }
 
-  public func encode(to encoder: Encoder) throws {
+  public func encode(to encoder: any Encoder) throws {
     try wrappedValue.encode(to: encoder)
   }
 }
@@ -100,7 +100,7 @@ extension KeyedEncodingContainer {
   case integer(Int64)
   case number(Double)
 
-  public init(from decoder: Decoder) throws {
+  public init(from decoder: any Decoder) throws {
     let value = try decoder.singleValueContainer()
     // Strings first: nearly every attribute is one, so the common case never throws.
     if let string = try? value.decode(String.self) {
@@ -114,7 +114,7 @@ extension KeyedEncodingContainer {
     }
   }
 
-  public func encode(to encoder: Encoder) throws {
+  public func encode(to encoder: any Encoder) throws {
     var value = encoder.singleValueContainer()
     switch self {
     case let .string(string): try value.encode(string)

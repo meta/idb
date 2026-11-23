@@ -123,7 +123,7 @@ extension BridgeRequest {
     case success(BridgeAXRequest)
     case failure(String)
 
-    init(from decoder: Decoder) throws {
+    init(from decoder: any Decoder) throws {
       do {
         self = .success(try BridgeAXRequest(from: decoder))
       } catch {
