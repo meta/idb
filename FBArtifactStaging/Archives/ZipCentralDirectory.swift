@@ -302,7 +302,7 @@ public struct ZipCentralDirectory {
   /// than that contend.
   private static func setPermissions(of files: [(path: String, mode: mode_t)]) throws {
     let width = 4
-    let failure = OSAllocatedUnfairLock<Error?>(initialState: nil)
+    let failure = OSAllocatedUnfairLock<(any Error)?>(initialState: nil)
     DispatchQueue.concurrentPerform(iterations: width) { worker in
       for index in stride(from: worker, to: files.count, by: width) {
         do {

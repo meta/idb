@@ -44,7 +44,7 @@ final class NetworkDownloadInput: Sendable {
   private let requestStart = Date()
   private let idleTimeout: TimeInterval
   private let onEvent: (@Sendable (DataDownloadEvent) -> Void)?
-  private let logger: ControlCoreLogger
+  private let logger: any ControlCoreLogger
 
   /// Starts downloading `url` over a connection to `override`. `idleTimeout` bounds how long the transfer may go
   /// without connecting or receiving anything, as `URLSessionConfiguration.timeoutIntervalForRequest` does.
@@ -55,7 +55,7 @@ final class NetworkDownloadInput: Sendable {
     url: URL,
     connectingTo override: ConnectionOverride,
     idleTimeout: TimeInterval = 60,
-    logger: ControlCoreLogger,
+    logger: any ControlCoreLogger,
     onEvent: (@Sendable (DataDownloadEvent) -> Void)? = nil,
     spoolDirectory: URL = FileManager.default.temporaryDirectory
   ) {

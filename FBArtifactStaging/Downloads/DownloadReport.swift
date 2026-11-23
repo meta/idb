@@ -79,12 +79,12 @@ extension DownloadReport.Trust {
     let trusted = SecTrustEvaluateWithError(trust, &error)
     let certificates = SecTrustCopyCertificateChain(trust) as? [SecCertificate] ?? []
     self.init(
-      error: trusted ? nil : error.map { ($0 as Error).localizedDescription } ?? "untrusted",
+      error: trusted ? nil : error.map { ($0 as any Error).localizedDescription } ?? "untrusted",
       chain: certificates.map(DownloadReport.Certificate.init(certificate:)))
   }
 
   /// The trust a TLS failure's error carries, or nil when it carries none.
-  init?(failure error: Error) {
+  init?(failure error: any Error) {
     let nsError = error as NSError
     let value = nsError.userInfo[NSURLErrorFailingURLPeerTrustErrorKey] as CFTypeRef?
     guard let value, CFGetTypeID(value) == SecTrustGetTypeID() else {

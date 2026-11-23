@@ -19,19 +19,19 @@ public enum InstallError: Error, CustomStringConvertible {
   case httpStatus(url: URL?, statusCode: Int)
 
   /// The transfer did not finish. `report` is what the connection said about itself before it failed.
-  case transferFailed(url: URL?, underlying: Error, report: DownloadReport = DownloadReport())
+  case transferFailed(url: URL?, underlying: any Error, report: DownloadReport = DownloadReport())
 
   /// The response was not HTTP at all, so there is no status to report.
   case notAnHTTPResponse(url: URL)
 
   /// The extractor rejected the archive, or failed part way through it.
-  case extractionFailed(underlying: Error)
+  case extractionFailed(underlying: any Error)
 
   /// The archive was unpacked, and did not hold exactly one loadable application.
-  case noInstallableBundle(inDirectory: String, underlying: Error)
+  case noInstallableBundle(inDirectory: String, underlying: any Error)
 
   /// What was staged held no artifact of `kind` that could be identified: no test bundle, framework, dylib or dSYM.
-  case unidentifiable(kind: ArtifactKind, underlying: Error)
+  case unidentifiable(kind: ArtifactKind, underlying: any Error)
 
   public var description: String {
     switch self {

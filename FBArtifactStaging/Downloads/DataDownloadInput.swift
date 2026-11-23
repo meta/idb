@@ -45,11 +45,11 @@ final class DataDownloadInput: NSObject, @unchecked Sendable {
   private var failedBeforeCancel = false
   // Written only from the session's delegate queue, which is serial.
   private var report = DownloadReport()
-  private var failure: Error?
+  private var failure: (any Error)?
   // The download starts as soon as it is made.
   private let requestStart = Date()
   private let onEvent: (@Sendable (DataDownloadEvent) -> Void)?
-  private let logger: ControlCoreLogger
+  private let logger: any ControlCoreLogger
 
   /// Stops the transfer, which then completes failed and ends `spool`. For a reader that has no use for the rest.
   func cancel() {
@@ -72,7 +72,7 @@ final class DataDownloadInput: NSObject, @unchecked Sendable {
   init(
     url: URL,
     configuration: URLSessionConfiguration = .default,
-    logger: ControlCoreLogger,
+    logger: any ControlCoreLogger,
     onEvent: (@Sendable (DataDownloadEvent) -> Void)? = nil,
     spoolDirectory: URL = FileManager.default.temporaryDirectory
   ) {
@@ -151,7 +151,7 @@ extension DataDownloadInput: URLSessionDataDelegate {
     report.observe(metrics)
   }
 
-  func urlSession(_ session: URLSession, task: URLSessionTask, didCompleteWithError error: Error?) {
+  func urlSession(_ session: URLSession, task: URLSessionTask, didCompleteWithError error: (any Error)?) {
     if let error {
       logger.error().log("Download task \(task) failed with error \(error)")
       report.trust = DownloadReport.Trust(failure: error)
@@ -164,7 +164,7 @@ extension DataDownloadInput: URLSessionDataDelegate {
 
   // The first failure wins, so a cancellation triggered by a rejected response
   // does not displace the HTTP status that caused it.
-  private func fail(_ error: Error) {
+  private func fail(_ error: any Error) {
     guard !finished.hasHappened else {
       return
     }

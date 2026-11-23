@@ -33,7 +33,7 @@ public enum ZipExtractor {
       try ArchiveExtraction.makeDirectory((root as NSString).appendingPathComponent(directory))
     }
     let width = ArchiveExtraction.writerCount
-    let failure = OSAllocatedUnfairLock<Error?>(initialState: nil)
+    let failure = OSAllocatedUnfairLock<(any Error)?>(initialState: nil)
     let written = OSAllocatedUnfairLock(initialState: ArchiveExtractionSummary(files: 0, bytes: 0))
     DispatchQueue.concurrentPerform(iterations: width) { worker in
       for index in stride(from: worker, to: plan.files.count, by: width) {

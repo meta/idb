@@ -76,7 +76,7 @@ final class ParallelFileWriter {
   }
 
   /// Stops the writers taking more, so that `finish` throws `error`.
-  func fail(_ error: Error) {
+  func fail(_ error: any Error) {
     queue.fail(error)
   }
 
@@ -120,7 +120,7 @@ final class ParallelFileWriter {
     private var head = 0
     private var bytes = 0
     private var closed = false
-    private var error: Error?
+    private var error: (any Error)?
     private var waitedNanoseconds: UInt64 = 0
 
     var waited: TimeInterval {
@@ -129,7 +129,7 @@ final class ParallelFileWriter {
       return Double(waitedNanoseconds) / 1e9
     }
 
-    var failure: Error? {
+    var failure: (any Error)? {
       condition.lock()
       defer { condition.unlock() }
       return error
@@ -184,7 +184,7 @@ final class ParallelFileWriter {
       return file
     }
 
-    func fail(_ failure: Error) {
+    func fail(_ failure: any Error) {
       condition.lock()
       defer { condition.unlock() }
       error = error ?? failure

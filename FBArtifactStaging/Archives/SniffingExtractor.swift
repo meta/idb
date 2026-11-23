@@ -157,7 +157,7 @@ public struct SniffingExtractor: ArchiveExtractor {
     to spoolPath: String,
     extractingTo extractPath: String,
     overrideModificationTime: Bool
-  ) throws -> Result<ArchiveExtractionSummary, Error> {
+  ) throws -> Result<ArchiveExtractionSummary, any Error> {
     do {
       guard FileManager.default.createFile(atPath: spoolPath, contents: nil) else {
         throw CocoaError(.fileWriteUnknown, userInfo: [NSFilePathErrorKey: spoolPath])

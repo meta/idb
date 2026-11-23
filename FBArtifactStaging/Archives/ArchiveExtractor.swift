@@ -178,7 +178,7 @@ public struct InProcessTarExtractor: ArchiveExtractor {
 /// Each call gets a thread of its own. The global queues run only a bounded number of threads at once, and blocking
 /// work there that waits on other blocking work, such as a reader on a pipe whose writer is another call, deadlocks
 /// once every one of those threads is waiting.
-func offCooperativePool<T>(_ work: @escaping () throws -> T) async -> Result<T, Error> {
+func offCooperativePool<T>(_ work: @escaping () throws -> T) async -> Result<T, any Error> {
   let work = HandedOver(work)
   return await withCheckedContinuation { (continuation: CheckedContinuation<HandedOver<Result<T, Error>>, Never>) in
     let thread = Thread {
