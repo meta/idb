@@ -66,7 +66,7 @@ extension CodeInjectionError: CustomStringConvertible, LocalizedError {
     case .invalidMessage:
       return "Invalid control-socket message"
     case let .readFailed(errno):
-      return "Failed to read from the control socket: \(String(cString: strerror(errno)))"
+      return unsafe "Failed to read from the control socket: \(String(cString: strerror(errno)))"
     case .writeFailed:
       return "Failed to write to the control socket"
     case .hostCommandDidNotComplete:

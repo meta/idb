@@ -6,10 +6,10 @@
  */
 
 import FBControlCore
-@preconcurrency import FBSimulatorControl
+import FBSimulatorControl
 import FBSimulatorServices
 import FBSimulatorXCTest
-@preconcurrency import FBXCTestCore
+import FBXCTestCore
 import Foundation
 
 /// Each host is started with the shim injected. `additionalLibraries` are loaded into the host
@@ -167,7 +167,7 @@ func ensureReplSocketDirectory(_ dir: String) -> Bool {
     try? fm.createDirectory(atPath: dir, withIntermediateDirectories: false, attributes: [.posixPermissions: 0o700])
   }
   var st = stat()
-  guard lstat(dir, &st) == 0 else { return false }
+  guard unsafe lstat(dir, &st) == 0 else { return false }
   return (st.st_mode & UInt16(S_IFMT)) == UInt16(S_IFDIR)
     && st.st_uid == getuid()
     && (st.st_mode & 0o777) == 0o700
@@ -213,12 +213,12 @@ func replListenerIsAlive(at path: String) async -> Bool {
       return false
     }
     _ = withUnsafeMutablePointer(to: &addr.sun_path) { ptr in
-      path.withCString { src in memcpy(ptr, src, path.utf8.count + 1) }
+      path.withCString { src in unsafe memcpy(ptr, src, path.utf8.count + 1) }
     }
     let size = socklen_t(MemoryLayout<sockaddr_un>.size)
     let result = withUnsafePointer(to: &addr) { ptr in
-      ptr.withMemoryRebound(to: sockaddr.self, capacity: 1) { sockPtr in
-        Darwin.connect(fd, sockPtr, size)
+      unsafe ptr.withMemoryRebound(to: sockaddr.self, capacity: 1) { sockPtr in
+        unsafe Darwin.connect(fd, sockPtr, size)
       }
     }
     return result == 0

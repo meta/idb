@@ -5,11 +5,11 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-@preconcurrency internal import CoreSimulator
+internal import CoreSimulator
 import Darwin
 import FBControlCore
 import FBControlCoreObjC
-@preconcurrency import FBSimulatorControl
+import FBSimulatorControl
 import Foundation
 internal import ShimulatorAudioInjectionCore
 internal import ShimulatorProtocol
@@ -41,7 +41,7 @@ public struct SimulatorAudioInjectionCommands {
   /// Pins a regular file and copies at most the payload limit plus one byte before decoding it.
   static func wav(
     of url: URL,
-    read: (Int32, UnsafeMutableRawPointer, Int) throws -> Int = { Darwin.read($0, $1, $2) }
+    read: (Int32, UnsafeMutableRawPointer, Int) throws -> Int = { unsafe Darwin.read($0, $1, $2) }
   ) throws -> (duration: Duration, data: Data)? {
     func unreadable(_ reason: String) -> AudioInjectionError {
       .fileUnreadable(path: url.path, reason: reason)
@@ -54,13 +54,13 @@ public struct SimulatorAudioInjectionCommands {
     }
     // Nonblocking at open prevents waiting for a FIFO writer before descriptor validation.
     // Follow symlinks, as before; validate the opened target, not an earlier pathname stat.
-    let descriptor = open(url.path, O_RDONLY | O_NONBLOCK | O_CLOEXEC)
+    let descriptor = unsafe open(url.path, O_RDONLY | O_NONBLOCK | O_CLOEXEC)
     guard descriptor >= 0 else {
       throw readFailure()
     }
     defer { close(descriptor) }
     var metadata = stat()
-    guard fstat(descriptor, &metadata) == 0 else {
+    guard unsafe fstat(descriptor, &metadata) == 0 else {
       throw readFailure()
     }
     guard metadata.st_mode & S_IFMT == S_IFREG else {
@@ -79,7 +79,7 @@ public struct SimulatorAudioInjectionCommands {
         guard let address = buffer.baseAddress else {
           throw unreadable("Audio read buffer is unavailable.")
         }
-        return try read(descriptor, address, requested)
+        return unsafe try read(descriptor, address, requested)
       }
       if count < 0 {
         if errno == EINTR {
@@ -94,7 +94,7 @@ public struct SimulatorAudioInjectionCommands {
     }
     guard data.count <= maximum else {
       // A growing file's size is only an observation; the prefix proves at least maximum + 1.
-      let observed = fstat(descriptor, &metadata) == 0 ? Int(clamping: metadata.st_size) : data.count
+      let observed = unsafe fstat(descriptor, &metadata) == 0 ? Int(clamping: metadata.st_size) : data.count
       throw AudioInjectionError.fileTooLarge(
         path: url.path, size: max(data.count, observed), maximum: maximum)
     }
@@ -235,7 +235,7 @@ public struct SimulatorAudioInjectionCommands {
   /// Plays WAV audio into apps prepared by an idb launch, returning when playback finishes.
   public func inject(from audioFileURL: URL) async throws {
     try requireInjectableProductFamily()
-    guard let audio = try Self.wav(of: audioFileURL) else {
+    guard let audio = unsafe try Self.wav(of: audioFileURL) else {
       throw AudioInjectionError.unreadable(path: audioFileURL.path)
     }
     guard BundledResources.path(forItem: Self.injectionShimName) != nil else {

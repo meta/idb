@@ -49,14 +49,14 @@ final class ControlSocketClient: @unchecked Sendable {
         throw CodeInjectionError.socketPathTooLong(path: path)
       }
       _ = withUnsafeMutablePointer(to: &addr.sun_path) { ptr in
-        path.withCString { src in memcpy(ptr, src, path.utf8.count + 1) }
+        path.withCString { src in unsafe memcpy(ptr, src, path.utf8.count + 1) }
       }
       let size = socklen_t(MemoryLayout<sockaddr_un>.size)
       let deadline = Date().addingTimeInterval(timeout)
       while true {
         let result = withUnsafePointer(to: &addr) { ptr in
-          ptr.withMemoryRebound(to: sockaddr.self, capacity: 1) { sockPtr in
-            Darwin.connect(fd, sockPtr, size)
+          unsafe ptr.withMemoryRebound(to: sockaddr.self, capacity: 1) { sockPtr in
+            unsafe Darwin.connect(fd, sockPtr, size)
           }
         }
         if result == 0 {
@@ -188,9 +188,9 @@ final class ControlSocketClient: @unchecked Sendable {
     var data = Data(count: count)
     var total = 0
     while total < count {
-      let n = data.withUnsafeMutableBytes { (raw: UnsafeMutableRawBufferPointer) -> Int in
+      let n = unsafe data.withUnsafeMutableBytes { (raw: UnsafeMutableRawBufferPointer) -> Int in
         guard let base = raw.baseAddress else { return 0 }
-        return Darwin.read(fd, base + total, count - total)
+        return unsafe Darwin.read(fd, base + total, count - total)
       }
       if n > 0 {
         total += n
@@ -205,7 +205,7 @@ final class ControlSocketClient: @unchecked Sendable {
 
   private static func readMessage(fd: Int32) throws -> [String: Any] {
     let frame = try readFrame(fd: fd)
-    guard let message = try PropertyListSerialization.propertyList(from: frame, options: [], format: nil) as? [String: Any] else {
+    guard let message = unsafe try PropertyListSerialization.propertyList(from: frame, options: [], format: nil) as? [String: Any] else {
       throw CodeInjectionError.invalidMessage
     }
     return message
@@ -225,11 +225,11 @@ final class ControlSocketClient: @unchecked Sendable {
       UInt8(length & 0xFF),
     ])
     framed.append(payload)
-    try framed.withUnsafeBytes { (raw: UnsafeRawBufferPointer) in
+    unsafe try framed.withUnsafeBytes { (raw: UnsafeRawBufferPointer) in
       guard let base = raw.baseAddress else { return }
       var written = 0
       while written < raw.count {
-        let n = Darwin.write(fd, base + written, raw.count - written)
+        let n = unsafe Darwin.write(fd, base + written, raw.count - written)
         guard n > 0 else {
           throw CodeInjectionError.writeFailed
         }

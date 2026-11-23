@@ -7,7 +7,7 @@
 
 import Darwin
 import FBControlCore
-@preconcurrency import FBSimulatorControl
+import FBSimulatorControl
 import Foundation
 internal import ShimulatorAudioInjectionCore
 internal import ShimulatorProtocol
@@ -64,8 +64,8 @@ public struct SimulatorAudioCaptureCommands {
     let socketPath = ShimulatorWireProtocol.socketPath(
       capability: ShimulatorAudioCapture.capability, simulatorUDID: simulator.udid)
     let directory = (socketPath as NSString).deletingPathExtension + "-\(UUID().uuidString)"
-    guard mkdir(directory, 0o700) == 0 else {
-      throw AudioCaptureError.socketUnavailable(path: directory, reason: String(cString: strerror(errno)))
+    guard unsafe mkdir(directory, 0o700) == 0 else {
+      throw unsafe AudioCaptureError.socketUnavailable(path: directory, reason: String(cString: strerror(errno)))
     }
     do {
       let session = try AudioCaptureSession(socketPath: socketPath, directory: directory, udid: simulator.udid)

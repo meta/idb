@@ -5,7 +5,7 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-@preconcurrency import FBSimulatorControl
+import FBSimulatorControl
 import Foundation
 
 /// Injects code into processes on a Simulator.

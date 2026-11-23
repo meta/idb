@@ -5,9 +5,9 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-@preconcurrency import AVFoundation
+import AVFoundation
 import FBControlCore
-@preconcurrency import FBSimulatorControl
+import FBSimulatorControl
 import Foundation
 internal import ShimulatorProtocol
 internal import ShimulatorVideoInjectionCore

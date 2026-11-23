@@ -181,25 +181,25 @@ enum AudioCaptureMixer {
     _ placements: [Placement], frames: Int, rate: Double, readers: [AudioCaptureFileReader], to path: String
   ) throws {
     let dataBytes = frames * channels * MemoryLayout<Float>.size
-    let descriptor = open(path, O_RDWR | O_CREAT | O_TRUNC | O_CLOEXEC, 0o600)
+    let descriptor = unsafe open(path, O_RDWR | O_CREAT | O_TRUNC | O_CLOEXEC, 0o600)
     guard descriptor >= 0 else {
-      throw AudioCaptureError.mixUnwritable(path: path, reason: String(cString: strerror(errno)))
+      throw unsafe AudioCaptureError.mixUnwritable(path: path, reason: String(cString: strerror(errno)))
     }
     defer { close(descriptor) }
     let size = wavHeaderSize + dataBytes
     guard ftruncate(descriptor, off_t(size)) == 0,
-      let mapped = mmap(nil, size, PROT_READ | PROT_WRITE, MAP_SHARED, descriptor, 0), mapped != MAP_FAILED
+      let mapped = unsafe mmap(nil, size, PROT_READ | PROT_WRITE, MAP_SHARED, descriptor, 0), unsafe mapped != MAP_FAILED
     else {
-      throw AudioCaptureError.mixUnwritable(path: path, reason: String(cString: strerror(errno)))
+      throw unsafe AudioCaptureError.mixUnwritable(path: path, reason: String(cString: strerror(errno)))
     }
-    defer { munmap(mapped, size) }
+    defer { unsafe munmap(mapped, size) }
     let header = wavHeader(dataBytes: dataBytes, rate: rate)
-    header.withUnsafeBytes { bytes in
+    unsafe header.withUnsafeBytes { bytes in
       if let base = bytes.baseAddress {
-        mapped.copyMemory(from: base, byteCount: bytes.count)
+        unsafe mapped.copyMemory(from: base, byteCount: bytes.count)
       }
     }
-    let mix = (mapped + wavHeaderSize).bindMemory(to: Float.self, capacity: frames * channels)
+    let mix = unsafe (mapped + wavHeaderSize).bindMemory(to: Float.self, capacity: frames * channels)
     for placement in placements {
       let samples = try readers[placement.source].samples(of: placement.chunk)
       let sourceChannels = placement.chunk.channels
@@ -207,19 +207,19 @@ enum AudioCaptureMixer {
         let left = samples[frame * sourceChannels]
         let right = sourceChannels > 1 ? samples[frame * sourceChannels + 1] : left
         let output = (placement.frame + frame) * channels
-        mix[output] += left
-        mix[output + 1] += right
+        unsafe mix[output] += left
+        unsafe mix[output + 1] += right
       }
     }
-    guard msync(mapped, size, MS_SYNC) == 0 else {
-      throw AudioCaptureError.mixUnwritable(path: path, reason: String(cString: strerror(errno)))
+    guard unsafe msync(mapped, size, MS_SYNC) == 0 else {
+      throw unsafe AudioCaptureError.mixUnwritable(path: path, reason: String(cString: strerror(errno)))
     }
   }
 
   private static func wavHeader(dataBytes: Int, rate: Double) -> Data {
     var data = Data()
     func append<Value: FixedWidthInteger>(_ value: Value) {
-      withUnsafeBytes(of: value.littleEndian) { data.append(contentsOf: $0) }
+      withUnsafeBytes(of: value.littleEndian) { unsafe data.append(contentsOf: $0) }
     }
     let bytesPerFrame = channels * MemoryLayout<Float>.size
     data.append(contentsOf: Array("RIFF".utf8))
