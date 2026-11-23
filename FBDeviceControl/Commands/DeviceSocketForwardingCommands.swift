@@ -102,7 +102,7 @@ public struct DeviceSocketForwardingCommands {
   private static func stopForwarding(
     inputReader: DescriptorReader,
     remoteReader: DescriptorReader,
-    remoteWriter: DataConsumer & DataConsumerLifecycle,
+    remoteWriter: any DataConsumer & DataConsumerLifecycle,
     localSocket: Int32,
     logger: (any ControlCoreLogger)?
   ) async {

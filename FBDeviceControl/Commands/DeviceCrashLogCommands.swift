@@ -15,7 +15,7 @@ private let PingSuccess = "ping"
 
 public enum DeviceCrashLogError: Error {
   case ingestFailed(name: String)
-  case pingbackReceiveFailed(service: String, underlying: Error)
+  case pingbackReceiveFailed(service: String, underlying: any Error)
   case pingbackNotDecodable(service: String)
   case pingbackUnsuccessful(service: String, response: String, expected: String)
 }

@@ -21,9 +21,9 @@ public enum DeviceApplicationError: Error {
   case ambiguousProcess(bundleID: String, executable: String, sharedWith: [String])
   case applicationLookupFailed(status: Int32, message: String)
   case applicationLookupMalformed
-  case pidListRequestFailed(underlying: Error)
-  case pidListAcknowledgementFailed(underlying: Error)
-  case pidListResponseFailed(underlying: Error)
+  case pidListRequestFailed(underlying: any Error)
+  case pidListAcknowledgementFailed(underlying: any Error)
+  case pidListResponseFailed(underlying: any Error)
   case pidListResponseNotADictionary(response: String)
   case pidListRequestUnsuccessful
   case missingBundleIdentifier(key: String, application: String)

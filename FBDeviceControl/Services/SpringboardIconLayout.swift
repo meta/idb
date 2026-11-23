@@ -77,7 +77,7 @@ enum SpringboardPropertyListValue: Encodable, Sendable {
     }
   }
 
-  func encode(to encoder: Encoder) throws {
+  func encode(to encoder: any Encoder) throws {
     switch self {
     case .string(let value):
       var container = encoder.singleValueContainer()
@@ -248,7 +248,7 @@ public struct SpringboardIcon: Encodable, Sendable {
     }
   }
 
-  public func encode(to encoder: Encoder) throws {
+  public func encode(to encoder: any Encoder) throws {
     try SpringboardPropertyListValue.dictionary(propertyList).encode(to: encoder)
   }
 
@@ -386,7 +386,7 @@ public struct SpringboardIconLayout: Encodable, Sendable {
     self.propertyListPages = try SpringboardIconLayout.propertyListPages(from: pages)
   }
 
-  public func encode(to encoder: Encoder) throws {
+  public func encode(to encoder: any Encoder) throws {
     try SpringboardPropertyListValue.array(
       propertyListPages.map { page in
         .array(page.map { .dictionary($0) })

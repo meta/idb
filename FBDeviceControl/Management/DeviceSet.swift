@@ -12,7 +12,7 @@ import MobileDeviceAPI
 public final class DeviceSet: TargetSet, TargetSetDelegate, CustomStringConvertible {
   // Loaded once per process; a failed load is cached and rethrown by every init rather than
   // aborting the process.
-  private static let _amDeviceCalls: Result<AMDCalls, Error> = Result {
+  private static let _amDeviceCalls: Result<AMDCalls, any Error> = Result {
     let loader = DeviceControlFrameworkLoader()
     try loader.loadPrivateFrameworks(ControlCoreGlobalConfiguration.defaultLogger)
     return try loader.amDeviceCalls

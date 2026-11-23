@@ -13,8 +13,8 @@ import MobileDeviceAPI
 public enum DeviceXCTestError: Error {
   case testManagerAlreadyRunning(configurationDescription: String)
   case unexpectedReporter(reporterDescription: String)
-  case xctestrunCreationFailed(underlying: Error)
-  case xcodebuildNotFound(underlying: Error)
+  case xctestrunCreationFailed(underlying: any Error)
+  case xcodebuildNotFound(underlying: any Error)
   case deviceIdentifierUnavailable(deviceDescription: String)
 }
 
@@ -60,7 +60,7 @@ public final class DeviceXCTestCommands: XCTestCommands {
     guard let device else {
       throw DeviceNilError.deviceNil
     }
-    guard let reporter = reporter as? XCTestReporter else {
+    guard let reporter = reporter as? any XCTestReporter else {
       throw DeviceXCTestError.unexpectedReporter(reporterDescription: String(describing: reporter))
     }
     runningXcodeBuildOperation = true

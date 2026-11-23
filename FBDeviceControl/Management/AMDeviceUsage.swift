@@ -148,7 +148,7 @@ final class AMDeviceSession: @unchecked Sendable {
   private var users = 0
   // Keyed rather than a list: a waiter whose task is cancelled has to be taken out of the set
   // individually, and its id is the only handle the cancellation handler has on it.
-  private var waiters: [UUID: CheckedContinuation<Void, Error>] = [:]
+  private var waiters: [UUID: CheckedContinuation<Void, any Error>] = [:]
   private var idleTeardown: Task<Void, Never>?
 
   init(device: MobileDevice, reuseTimeout: TimeInterval?, logger: any ControlCoreLogger) {
@@ -255,7 +255,7 @@ final class AMDeviceSession: @unchecked Sendable {
   ///
   /// The cancellation check closes the same window against `cancelWaiter`, which runs as soon as
   /// the task is cancelled and so can find nothing to remove because this has yet to park.
-  private func park(_ id: UUID, _ continuation: CheckedContinuation<Void, Error>) {
+  private func park(_ id: UUID, _ continuation: CheckedContinuation<Void, any Error>) {
     lock.lock()
     guard !Task.isCancelled else {
       lock.unlock()

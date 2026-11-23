@@ -58,7 +58,7 @@ final class HouseArrestService: @unchecked Sendable {
   private let lock = NSLock()
   private var connection: FileConduit?
   private var inUse = false
-  private var waiters: [(id: UUID, continuation: CheckedContinuation<Void, Error>)] = []
+  private var waiters: [(id: UUID, continuation: CheckedContinuation<Void, any Error>)] = []
   private var idleTeardown: Task<Void, Never>?
 
   init(device: MobileDevice, bundleID: String, afcCalls: AFCCalls, reuseTimeout: TimeInterval?) {
@@ -143,7 +143,7 @@ final class HouseArrestService: @unchecked Sendable {
 
   /// The cancellation check closes the window against `cancelWaiter`, which runs as soon as the
   /// task is cancelled and so can find nothing to remove because this has yet to park.
-  private func park(_ id: UUID, _ continuation: CheckedContinuation<Void, Error>) {
+  private func park(_ id: UUID, _ continuation: CheckedContinuation<Void, any Error>) {
     lock.lock()
     guard !Task.isCancelled else {
       lock.unlock()
