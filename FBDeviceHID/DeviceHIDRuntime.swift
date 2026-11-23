@@ -234,11 +234,11 @@ enum DeviceHIDRuntime {
     let arm64 = false
     #endif
     var length = 0
-    guard sysctlbyname("kern.osversion", nil, &length, nil, 0) == 0, length > 0, length < 256 else {
+    guard unsafe sysctlbyname("kern.osversion", nil, &length, nil, 0) == 0, length > 0, length < 256 else {
       throw DeviceHIDError.unsupportedRuntime("Cannot read the host build")
     }
     var bytes = [UInt8](repeating: 0, count: length)
-    let result = bytes.withUnsafeMutableBytes { sysctlbyname("kern.osversion", $0.baseAddress, &length, nil, 0) }
+    let result = bytes.withUnsafeMutableBytes { unsafe sysctlbyname("kern.osversion", $0.baseAddress, &length, nil, 0) }
     guard result == 0 else { throw DeviceHIDError.unsupportedRuntime("Cannot read the host build") }
     try validateHost(arm64: arm64, version: ProcessInfo.processInfo.operatingSystemVersion, build: String(decoding: bytes.prefix { $0 != 0 }, as: UTF8.self))
 
@@ -246,15 +246,15 @@ enum DeviceHIDRuntime {
     let installed = try images.map { image in (image, try captureImage(image)) }
     // Handles remain live for process lifetime.
     for (image, versions) in installed {
-      guard let handle = dlopen(image.path, RTLD_NOW | RTLD_LOCAL), let anchor = image.symbols.first,
-        let address = dlsym(handle, anchor)
+      guard let handle = unsafe dlopen(image.path, RTLD_NOW | RTLD_LOCAL), let anchor = image.symbols.first,
+        let address = unsafe dlsym(handle, anchor)
       else { throw DeviceHIDError.unsupportedRuntime("Cannot load \(image.name)") }
-      try validateIdentity(loadedIdentity(address), image: image, installedVersions: versions, symbol: anchor)
+      unsafe try validateIdentity(loadedIdentity(address), image: image, installedVersions: versions, symbol: anchor)
     }
     for (image, versions) in installed {
       for symbol in image.symbols {
-        let address = dlsym(UnsafeMutableRawPointer(bitPattern: -2), symbol)
-        try validateIdentity(address.flatMap { loadedIdentity($0) }, image: image, installedVersions: versions, symbol: symbol)
+        let address = unsafe dlsym(UnsafeMutableRawPointer(bitPattern: -2), symbol)
+        unsafe try validateIdentity(address.flatMap { unsafe loadedIdentity($0) }, image: image, installedVersions: versions, symbol: symbol)
       }
     }
   }
@@ -263,7 +263,7 @@ enum DeviceHIDRuntime {
   static func fileIdentities(in data: Data) -> [String: String] {
     func read<Value: FixedWidthInteger>(_ type: Value.Type, at offset: Int, swapped: Bool = false) -> Value? {
       guard offset >= 0, offset <= data.count, MemoryLayout<Value>.size <= data.count - offset else { return nil }
-      let value = data.withUnsafeBytes { $0.loadUnaligned(fromByteOffset: offset, as: Value.self) }
+      let value = unsafe data.withUnsafeBytes { unsafe $0.loadUnaligned(fromByteOffset: offset, as: Value.self) }
       return swapped ? value.byteSwapped : value
     }
     func sliceIdentity(at offset: Int, size: Int) -> (uuid: String, version: String)? {
@@ -272,9 +272,9 @@ enum DeviceHIDRuntime {
         read(UInt32.self, at: offset + 4) == 0x0100_000c,
         let commandBytes = read(UInt32.self, at: offset + 20), Int(commandBytes) <= size - 32
       else { return nil }
-      return data.withUnsafeBytes { buffer in
+      return unsafe data.withUnsafeBytes { buffer in
         guard let base = buffer.baseAddress else { return nil }
-        return headerIdentity(base.advanced(by: offset))
+        return unsafe headerIdentity(base.advanced(by: offset))
       }
     }
     guard let magic = read(UInt32.self, at: 0) else { return [:] }
@@ -319,33 +319,33 @@ enum DeviceHIDRuntime {
   }
 
   private static func loadedIdentity(_ address: UnsafeRawPointer) -> Identity? {
-    var info = Dl_info()
-    guard dladdr(address, &info) != 0, let name = info.dli_fname, let base = info.dli_fbase,
-      let identity = headerIdentity(base)
+    var info = unsafe Dl_info()
+    guard unsafe dladdr(address, &info) != 0, let name = unsafe info.dli_fname, let base = unsafe info.dli_fbase,
+      let identity = unsafe headerIdentity(base)
     else { return nil }
-    return Identity(path: canonicalPath(String(cString: name)), uuid: identity.uuid, version: identity.version)
+    return unsafe Identity(path: canonicalPath(String(cString: name)), uuid: identity.uuid, version: identity.version)
   }
 
   private static func headerIdentity(_ base: UnsafeRawPointer) -> (uuid: String, version: String)? {
-    guard base.loadUnaligned(as: UInt32.self) == 0xfeedfacf else { return nil }
-    let count = Int(base.loadUnaligned(fromByteOffset: 16, as: UInt32.self))
-    let bytes = Int(base.loadUnaligned(fromByteOffset: 20, as: UInt32.self))
+    guard unsafe base.loadUnaligned(as: UInt32.self) == 0xfeedfacf else { return nil }
+    let count = unsafe Int(base.loadUnaligned(fromByteOffset: 16, as: UInt32.self))
+    let bytes = unsafe Int(base.loadUnaligned(fromByteOffset: 20, as: UInt32.self))
     guard count < 4096, bytes < 16 * 1024 * 1024 else { return nil }
     var offset = 32
     var uuid: String?
     var version: String?
     for _ in 0..<count {
       guard offset + 8 <= 32 + bytes else { return nil }
-      let command = base.loadUnaligned(fromByteOffset: offset, as: UInt32.self)
-      let size = Int(base.loadUnaligned(fromByteOffset: offset + 4, as: UInt32.self))
+      let command = unsafe base.loadUnaligned(fromByteOffset: offset, as: UInt32.self)
+      let size = unsafe Int(base.loadUnaligned(fromByteOffset: offset + 4, as: UInt32.self))
       guard size >= 8, size <= 32 + bytes - offset else { return nil }
       if command == 0x1b {
         guard size == 24, uuid == nil else { return nil }
-        let value = UnsafeBufferPointer(start: base.advanced(by: offset + 8).assumingMemoryBound(to: UInt8.self), count: 16)
-        uuid = value.map { String(format: "%02x", $0) }.joined()
+        let value = unsafe UnsafeBufferPointer(start: base.advanced(by: offset + 8).assumingMemoryBound(to: UInt8.self), count: 16)
+        uuid = unsafe value.map { unsafe String(format: "%02x", $0) }.joined()
       } else if command == 0x2a {
         guard size == 16, version == nil else { return nil }
-        let value = base.loadUnaligned(fromByteOffset: offset + 8, as: UInt64.self)
+        let value = unsafe base.loadUnaligned(fromByteOffset: offset + 8, as: UInt64.self)
         var components = [value >> 40, (value >> 30) & 0x3ff, (value >> 20) & 0x3ff, (value >> 10) & 0x3ff, value & 0x3ff]
         while components.count > 1, components.last == 0 { components.removeLast() }
         version = components.map { String($0) }.joined(separator: ".")
