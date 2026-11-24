@@ -110,10 +110,6 @@ final class AXReadTimeTests {
   /// Held here: the commands hold their simulator weakly.
   private var simulator: Simulator?
 
-  deinit {
-    fixture.tearDown()
-  }
-
   private func commands(
     transport: any AXTranslationTransport, launchCtl: any LaunchCtlCommands
   ) throws -> SimulatorAccessibilityCommands {

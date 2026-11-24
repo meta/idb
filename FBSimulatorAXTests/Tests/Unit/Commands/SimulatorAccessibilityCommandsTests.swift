@@ -479,7 +479,6 @@ final class SimulatorAccessibilityCommandsTests: XCTestCase {
 
   override func tearDown() {
     simulator = nil
-    fixture?.tearDown()
     fixture = nil
     super.tearDown()
   }

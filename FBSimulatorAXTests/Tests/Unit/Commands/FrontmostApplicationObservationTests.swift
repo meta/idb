@@ -29,7 +29,6 @@ struct FrontmostApplicationObservationTests {
       withLabel: "App", frame: CGRect(x: 0, y: 0, width: 390, height: 844), children: [child])
     fixture.rootElement = root
     try fixture.setUp()
-    defer { fixture.tearDown() }
     let resolvedRoot = try #require(fixture.translator.frontmostApplicationResult)
     resolvedRoot.pid = pid
     let simulator = SimulatorTestSupport.testableSimulator(withDevice: fixture.device)
