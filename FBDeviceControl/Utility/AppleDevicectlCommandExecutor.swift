@@ -12,6 +12,7 @@ import os
 public enum DevicectlError: Error {
   case commandFailed(exitCode: String, arguments: [String], stdOut: String, stdErr: String)
   case timedOut(seconds: TimeInterval, arguments: [String], deviceState: String)
+  case unreadableJSON(path: String, arguments: [String], stdErr: String, underlying: any Error)
 }
 
 extension DevicectlError: LocalizedError {
@@ -21,6 +22,8 @@ extension DevicectlError: LocalizedError {
       return "devicectl failed with exit code \(exitCode)\narguments: \(CollectionInformation.oneLineDescription(from: arguments))\n\(stdOut)\n\(stdErr)"
     case let .timedOut(seconds, arguments, deviceState):
       return "devicectl did not finish within \(Int(seconds))s, so it was stopped. \(deviceState)\narguments: \(CollectionInformation.oneLineDescription(from: arguments))"
+    case let .unreadableJSON(path, arguments, stdErr, underlying):
+      return "Could not read devicectl JSON at \(path): \(underlying.localizedDescription)\narguments: \(CollectionInformation.oneLineDescription(from: arguments))\n\(stdErr)"
     }
   }
 }
@@ -77,9 +80,15 @@ struct AppleDevicectlCommandExecutor: Sendable {
     }
   }
 
+  private func execute(_ arguments: [String], hostDeadline: TimeInterval) async throws -> DevicectlOutcome {
+    try await Self.execute(arguments, hostDeadline: hostDeadline, launcher: launcher, logger: logger)
+  }
+
   /// Runs `devicectl` until it exits, the host deadline passes or the calling task is cancelled; in
   /// the last two cases it is stopped before this returns or throws.
-  private func execute(_ arguments: [String], hostDeadline: TimeInterval) async throws -> DevicectlOutcome {
+  private static func execute(
+    _ arguments: [String], hostDeadline: TimeInterval, launcher: any SubprocessLauncher, logger: (any ControlCoreLogger)?
+  ) async throws -> DevicectlOutcome {
     let standardOutput = OSAllocatedUnfairLock(initialState: [String]())
     let standardError = OSAllocatedUnfairLock(initialState: [String]())
     let status = try await Subprocess(executable: "/usr/bin/xcrun", arguments: ["devicectl"] + arguments)
@@ -109,7 +118,7 @@ struct AppleDevicectlCommandExecutor: Sendable {
       guard outcome.status == .exited(0) else {
         return "Its CoreDevice state could not be read either: `devicectl list devices` did not succeed."
       }
-      let listing = try JSONDecoder().decode(DevicectlDeviceList.self, from: Data(contentsOf: output))
+      let listing = try JSONDecoder().decode(DevicectlConnectionList.self, from: Data(contentsOf: output))
       guard let entry = listing.result.devices.first(where: { $0.hardwareProperties?.udid == udid }) else {
         return "CoreDevice does not list the device."
       }
@@ -120,7 +129,7 @@ struct AppleDevicectlCommandExecutor: Sendable {
     }
   }
 
-  private struct DevicectlDeviceList: Decodable {
+  private struct DevicectlConnectionList: Decodable {
     struct Result: Decodable {
       struct Device: Decodable {
         struct HardwareProperties: Decodable {
@@ -142,33 +151,43 @@ struct AppleDevicectlCommandExecutor: Sendable {
 
 extension AppleDevicectlCommandExecutor {
   func launchApplication(configuration: ApplicationLaunchConfiguration) async throws -> pid_t {
-    let tmpPath = try FileManager.default.temporaryFile(extension: "json")
-    let tmpPathStr = tmpPath.path()
-    var arguments = [
+    let arguments = [
+      "device",
+      "process",
+      "launch",
+      "--timeout",
+      String(Int(timeout.rounded(.up))),
       "--device",
       udid,
       "--terminate-existing",
-      "--json-output",
-      tmpPathStr,
     ]
+    var launchArguments: [String] = []
     if !configuration.environment.isEmpty {
       if let envstr = String(
         data: try JSONSerialization.data(withJSONObject: configuration.environment),
         encoding: .utf8)
       {
-        arguments += ["--environment-variables", envstr]
+        launchArguments += ["--environment-variables", envstr]
       }
     }
     if configuration.waitForDebugger {
-      arguments.append("--start-stopped")
+      launchArguments.append("--start-stopped")
     }
-    arguments.append(configuration.bundleID)
-    arguments += configuration.arguments
-
-    try await run(["device", "process", "launch"], arguments)
-    let data = try Data(contentsOf: tmpPath)
-    let info = try JSONDecoder().decode(DevicectlProcInfo.self, from: data)
-    return info.result.process.processIdentifier
+    do {
+      let info: DevicectlProcInfo = try await Self.runJSON(
+        arguments, trailingArguments: launchArguments + [configuration.bundleID] + configuration.arguments,
+        logger: logger, deadline: timeout + Self.hostGrace, launcher: launcher)
+      return info.result.process.processIdentifier
+    } catch let error as DevicectlError {
+      switch error {
+      case let .timedOut(_, arguments, _):
+        throw DevicectlError.timedOut(seconds: timeout, arguments: arguments, deviceState: await deviceStateDescription())
+      case let .commandFailed(code, arguments, _, stderr) where code == "2" && stderr.contains("Command timeout of"):
+        throw DevicectlError.timedOut(seconds: timeout, arguments: arguments, deviceState: await deviceStateDescription())
+      default:
+        throw error
+      }
+    }
   }
 
   /// Sends SIGKILL to `processIdentifier`, which the process cannot catch or ignore. Fails if the
@@ -243,6 +262,52 @@ extension AppleDevicectlCommandExecutor {
     var result: Result
   }
 
+  /// The host's CoreDevice list. The host deadline bounds the run even if `devicectl` stops responding.
+  static func listDevices(
+    logger: any ControlCoreLogger,
+    hostTimeoutMilliseconds: UInt32 = UInt32(ControlCoreGlobalConfiguration.fastTimeout * 1_000),
+    launcher: any SubprocessLauncher = HostSubprocessLauncher()
+  ) async throws -> [CoreDeviceEntry] {
+    let arguments = ["list", "devices", "--timeout", String(Int(ControlCoreGlobalConfiguration.fastTimeout))]
+    let listing: DevicectlDeviceList = try await runJSON(
+      arguments, logger: logger.withName("devicectl"), deadline: TimeInterval(hostTimeoutMilliseconds) / 1_000, launcher: launcher)
+    return listing.result.devices
+  }
+
+  private static func runJSON<Response: Decodable>(
+    _ options: [String],
+    trailingArguments: [String] = [],
+    logger: (any ControlCoreLogger)?,
+    deadline: TimeInterval,
+    launcher: any SubprocessLauncher
+  ) async throws -> Response {
+    let output = try FileManager.default.temporaryFile(extension: "json")
+    defer { try? FileManager.default.removeItem(at: output.deletingLastPathComponent()) }
+    let arguments = options + ["--json-output", output.path()] + trailingArguments
+    let outcome = try await execute(arguments, hostDeadline: deadline, launcher: launcher, logger: logger)
+    switch outcome.status {
+    case .exited(0):
+      do {
+        return try JSONDecoder().decode(Response.self, from: Data(contentsOf: output))
+      } catch {
+        throw DevicectlError.unreadableJSON(path: output.path(), arguments: arguments, stdErr: outcome.standardError, underlying: error)
+      }
+    case .exited(let code):
+      throw DevicectlError.commandFailed(exitCode: String(code), arguments: arguments, stdOut: outcome.standardOutput, stdErr: outcome.standardError)
+    case .signalled(let signal):
+      throw DevicectlError.commandFailed(exitCode: "signal \(signal)", arguments: arguments, stdOut: outcome.standardOutput, stdErr: outcome.standardError)
+    case nil:
+      throw DevicectlError.timedOut(seconds: deadline, arguments: arguments, deviceState: outcome.standardError)
+    }
+  }
+
+  private struct DevicectlDeviceList: Decodable {
+    struct Result: Decodable {
+      let devices: [CoreDeviceEntry]
+    }
+    let result: Result
+  }
+
   private struct DevicectlProcInfo: Decodable {
     struct Result: Decodable {
       struct Process: Decodable {
@@ -252,6 +317,22 @@ extension AppleDevicectlCommandExecutor {
     }
     var result: Result
   }
+}
+
+/// A device as `devicectl list devices` reports it.
+struct CoreDeviceEntry: Decodable {
+  struct DeviceProperties: Decodable { let name: String? }
+  struct HardwareProperties: Decodable { let udid: String? }
+  struct ConnectionProperties: Decodable { let transportType: String? }
+
+  let identifier: String
+  let deviceProperties: DeviceProperties?
+  let hardwareProperties: HardwareProperties?
+  let connectionProperties: ConnectionProperties?
+
+  var udid: String? { hardwareProperties?.udid }
+  var name: String? { deviceProperties?.name }
+  var isWired: Bool { connectionProperties?.transportType == "wired" }
 }
 
 extension FileManager {
