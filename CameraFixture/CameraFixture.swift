@@ -21,6 +21,7 @@
  *   CameraFixture nv12 <frames>
  *   CameraFixture rotate <angle> <frames>        -- clockwise, on the data output's connection
  *   CameraFixture preview
+ *   CameraFixture roi                            -- session connections, and preview-layer rects and points at each gravity and angle
  *   CameraFixture photo <out.jpg>
  *   CameraFixture movie <seconds> <out.mov>
  *
@@ -270,6 +271,40 @@ func recordMovie(_ session: AVCaptureSession, _ seconds: TimeInterval, _ path: S
   return duration >= max(0.1, seconds - 0.75) ? 0 : 7
 }
 
+func convertRegions(_ session: AVCaptureSession) -> Int32 {
+  report("roi connections no-output=\(session.connections.count)")
+  let output = AVCapturePhotoOutput()
+  if session.canAddOutput(output) { session.addOutput(output) }
+  report("roi connections photo-output=\(session.connections.count)")
+  let layer = AVCaptureVideoPreviewLayer(session: session)
+  layer.frame = CGRect(x: 0, y: 0, width: 300, height: 600)
+  report("roi mirrored=\(layer.connection?.isVideoMirrored == true ? 1 : 0)")
+  let rect = CGRect(x: 30, y: 150, width: 120, height: 200)
+  let point = CGPoint(x: 75, y: 450)
+  var drift: CGFloat = 0
+  for gravity in [AVLayerVideoGravity.resizeAspect, .resizeAspectFill, .resize] {
+    layer.videoGravity = gravity
+    for angle: CGFloat in [0, 90, 180, 270] {
+      if layer.connection?.isVideoRotationAngleSupported(angle) == true { layer.connection?.videoRotationAngle = angle }
+      let metadata = layer.metadataOutputRectConverted(fromLayerRect: rect)
+      let device = layer.captureDevicePointConverted(fromLayerPoint: point)
+      let rectBack = layer.layerRectConverted(fromMetadataOutputRect: metadata)
+      let pointBack = layer.layerPointConverted(fromCaptureDevicePoint: device)
+      drift = max(
+        drift, abs(rectBack.minX - rect.minX), abs(rectBack.minY - rect.minY), abs(rectBack.width - rect.width),
+        abs(rectBack.height - rect.height), abs(pointBack.x - point.x), abs(pointBack.y - point.y))
+      report(
+        String(
+          format: "roi gravity=%@ angle=%.0f rect=%.4f,%.4f,%.4f,%.4f point=%.4f,%.4f", gravity.rawValue, layer.connection?.videoRotationAngle ?? -1,
+          metadata.minX, metadata.minY, metadata.width, metadata.height, device.x, device.y))
+    }
+  }
+  session.inputs.forEach(session.removeInput)
+  report("roi connections no-input=\(session.connections.count)")
+  report(String(format: "roi round-trip drift=%.6f", drift))
+  return drift < 0.001 ? 0 : 11
+}
+
 func run(_ arguments: [String]) -> Int32 {
   let mode = arguments.count > 1 ? arguments[1] : "stream"
   let argument = arguments.count > 2 ? arguments[2] : nil
@@ -323,6 +358,8 @@ func run(_ arguments: [String]) -> Int32 {
     }
     session.stopRunning()
     return layer.contents == nil ? 9 : 0
+  case "roi":
+    return convertRegions(session)
   default:
     break
   }

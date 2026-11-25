@@ -92,14 +92,18 @@ Each of these has already been a crash or a hang:
 | `AVCapturePhotoOutput` | JPEG, pixel buffer and `CGImageRepresentation` of the frame; overlapping captures queue |
 | `AVCaptureMovieFileOutput` | video-only H.264 `.mov` written to the destination, deleted on failure |
 | `AVCaptureVideoPreviewLayer` | live `contents`, `videoGravity` mapped onto `contentsGravity` |
+| `metadataOutputRectOfInterestForRect:`, `rectForMetadataOutputRectOfInterest:`, `captureDevicePointOfInterestForPoint:`, `pointForCaptureDevicePointOfInterest:` | between the layer and the normalised native frame, after `videoGravity`, the connection's rotation and mirroring, as on a device |
+| `AVCaptureSession.connections` | the virtual outputs' connections once the camera input is added, after any native ones |
 | `systemPreferredCamera`, `userPreferredCamera` | the back camera, as `defaultDeviceWithMediaType:` answers |
 | `videoMirrored` | a front camera's preview is mirrored and its outputs are not while `automaticallyAdjustsVideoMirroring` is on, as on a device; setting `videoMirrored` then raises, as it does there |
 
 Preview layers are tracked from `setSession:`, since apps bind them before adding the input.
 
 Not yet covered: `AVCaptureMultiCamSession`, depth and metadata outputs,
-`AVCaptureDeviceRotationCoordinator`, audio in recorded movies, an `activeFormat` that follows the preset (it is always 1920x1080), a session's
-`connections`, and `recordedDuration`.
+`transformedMetadataObjectForMetadataObject:`, `AVCaptureDeviceRotationCoordinator`,
+audio in recorded movies, an `activeFormat` that follows the preset (it is always
+1920x1080), a preview layer's connection in a session's `connections`, and
+`recordedDuration`.
 
 ## Presets and orientation
 
