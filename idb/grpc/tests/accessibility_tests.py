@@ -418,6 +418,40 @@ class AccessibilityWaitTests(TestCase):
             ),
         )
 
+    async def test_wait_distinguishes_sample_and_tree_truncation(self) -> None:
+        # Field 2 remains the legacy aggregate. Fields 4 and 5 carry explicit
+        # read/sample flags, including false; an old companion omits both.
+        for payload, truncated, read_truncated, sample_truncated in [
+            (b"\x10\x01\x20\x00\x28\x01", True, False, True),
+            (b"\x10\x01\x20\x01\x28\x00", True, True, False),
+            (b"\x10\x01\x20\x01\x28\x01", True, True, True),
+            (b"\x20\x00\x28\x00", False, False, False),
+            (b"\x10\x01\x28\x01", True, None, True),
+            (b"\x10\x01", True, None, None),
+            (b"", False, None, None),
+        ]:
+            with self.subTest(payload=payload):
+                self.client.stub.accessibility_action.return_value = AccessibilityActionResponse(
+                    wait=AccessibilityActionResponse.WaitResponse(
+                        result=AccessibilityActionResponse.TIMED_OUT,
+                        diagnostics=AccessibilityActionResponse.WaitDiagnostics.FromString(
+                            payload
+                        ),
+                    )
+                )
+                result = await self.client.accessibility_wait_result(
+                    AccessibilityMarker("missing")
+                )
+                self.assertIs(result.diagnostics.truncated, truncated)
+                self.assertIs(
+                    getattr(result.diagnostics, "read_truncated", None),
+                    read_truncated,
+                )
+                self.assertIs(
+                    getattr(result.diagnostics, "sample_truncated", None),
+                    sample_truncated,
+                )
+
     async def test_wait_distinguishes_missing_empty_and_failed_observations(
         self,
     ) -> None:

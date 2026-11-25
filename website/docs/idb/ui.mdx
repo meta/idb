@@ -134,9 +134,13 @@ idb ui wait com.apple.settings.general --match-key AXUniqueId --json
 
 A match exits successfully and prints `{"found": true}` with `--json`. A timeout exits with an error and prints `found: false` plus an `error` message naming the searched key and marker. The JSON `error` contains only the timeout explanation; observed values appear separately in `diagnostics`. Without `--json`, the CLI formats those values beneath the explanation.
 
-With `--api axbridge` (the default) or a host backend (`--api ax`, `--api ax-coresimulator`), timeout `diagnostics.unmatched_values` contains only nonmatching values of the searched key from the final poll: labels for a label search, identifiers for an identifier search. It contains no other element attributes and requires no additional tree read. The sample holds at most 50 values, each limited to 200 characters; `diagnostics.truncated` indicates omitted text. Older companions and backends that do not supply diagnostics omit the field.
+With `--api axbridge` (the default) or a host backend (`--api ax`, `--api ax-coresimulator`), timeout `diagnostics.unmatched_values` contains only nonmatching values of the searched key from the final poll: labels for a label search, identifiers for an identifier search. It contains no other element attributes and requires no additional tree read. The sample holds at most 50 values, each limited to 200 characters; `diagnostics.sample_truncated` indicates omitted text. Older companions and backends that do not supply diagnostics omit `diagnostics`.
 
-For `axbridge`, `diagnostics.truncated` also records a truncated tree read. If its final poll ended in a retryable read failure, `diagnostics.read_error` explains why and the values are empty. The `ax` backend propagates read failures as errors instead.
+`diagnostics.read_truncated` separately reports whether the tree read stopped at a bound. A truncated sample does not make the search incomplete; a truncated tree read means a missing marker may be outside the read tree. The text output marks a shortened sample with `(truncated)` and reports a truncated tree read on a separate line.
+
+For compatibility, `diagnostics.truncated` remains the aggregate of sample and tree truncation. New companions explicitly send `sample_truncated`, including `false`. The `axbridge` backend also sends `read_truncated`, including `false`; host backends (`ax`, `ax-coresimulator`) cannot report tree completeness and return `null` for it. With older companions, both separate flags are `null`: the aggregate cannot identify which kind of truncation occurred, and text output retains its legacy `(truncated)` suffix. Clients that need to establish a complete read should require `read_error` to be `null` and `read_truncated` to be `false`; an absent flag is unknown.
+
+For `axbridge`, if its final poll ended in a retryable read failure, `diagnostics.read_error` explains why and the values are empty. The `ax` backend propagates read failures as errors instead.
 
 ## Waiting for the UI to settle
 
