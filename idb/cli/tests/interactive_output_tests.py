@@ -11,6 +11,7 @@ import io
 import os
 import sys
 import tempfile
+import time
 from argparse import Namespace
 from collections.abc import AsyncIterator, Callable, Iterator
 from contextlib import nullcontext, redirect_stderr, redirect_stdout
@@ -161,6 +162,22 @@ class _ObservedLogClient:
             self.yielded.append(chunk)
             yield chunk
             self.seen.append(self.written.getvalue())
+
+    def tail_logs(
+        self, stop: asyncio.Event, arguments: list[str] | None = None
+    ) -> AsyncIterator[str]:
+        return self._chunks(stop)
+
+    def tail_companion_logs(self, stop: asyncio.Event) -> AsyncIterator[str]:
+        return self._chunks(stop)
+
+
+class _OneLineThenQuietLogClient:
+    """Streams one log line, then nothing until stopped, as a narrow `--predicate` stream does."""
+
+    async def _chunks(self, stop: asyncio.Event) -> AsyncIterator[str]:
+        yield "first\n"
+        await stop.wait()
 
     def tail_logs(
         self, stop: asyncio.Event, arguments: list[str] | None = None
@@ -704,3 +721,72 @@ class InteractiveOutputTests(TestCase):
                     # of what is still buffered succeeds, even after a failed cancel.
                     stdout.write("after")
                     stdout.flush()
+
+    async def test_log_leaves_the_loop_idle_when_another_descriptor_holds_the_broken_pipe(
+        self,
+    ) -> None:
+        for argv in (["log"], ["companion", "log"]):
+            with self.subTest(argv=argv):
+                read_end, write_end = os.pipe()
+                # A second write end, as stderr is after `2>&1`, keeps the pipe
+                # open once standard output leads to /dev/null.
+                stderr_end = os.dup(write_end)
+                self.addCleanup(os.close, stderr_end)
+                os.close(read_end)
+                stdout = open(write_end, "w", encoding="utf-8")
+                self.addCleanup(stdout.close)
+                stop = asyncio.Event()
+                args, command = self._resolve(argv)
+                with (
+                    patch(
+                        "idb.cli.commands.log.signal_handler_event", return_value=stop
+                    ),
+                    redirect_stdout(stdout),
+                ):
+                    await command.run_with_client(
+                        args, cast(Client, _OneLineThenQuietLogClient())
+                    )
+
+                self.assertTrue(stop.is_set())
+                busy = time.process_time()
+                await asyncio.sleep(0.5)
+                busy = time.process_time() - busy
+                self.assertLess(busy, 0.2, "the event loop spins on the closed pipe")
+
+    async def test_log_stops_when_the_reader_of_stdout_exits_between_lines(
+        self,
+    ) -> None:
+        for argv in (["log"], ["companion", "log"]):
+            with self.subTest(argv=argv):
+                read_end, write_end = os.pipe()
+                stdout = open(write_end, "w", encoding="utf-8")
+                self.addCleanup(stdout.close)
+                stop = asyncio.Event()
+                args, command = self._resolve(argv)
+                with (
+                    patch(
+                        "idb.cli.commands.log.signal_handler_event", return_value=stop
+                    ),
+                    redirect_stdout(stdout),
+                ):
+                    streaming = asyncio.ensure_future(
+                        command.run_with_client(
+                            args, cast(Client, _OneLineThenQuietLogClient())
+                        )
+                    )
+                    # The reader takes its line, as `head -1` does...
+                    first = await asyncio.wait_for(
+                        asyncio.to_thread(os.read, read_end, 100), timeout=10
+                    )
+                    self.assertEqual(first, b"first\n")
+                    await asyncio.sleep(0.2)
+                    self.assertFalse(streaming.done(), "stopped while read")
+                    # ...and exits while the stream has nothing more to write.
+                    os.close(read_end)
+                    await asyncio.wait_for(streaming, timeout=10)
+
+                self.assertTrue(stop.is_set())
+                # Standard output now leads to /dev/null, so the flush at exit
+                # of what is still buffered succeeds.
+                stdout.write("after")
+                stdout.flush()

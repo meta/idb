@@ -7,9 +7,11 @@
 
 import asyncio
 import os
+import stat
 import sys
 from argparse import ArgumentParser, Namespace, REMAINDER
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Callable, Iterator
+from contextlib import contextmanager
 
 from idb.cli import ClientCommand
 from idb.common.signal import signal_handler_event
@@ -17,20 +19,61 @@ from idb.common.types import Client
 
 
 async def _print_log(chunks: AsyncIterator[str], stop: asyncio.Event) -> None:
-    try:
-        async for chunk in chunks:
-            # Standard output is block-buffered when it is a file or a pipe, which
-            # would hold back a quiet stream's lines for as long as it runs.
-            print(chunk, end="", flush=True)
-        print("", flush=True)
-    except BrokenPipeError:
-        # The reader has gone, as `head` does once it has its lines: cancel the
-        # stream as an interrupt does, and end without an error. Standard output
-        # is discarded first, so the exit stays quiet even if the cancel fails.
+    with _stop_when_stdout_loses_its_reader(stop) as reader_gone:
+        try:
+            async for chunk in chunks:
+                # Standard output is block-buffered when it is a file or a pipe, which
+                # would hold back a quiet stream's lines for as long as it runs.
+                print(chunk, end="", flush=True)
+            print("", flush=True)
+        except BrokenPipeError:
+            # The reader has gone, as `head` does once it has its lines: cancel the
+            # stream as an interrupt does, and end without an error. Standard output
+            # is discarded first, so the exit stays quiet even if the cancel fails.
+            reader_gone()
+            async for _ in chunks:
+                pass
+
+
+@contextmanager
+def _stop_when_stdout_loses_its_reader(
+    stop: asyncio.Event,
+) -> Iterator[Callable[[], None]]:
+    # A write would notice the reader has gone, but a quiet stream may not write
+    # again for a long time, so the pipe is watched instead.
+    fd = _stdout_pipe()
+    loop = asyncio.get_running_loop()
+
+    def reader_gone() -> None:
+        # The watch goes first: once standard output leads to /dev/null, the loop
+        # cannot remove it, and epoll keeps reporting the closed pipe for as long
+        # as another descriptor, such as stderr after `2>&1`, holds it open.
+        if fd is not None:
+            loop.remove_reader(fd)
         _discard_stdout()
         stop.set()
-        async for _ in chunks:
-            pass
+
+    if fd is None:
+        yield reader_gone
+        return
+    # A read watch on the write end of a pipe fires only when the read end has
+    # closed: there is never anything to read, but once nothing reads the pipe,
+    # epoll reports an error on the write end and kqueue reports EOF, and the
+    # loop treats either as ready.
+    loop.add_reader(fd, reader_gone)
+    try:
+        yield reader_gone
+    finally:
+        loop.remove_reader(fd)
+
+
+def _stdout_pipe() -> int | None:
+    try:
+        fd = sys.stdout.fileno()
+        is_pipe = stat.S_ISFIFO(os.fstat(fd).st_mode)
+    except (AttributeError, OSError):
+        return None
+    return fd if is_pipe else None
 
 
 def _discard_stdout() -> None:
