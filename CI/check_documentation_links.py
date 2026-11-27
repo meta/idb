@@ -90,7 +90,6 @@ def lint_message(path: str, broken: list[str]) -> dict[str, object]:
         "path": path,
         "line": None,
         "char": None,
-        "code": "IDBDOCLINKS",
         "severity": "error",
         "name": "broken-documentation-link",
         "original": None,
