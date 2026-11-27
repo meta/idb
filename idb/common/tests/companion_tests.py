@@ -177,6 +177,30 @@ class CompanionTests(TestCase):
                 **self.exec_mock_common_args,
             )
 
+    async def test_spawn_tcp_server_with_debug_port(self) -> None:
+        async with self._mock_all_the_things(
+            {"hostname": "myHost", "grpc_port": 1234}
+        ) as exec_mock:
+            (_, port, _) = await self.spawner.spawn_tcp_server(
+                config=self.companion_server_config,
+                port=1234,
+                debug_port=1233,
+            )
+            exec_mock.assert_called_once_with(
+                "idb_path",
+                "--udid",
+                self.udid,
+                "--grpc-port",
+                "1234",
+                "--debug-port",
+                "1233",
+                "--only",
+                "simulator",
+                env=os.environ,
+                **self.exec_mock_common_args,
+            )
+            self.assertEqual(port, 1234)
+
     async def test_spawn_tcp_server_with_swift(self) -> None:
         async with self._mock_all_the_things(
             {"hostname": "myHost", "grpc_port": 1234, "grpc_swift_port": 1235}

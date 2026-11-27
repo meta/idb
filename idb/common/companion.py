@@ -303,12 +303,15 @@ class Companion(CompanionBase):
         port: int | None,
         swift_port: int | None = None,
         tls_cert_path: str | None = None,
+        debug_port: int | None = None,
     ) -> tuple[asyncio.subprocess.Process, int, int | None]:
         port_env_variables: dict[str, str] = {}
         if swift_port is not None:
             port_env_variables["IDB_SWIFT_COMPANION_PORT"] = str(swift_port)
 
         bind_arguments = ["--grpc-port", str(port) if port is not None else "0"]
+        if debug_port is not None:
+            bind_arguments.extend(["--debug-port", str(debug_port)])
         if tls_cert_path is not None:
             bind_arguments.extend(["--tls-cert-path", tls_cert_path])
         (process, log_file_path) = await self._spawn_server(
