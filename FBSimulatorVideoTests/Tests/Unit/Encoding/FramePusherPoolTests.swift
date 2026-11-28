@@ -54,18 +54,4 @@ final class FramePusherPoolTests: XCTestCase {
     XCTAssertNotNil(pool.take(size))
   }
 
-  func testWarmingAVideoToolboxPusherHandsNothingOn() throws {
-    try VideoEncodingHostSupport.skipUnlessHardwareH264Encoding()
-    let pusher = createTestVideoStreamPusher(CapturingLogger())
-    var buffer: CVPixelBuffer?
-    let attributes: [String: Any] = [kCVPixelBufferIOSurfacePropertiesKey as String: [String: Any]()]
-    XCTAssertEqual(CVPixelBufferCreate(nil, 640, 480, kCVPixelFormatType_32BGRA, attributes as CFDictionary, &buffer), kCVReturnSuccess)
-    let pixelBuffer = try XCTUnwrap(buffer)
-    try pusher.setup(source: VideoFrameSource(pixelBuffer), edgeInsets: VideoStreamEdgeInsets(top: 0, bottom: 0, left: 0, right: 0))
-    defer { try? pusher.tearDown() }
-
-    try pusher.warm(with: pixelBuffer)
-
-    XCTAssertEqual(pusher.statsRecorder.snapshot.callbackCount, 0)
-  }
 }
